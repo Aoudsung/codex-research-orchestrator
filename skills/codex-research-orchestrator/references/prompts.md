@@ -1,61 +1,61 @@
-# 可转交的工作说明
+# Handoff-Ready Work Instructions
 
-委派或外部讨论时按需使用。完整研究交接保留以下五部分；局部追问可以缩短，只保留接收方需要的内容。替换花括号，展开对方无法访问的引用。项目另有用户要求的固定原文时照录，不将这些个人要求带入其他项目。
+Use these templates as needed for delegation or external discussion. A full research handoff retains the five sections below. A focused follow-up may be shorter and include only what the recipient needs. Replace braces and expand references the recipient cannot access. If the project has fixed wording required by the user, reproduce it verbatim; do not carry those personal requirements into other projects.
 
-## 共同研究 / 独立分析
+## Joint Research / Independent Analysis
 
 ```markdown
-# 研究目标
-研究问题、对象与本次交付：{内容及来源}
-用户已确认的约束原文：{逐字引入，附确认来源}
-草案解释：{如有，明确未确认}
-本轮问题：{要改变的判断，以及什么结果能决定下一步}
+# Research Goal
+Research question, object, and current deliverable: {content and source}
+Verbatim user-confirmed constraints: {quote exactly and cite the confirmation source}
+Draft interpretation: {if any, explicitly mark as unconfirmed}
+Question for this round: {the judgment to change and the result that would determine the next action}
 
-# 目前的基础与缺口
-情境：{独立分析 / 共同研究}
-事实与原始材料：{材料、定位、实际可读范围}
-缺少但必要的输入：{具体内容及影响}
-共同研究时附：{当前决策、候选主张和争议，均可推翻}
-独立分析时不附其他人的问题分解、路线取舍和评价。
+# Current Basis and Gaps
+Context: {independent analysis / joint research}
+Facts and original materials: {materials, locations, and actual readable scope}
+Missing but necessary inputs: {specific inputs and their effects}
+For joint research, include: {current decisions, candidate claims, and disputes, all open to revision or refutation}
+For independent analysis, exclude other participants' problem decompositions, choices of direction, and evaluations.
 
-# 工作顺序
-{本轮适当的调查、推导、反例、观测设计或实现核对；不预定结论}
-读写与外发范围：{明确边界}
-资源与停止条件：{本任务适用的边界}
+# Work Sequence
+{appropriate investigation, derivation, counterexamples, observation design, or implementation checks for this round; do not prescribe the conclusion}
+Read, write, and external-sharing scope: {explicit boundaries}
+Resources and stop conditions: {boundaries applicable to this task}
 
-# 判断要求
-先处理能够由逻辑、原始资料或实现证据判定的问题。
-主张须给出成立条件、依据及反例；经验上未知的量具体指出。
-评价应服务于研究目标，不以角色数量、术语、一致意见或指标单点改善代替依据。
-{本项目已确认的贡献标准与表达要求；没有则不擅自增加}
+# Judgment Requirements
+First resolve questions that logic, original sources, or implementation evidence can settle.
+State the conditions, evidence, and counterexamples for claims; identify specific quantities that remain empirically unknown.
+Evaluation must serve the research goal. Role counts, terminology, agreement, or improvement in one metric do not replace evidence.
+{the project's confirmed contribution standards and writing requirements; do not add any without authorization}
 
-# 交付形式
-首行 complete、partial 或 blocked，随后给出：
-本轮结论与条件、实际依据位置、相关约束核对、主张或决策需要怎样改变。
-说明解决了什么困难；若仍有缺口，具体指出下一步需要什么。
-执行过的检查报告实际结果，未执行的计划明确标明。
+# Deliverable Format
+Use complete, partial, or blocked on the first line, then provide:
+This round's conclusions and conditions, actual evidence locations, checks against relevant constraints, and required changes to claims or decisions.
+Explain which difficulty was resolved. For any remaining gap, specify what the next action needs.
+Report actual results for checks performed, and clearly label plans that have not been executed.
 ```
 
-## 独立审阅
+## Independent Review
 
-沿用上述五段，情境改为独立审阅。提供用户约束、原始资料、待审方案全文及指定版本的必要证据，不提供其他评价或预期答案。
+Use the same five sections and set the context to independent review. Provide user constraints, original materials, the complete proposal under review, and necessary evidence for the specified version. Exclude other evaluations and expected answers.
 
-“工作顺序”写为：
+Use the following work sequence:
 
-1. 说明实际读到的材料、版本和覆盖范围。
-2. 判断方案实际研究的对象与用户要求是否一致；指出定义、对象或目标被替换的位置。
-3. 检查关键主张的依据、条件和最强反例，区分推导成立、经验支持与尚未支持。
-4. 对影响结论的发现给出位置、触发条件、后果和最小修正；既有正文已排除的疑点不重复提出。
-5. 说明本轮新增了什么知识或排除了什么假设；按范围检查实施与证据是否足以支撑交付。
+1. State the materials and versions actually read, and the scope covered.
+2. Determine whether the proposal's actual research object matches the user's request. Identify any substitution of definitions, object, or goal.
+3. Check the evidence, conditions, and strongest counterexamples for key claims. Distinguish valid derivations, empirical support, and unsupported claims.
+4. For findings that affect the conclusion, provide the location, trigger, consequence, and smallest correction. Do not repeat concerns already ruled out by the proposal itself.
+5. Explain what knowledge this round added or which hypothesis it ruled out. Within scope, check whether implementation and evidence support the deliverable.
 
-交付还须注明独立性实际满足到什么程度，结尾给出当前证据能支撑的最强主张。不要把可选优化写成阻塞问题。
+The deliverable must also state the actual degree of independence and end with the strongest claim supported by the current evidence. Do not present optional improvements as blockers.
 
-## 实施或实验交接
+## Implementation or Experiment Handoff
 
-沿用五段，附方案与执行契约的确切版本。明确可以编辑的区域、不能静默改变的科研语义、实际执行环境、批次和预算。
+Use the same five sections and include exact versions of the proposal and execution contract. Specify editable areas, research semantics that must not change silently, the actual execution environment, batches, and budget.
 
-交付要求改为：修改或执行范围、对应版本、实际操作与命令、验证结果和退出状态、关键结果及证据路径、偏离与未覆盖项。常规故障在获准范围内修复；方法歧义、资源不足或跨范围依赖交回主研究者，并继续不受影响的工作。
+Replace the deliverable requirements with: scope of changes or execution, corresponding version, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and uncovered items. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work.
 
-## 约束或授权冲突
+## Constraint or Authorization Conflict
 
-仅在必须由用户决定时使用短报告：哪条已确认约束或资源边界与什么事实冲突；依据在哪里；保持原约束的选项是什么；改变约束会怎样改变研究对象或成本；建议及其理由。普通候选失败自行处理，不生成审批任务。
+Use a brief report only when the user must decide: which confirmed constraint or resource boundary conflicts with which fact; where the evidence is; options that preserve the original constraint; how changing it would affect the research object or cost; and a recommendation with reasons. Handle ordinary candidate failures without creating an approval task.

@@ -1,50 +1,50 @@
-# 当前研究状态
+# Current Research State
 
-更新时间：
-本次任务状态：进行中 / 等待结果 / 等待决定 / 用户暂停 / 已完成（选择实际状态）
-用户约束来源与当前版本：
-授权与资源配置：project.md
+Last updated:
+Current task status: in progress / awaiting results / awaiting a decision / paused by user / complete (select the actual status)
+Source and current version of user constraints:
+Authorization and resource configuration: project.md
 
-## 当前判断
+## Current Assessment
 
-- 正在回答的问题及它对研究目标的作用：
-- 当前方案或论证全文及版本：
-- 已取得的最强结论、条件和依据：
-- 本轮涉及的用户约束核对及依据：
+- Question being addressed and its role in the research goal:
+- Full current proposal or argument and its version:
+- Strongest conclusion reached, its conditions, and supporting evidence:
+- User constraints checked in this round and the basis for each check:
 
-## 未解困难
+## Unresolved Difficulties
 
-| 困难 | 已知事实与必要条件 | 当前缺口 | 下一项有判别力的工作 |
+| Difficulty | Known facts and necessary conditions | Current gap | Next work that can distinguish possible explanations |
 |---|---|---|---|
 
-## 候选主张
+## Candidate Claims
 
-状态按需要使用：猜想、条件下已推出、有证据支持、已推翻；保留成立条件，不把状态当置信分数。
+Use statuses as needed: conjecture, derived under stated conditions, supported by evidence, or refuted. Preserve the conditions under which each claim holds; status is not a confidence score.
 
-| 编号 | 主张 | 状态 | 条件与范围 | 依据 | 反证或修订条件 |
+| ID | Claim | Status | Conditions and scope | Evidence or derivation | Conditions for refutation or revision |
 |---|---|---|---|---|---|
 
-## 当前决策
+## Current Decisions
 
-| 编号 | 当前选择 | 理由与备选 | 修改来源或历史记录 |
+| ID | Current choice | Rationale and alternatives | Source of change or history record |
 |---|---|---|---|
 
-## 审阅与反馈
+## Reviews and Feedback
 
-| 审阅记录 | 覆盖版本、主张与条件 | 独立性说明 | 发现的处理及未决项 |
+| Review record | Version, claims, and conditions covered | Independence statement | Treatment of findings and open items |
 |---|---|---|---|
 
-## 进行中的工作
+## Work in Progress
 
-| 工作 | 负责人 | 会话/作业与结果入口 | 已完成范围 | 待收结果或阻塞 |
+| Work | Owner | Session/job and result entry point | Completed scope | Pending results or blockers |
 |---|---|---|---|---|
 
-## 下一步与续接
+## Next Steps and Resumption
 
-- 下一项行动、预期得到的证据及其如何改变判断：
-- 所需材料和反馈是否可取得：
-- 已用资源与剩余边界的依据：
-- 最新暂停、恢复或待用户决定事项（附来源；没有则写无）：
-- 续接前先核对哪个既有会话或作业：
+- Next action, expected evidence, and how it would change the assessment:
+- Whether required materials and feedback are available:
+- Basis for resource usage and remaining limits:
+- Latest pause, resume, or pending user decision (include the source; write "none" if absent):
+- Existing session or job to check before resuming:
 
-仅在需要时增加相关工作实践、迁移分析、实验矩阵等栏目；原始材料放在轮次或执行记录中，不在状态文件复制全部历史。
+Add sections for relevant working practices, migration analysis, experiment matrices, or other needs only when useful. Keep original materials in round or execution records; do not copy the full history into this state file.

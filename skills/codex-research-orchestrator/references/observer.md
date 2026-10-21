@@ -1,28 +1,28 @@
-# 可选协作观察
+# Optional Collaboration Observation
 
-仅在用户要求评估协作效率或流程质量时读取。观察者分析研究如何推进，不接管研究。
+Read this file only when the user requests an assessment of collaboration efficiency or process quality. The observer analyzes how research progresses without taking over the research.
 
-## 输入与权限
+## Inputs and Permissions
 
-先读取项目已确认的目标、标准和授权，以及新增工作索引；再定向查看支撑判断的原始证据。已有观察记录保存读取位置，不反复加载全部历史。
+First read the project's confirmed goals, standards, authorizations, and new work-index entries. Then inspect the original evidence needed for the assessment. Save reading positions in existing observation records instead of repeatedly loading the full history.
 
-只读项目允许的材料，只写项目指定的独立观察目录，例如 `observations/`。不修改研究状态、宪章、代码或技能，不向其他参与者发指令，不自行暂停研究或改变预算。发现严重问题时报告事实并提出建议，由用户按权限决定。
+Read only permitted project materials and write only to the project's designated, separate observation directory, such as `observations/`. Do not modify research state, the charter, code, or skills; direct other participants; pause research; or change budgets. Report facts and recommendations when serious issues arise. The user decides within the applicable permissions.
 
-没有已确认的效率或成果标准时，可以提出分析口径并标为建议，不能据此宣告研究验收通过或失败。
+If efficiency or outcome standards have not been confirmed, the observer may propose analytical criteria and label them as recommendations. Those criteria cannot establish that the research has passed or failed acceptance.
 
-## 判断是否推进
+## Assessing Progress
 
-优先看“困难—行动—证据—判断变化”能否连接：
+First check whether difficulty, action, evidence, and a change in judgment form a connected account:
 
-- 一轮工作消除了哪个未知、排除了什么候选或明确了什么条件？
-- 反复讨论是否在重复已知信息，还是在解决不同的剩余问题？
-- 外部意见是否被核对并转为决策，实施回执是否对应当前版本？
-- 等待、重复执行或重复读取是否有可指出的原因和成本？
+- Which unknown did a round resolve, candidate did it rule out, or condition did it clarify?
+- Is repeated discussion restating known information or addressing different remaining questions?
+- Were external opinions checked and turned into decisions? Do implementation receipts correspond to the current version?
+- Is there a specific reason and cost for waiting, repeated execution, or repeated reading?
 
-没有实验、没有代码修改、候选被否定或遵守暂停，都不能单独判为空转。多个参与者同意也不单独证明研究推进。
+The absence of experiments or code changes, the rejection of a candidate, or compliance with a pause does not by itself mean work is unproductive. Agreement among multiple participants does not by itself establish research progress either.
 
-## 建议的交付
+## Suggested Deliverables
 
-每项建议给出：具体观察与证据位置、造成的后果、最小流程改动、预期可观察变化，以及不奏效时如何撤回。不要提出与已确认研究对象或授权冲突的优化。
+For each recommendation, provide the specific observation and evidence location, its consequences, the smallest process change, the expected observable effect, and how to reverse it if it fails. Do not propose optimizations that conflict with the confirmed research object or authorization.
 
-状态分清“提出、用户采纳、已落实、效果已观察”。用户同意不等于已经落实；变化发生后也要有证据才能判断是否有效。观察指标用于解释协作，不追求日志数量或表格完整度。
+Distinguish the states “proposed,” “accepted by the user,” “implemented,” and “effect observed.” User agreement does not mean a change has been implemented. After a change occurs, evidence is still needed to assess its effect. Observation metrics explain collaboration; they are not targets for log counts or complete tables.

@@ -1,53 +1,55 @@
-# 设计依据：让长期自主研究保持科学价值
+# Design rationale: preserve scientific value in sustained autonomous research
 
-## 问题来源
+## The motivating problem
 
-作者的实践动机是：自动化研究能够完成许多操作，但在无人看管时，对创新性、关键科学问题和原始研究主线的把握仍可能不足。多轮协作尤其容易让一个暂时假设变成所有参与者继承的前提，或让易完成的代理指标替代用户真正关心的问题。
+The author's motivation is a practical concern: research automation can complete many operations while still struggling to assess novelty, identify the key scientific problem, and retain the original research purpose without supervision. Across multiple rounds, a tentative assumption can become a premise inherited by every participant. An easy proxy can replace what the user actually wanted to study.
 
-本项目针对这些失效设计工作协议。以下因果说明是设计依据与可检验预测；它们不构成优于其他系统的实证证明。
+This project addresses those failure modes through a collaboration protocol. The explanations below are design arguments and testable predictions, not evidence that the framework outperforms other systems.
 
-## 从失效到机制
+## From failure to mechanism
 
-| 具体失效 | 本项目的机制 | 为什么可能改变行为 | 可观察的检验 |
+| Failure mode | Mechanism | Why behavior may change | Observable check |
 |---|---|---|---|
-| 优化容易完成的子任务，原问题逐渐消失 | 用户约束原文、对象核对、每轮“困难—判断—证据” | 每轮交接必须把动作重新连接到原问题，替换对象会留下可定位差异 | 隐去项目名称，由独立评判者核对最终对象与最初请求；记录未授权变更 |
-| 当前方案被误当作不可改动的要求 | 约束、决策、候选主张分别维护 | 保护目标，同时允许失败方法退出，降低路径依赖 | 面对反例是否修订候选，是否仍保留原研究问题 |
-| 多代理继承同一错误分解，互相强化 | 关键问题先独立分析，隔离已有评价后再对照 | 减少直接从他人结论生成附和意见的机会 | 原始判断是否独立产生；新增的反例或条件是否改变决策 |
-| 名称包装或技术拼接被当作创新 | 比较最近工作、迁移条件、部件之间的必要关系 | 让创新主张落到行为或性质的差异，暴露无机制支撑的组合 | 独立审阅能否指出与最近工作的实质差异及对应性质 |
-| 审阅报告很多，问题无人处理 | 主研究者逐项采纳、反驳或登记未决 | 将意见转为可追踪的动作和证据，明确最终责任 | 阻塞发现是否仍存在于已交付版本，反驳是否有依据 |
-| 上下文压缩或交接改变目标与结论 | 权威原文、当前状态、原始结果分别保存 | 续接时能核对来源和条件，不只依赖摘要 | 续接前后约束、主张条件及正在运行的工作是否一致 |
-| 只按轮数、篇幅和运行次数判断勤奋 | 工作日志索引“判断变化”，可选观察者定点取证 | 将协作改进指向信息增量和真实断点 | 能否解释每项必要工作的知识增量及避免的重复成本 |
+| Easy subtasks displace the original question | Original user constraints, object checks, and a difficulty–judgment–evidence link in each round | Handoffs must reconnect actions to the original problem; a substituted object leaves a traceable discrepancy | An independent assessor compares the final research object with the original request and identifies unauthorized changes |
+| A current approach becomes an immutable requirement | Separate constraints, decisions, and candidate claims | Protect the goal while allowing failed methods to exit | Does a counterexample lead to a revised candidate while preserving the original question? |
+| Agents inherit and reinforce one flawed decomposition | Independent analysis before comparison, with prior evaluations withheld | Reduce direct anchoring on another participant's conclusion | Were judgments formed independently, and did new counterexamples or conditions change the decision? |
+| Renaming or combining techniques is treated as innovation | Compare the closest work, transfer conditions, and necessary relationships among components | Ground novelty in differences in behavior or properties and expose unsupported combinations | Can a reviewer identify the substantive difference and the property it produces? |
+| Reviews accumulate without resolution | The lead accepts, rebuts, or leaves each finding open with evidence | Convert feedback into traceable actions and establish ownership | Do blocking findings remain in the delivered version, and are rebuttals supported? |
+| Compaction or handoff changes goals and conclusions | Separate authoritative statements, current state, and original results | Resumption can verify sources and conditions instead of relying on a summary alone | Are constraints, claim conditions, and running jobs consistent before and after resumption? |
+| Activity is judged by rounds, pages, or run counts | Index changed judgments; let an optional observer inspect specific evidence | Focus coordination improvements on information gained and concrete bottlenecks | Can each necessary action's knowledge gain and avoided repetition be explained? |
 
-## 创新性与主线一致性如何兼容
+## Innovation and continuity can coexist
 
-保持一致的是研究对象、关键科学问题和用户已确认的需求。候选机制、问题分解、实现路径和实验方案可依据证据变化。若把这些暂时选择也冻结，会阻止反例纠错；若把原始目标也任意改写，则局部成功可能与用户需求无关。
+The research object, key scientific question, and confirmed user requirements remain stable unless the user changes them. Candidate mechanisms, problem decompositions, implementations, and experiments remain revisable.
 
-跨领域研究同样遵循这一关系：允许更换求解方法，但必须说明借鉴的结构为何适用于原问题，改变了什么操作或关系，产生什么可检验预测。接触更多领域和增加更多模块本身不构成创新。
+Freezing tentative choices can prevent correction by counterexample. Allowing the original goal to drift can make local success irrelevant to the request. The framework treats these as different kinds of change.
 
-对于探索性研究，证据可以是反例、必要条件、机制论证或更精确的问题定义，不要求立即产生可运行分数。对于已有明确指标的研究，指标仍应连接到目标，不能从局部改善直接推出整体有效。
+The same distinction applies to cross-field research. A different method is welcome, but its structure must map to the original problem. Explain which operation or relationship it changes and what prediction follows. More disciplines or modules do not by themselves establish innovation.
 
-## 创新主张的范围
+In exploratory work, evidence can be a counterexample, a necessary condition, a mechanism argument, or a more precise problem statement. It need not immediately produce a runnable score. When a metric is available, connect it to the objective rather than inferring overall effectiveness from a local improvement.
 
-本项目的原创交付是面向 Codex 的协作规程、职责衔接、记录模板与领域迁移设计。其重点在于围绕科研价值组织多轮行为，而非提供新的底层模型、搜索算法或训练方法。
+## Scope of the contribution
 
-独立审阅、人类反馈、多智能体和持久化记录都有先例。当前相关工作核对支持的是设计侧重点比较，不能支持“首个”“唯一”或“已解决自主科研质量问题”。具体来源见 [相关工作](related-work.md)。
+The original deliverables are a Codex research protocol, role handoffs, record templates, and a design for adapting them across fields. They organize multi-round behavior around scientific value. They do not provide a new base model, search algorithm, or training method.
 
-## 成立条件与失效边界
+Independent review, human feedback, multi-agent systems, and persistent records have precedents. The current review of related work supports a comparison of design emphasis. It cannot establish “first,” “only,” or “solves autonomous research quality.” See [related work](related-work.md).
 
-这些机制需要：用户问题足够明确；原始材料可取得；参与者有对应领域能力；隔离和执行权限真实生效；主研究者实际核对证据并处理反馈。
+## Conditions and failure boundaries
 
-规则可能退化为填表：给“满足”标签却不给证据，把候选写成漂亮术语，或以自查冒充独立意见。为此，技能要求结论指向定义、推导、原始资料或真实执行结果；未做到时只能报告缺口，不能算验收完成。
+The protocol depends on a sufficiently clear user question, access to primary materials, participants with relevant knowledge, effective context isolation and permissions, and a lead that actually checks evidence and resolves feedback.
 
-模型知识不足、错误来源、多个模型共享盲点、受限的实验条件及环境权限，都可能使方案失败。增加角色不能自动消除这些问题。本框架也不会从“存在闭环”推出研究必然成功。
+The process can degrade into form filling: labels without evidence, polished names for weak ideas, or self-review presented as independent assessment. The skill therefore requires judgments to point to definitions, derivations, primary sources, or actual execution results. Missing evidence remains a gap rather than a completed acceptance check.
 
-## 如何检验设计是否有效
+Model limitations, incorrect sources, shared blind spots, restricted experiments, and unavailable permissions can still cause failure. More roles do not automatically remove these problems. A feedback loop alone does not prove research effectiveness.
 
-后续比较应给不同工作流相同研究问题、原始资料、模型能力与预算，保留完整结果，再由未接触生成过程的评判者核对：
+## How to test the design
 
-- 关键科学问题是否被识别并获得实质推进。
-- 最终主张与原始对象、约束和用户交付要求是否一致。
-- 创新差异是否真实，关键主张是否得到适当证据支持。
-- 反例和审阅反馈是否导致正确修订。
-- 相同资源下，新增知识与无效重复的关系。
+A future comparison should give workflows the same questions, original materials, model capabilities, and budgets. Preserve full outputs, then ask assessors who did not see the generation process to examine:
 
-先说明具体假设和判断标准，再运行比较；没有这类结果前，设计目标与效果证据分开陈述。本文不把未来评测建议强制变成每个使用者的项目流程。
+- Whether the key scientific question was identified and meaningfully advanced.
+- Whether the final claims match the original object, constraints, and requested deliverable.
+- Whether the contribution is substantive and the key claims have suitable evidence.
+- Whether counterexamples and review findings led to justified revisions.
+- The relationship between knowledge gained and unnecessary work under matched resources.
+
+Specify hypotheses and criteria before the comparison. Until such results exist, keep design goals separate from evidence of effect. These evaluation suggestions are not mandatory steps for every research project.

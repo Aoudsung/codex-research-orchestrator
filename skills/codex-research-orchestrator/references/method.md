@@ -1,65 +1,65 @@
-# 按研究问题选择证据
+# Choose Evidence for the Research Question
 
-在提出方案、分析有效性或设计研究时读取本文件。不同研究可以组合以下方式，不要求全部使用。
+Read this file when proposing an approach, analyzing its effectiveness, or designing a study. A study may combine the approaches below; it need not use all of them.
 
-## 从问题到可检验判断
+## From a Question to a Testable Judgment
 
-先写清要解释或改变的对象、目标量、适用条件、可用信息和资源。机制研究需要连通“输入信息—反馈—更新或作用机制—系统行为—目标结果”；描述性或解释性研究需要连通“来源—测量或解释方法—证据—主张”。不要把没有因果识别条件的相关关系写成机制结论。
+First define what the study seeks to explain or change, its target quantity, applicable conditions, available information, and resources. Mechanistic research must connect input information, feedback, the update or action mechanism, system behavior, and the target outcome. Descriptive or explanatory research must connect sources, measurement or interpretation, evidence, and claims. Do not present an association as a mechanistic conclusion without the conditions needed for causal identification.
 
-推论须说明依赖哪些假设，以及当前方案是否满足。可在实验前发现的定义矛盾、不可辨识性、信息缺失、实现偏离和反例，应先处理。经验效应的大小和外部有效性不能仅由推理保证；具体指出待观测的是哪一项，而非用“没做实验”结束分析。
+State the assumptions each inference depends on and whether the current proposal satisfies them. Address contradictions in definitions, non-identifiability, missing information, implementation deviations, and counterexamples that can be found before an experiment. Reasoning alone cannot establish empirical effect sizes or external validity. Identify the specific quantity that still needs observation instead of ending the analysis with “no experiments have been run.”
 
-关键主张采用以下形式：
+Use this form for key claims:
 
-> 在条件 A 下，对对象 O，方法或解释 M 预期产生结果 Y；依据 E 支持其中的哪些环节，观测或反例 F 将推翻或限制它。
+> Under conditions A, for object O, method or explanation M is expected to produce outcome Y. Evidence E supports the following links in that argument; observation or counterexample F would refute or limit it.
 
-## 证据方式
+## Forms of Evidence
 
-| 研究类型 | 主要工作与证据 | 不能据此直接推出 |
+| Research type | Main work and evidence | What this does not establish by itself |
 |---|---|---|
-| 理论与数学 | 精确定义、假设、引理与证明、反例、边界条件 | 数值算例成立即一般定理成立 |
-| 计算与系统 | 算法推导、实现对应、适当任务与强对照、资源和重复性记录 | 组件可运行或内部指标改善即整体目标达成 |
-| 实证与观测 | 测量有效性、抽样、识别条件、混杂与偏差处理、适当比较及不确定性 | 相关性即因果；样本内结果必然外推 |
-| 实验与设计科学 | 作用机制、可执行协议、对照、测量条件、结果解释 | 没有机制根据的试错；未执行的协议即结果 |
-| 定性与文献研究 | 一手资料、来源批判、选材理由、编码或解释过程、相反材料 | 摘要堆叠即论证；材料缺失即现象不存在 |
-| 复现与验证 | 原始主张和条件、实现及协议对齐、差异定位、受影响检查 | 复现失败就必然推翻原方法；偏离条件的复现即等价检验 |
+| Theory and mathematics | Precise definitions, assumptions, lemmas and proofs, counterexamples, boundary conditions | Successful numerical examples do not establish a general theorem |
+| Computation and systems | Algorithm derivation, correspondence with implementation, appropriate tasks and strong baselines, resource and reproducibility records | Working components or improved internal metrics do not establish that the overall goal has been met |
+| Empirical and observational research | Measurement validity, sampling, identification conditions, treatment of confounding and bias, suitable comparisons and uncertainty | Correlation does not establish causation; results within a sample do not guarantee generalization |
+| Experimental and design science | Mechanism of action, executable protocol, controls, measurement conditions, interpretation of results | Trial and error without a mechanistic basis; an unexecuted protocol is not a result |
+| Qualitative and literature research | Primary materials, source criticism, selection rationale, coding or interpretation process, contrary evidence | A collection of summaries is not an argument; missing material does not establish that a phenomenon is absent |
+| Reproduction and validation | Original claims and conditions, alignment of implementation and protocol, localization of differences, checks affected by those differences | A failed reproduction does not necessarily refute the original method; a reproduction under different conditions is not an equivalent test |
 
-理论研究可用证明承担主结论；新领域可由自建仪器、数据集或任务承担主证据，但必须论证测量与研究对象的对应、独立性和适用范围。不要机械要求所有领域使用公共 benchmark、训练模型或进行实验。
+A theoretical study may use proof as its main evidence. A new field may rely on custom instruments, datasets, or tasks, but must justify their correspondence to the research object, independence, and scope of applicability. Do not require public benchmarks, model training, or experiments in every field.
 
-## 机制构造与跨领域迁移
+## Building Mechanisms and Transferring Ideas Across Fields
 
-先去掉领域名称，用动作、信息、约束和失效位置描述瓶颈，再定向寻找处理相同结构的工作。读取一手资料中的实际方法与成立条件，不把名称相似当成机制对应。
+First remove field-specific labels and describe the bottleneck in terms of actions, information, constraints, and failure points. Then search for work that addresses the same structure. Read the actual methods and validity conditions in primary sources. Similar names do not establish corresponding mechanisms.
 
-对每项借鉴回答：
+For each borrowed idea, answer:
 
-- 原方法依赖的结构在本问题里对应什么？缺失条件如何补足？
-- 它改变哪条关系、操作或反馈，因而预期改变什么结果？
-- 什么反例会让这种迁移失效？保留、改造还是放弃？
+- What corresponds to the structure the original method relies on? How will missing conditions be supplied?
+- Which relationship, operation, or feedback does it change, and what outcome should change as a result?
+- What counterexample would make the transfer fail? Should the idea be retained, adapted, or abandoned?
 
-用核心关系解释各部件怎样共同起作用。职责表可以发现遗漏和冗余，不能证明框架统一或创新。不要因多读一个领域就多加一个模块。
+Explain how the components work together through their core relationships. A responsibility table can reveal gaps and redundancy; it cannot prove that a framework is unified or novel. Reading another field is not a reason to add another module.
 
-贡献标准由任务确定：复现、证伪、测量、理论解释、数据资源和方法创新均可成为目标。涉及创新性时分别判断与最近工作的实质差异、差异产生的性质、贡献的分量；不把“必须颠覆性创新”设为所有项目的默认要求。
+The task determines the contribution standard. Reproduction, falsification, measurement, theoretical explanation, data resources, and methodological innovation can all be valid goals. When novelty matters, assess the substantive difference from the closest work, the properties that follow from it, and the significance of the contribution separately. Do not make “disruptive innovation” a default requirement for every project.
 
-## 推导与反例
+## Derivations and Counterexamples
 
-构造与目标直接相关的最强反例，区分结构性缺陷、实现偏离和附加条件。给出明确判断：哪项主张成立、依赖什么、哪项不成立、怎样最小修改。缺少保证不等于不可能，直觉和假设也不等于证明。
+Construct the strongest counterexamples directly relevant to the goal. Distinguish structural flaws, implementation deviations, and additional conditions. State a clear judgment: which claim holds, what it depends on, which claim fails, and the smallest correction needed. Lack of a guarantee does not establish impossibility; intuition and assumptions are not proofs.
 
-要求最坏情形保证时证明方案充分；只有声称最优时才需证明匹配下界。单位、数值和边界要核对。有限算例只支持其覆盖的范围；要推广须给出映射或论证。
+For a worst-case guarantee, prove that the proposal is sufficient. A matching lower bound is needed only when claiming optimality. Check units, numerical values, and boundaries. Finite examples support only the cases they cover; broader claims require a mapping or argument.
 
-## 设计实验或观测
+## Designing Experiments or Observations
 
-先检查相关领域怎样支持同类主张，再选择任务、数据、比较对象和规模。对计算性能主张，优先采用与目标匹配的公认任务和有竞争力的对照；不因现成数据方便就替换研究对象。
+First examine how the relevant field supports similar claims, then select tasks, data, comparisons, and scale. For computational performance claims, prefer established tasks matched to the goal and competitive baselines. Do not replace the research object simply because convenient data are available.
 
-每个必要实验说明：
+For each necessary experiment, specify:
 
-| 主张或未决条件 | 要区分的解释 | 任务/对象与比较 | 观测及判据 | 不同结果如何改变判断 | 成本与停止条件 |
+| Claim or unresolved condition | Explanations to distinguish | Task/object and comparison | Observations and criteria | How different results would change the judgment | Cost and stop conditions |
 |---|---|---|---|---|---|
 
-预先明确关键指标、数据划分或选材方式，以及必要的随机性、重复次数和不确定性处理。按领域和具体失败模式选择，避免机械套用。看到结果后的探索可以做，但须与预先指定的检验区分，不能通过反复选择指标和对照制造成功结论。
+Specify key metrics, data splits or material selection, and necessary randomness, repetitions, and uncertainty treatment in advance. Choose them for the field and concrete failure modes, rather than applying a fixed checklist. Exploration after seeing results is allowed, but distinguish it from prespecified tests. Do not manufacture a success claim through repeated selection of metrics and baselines.
 
-先运行能够区分当前解释的最小检查；只有结果、新改动或新证据说明有必要，才扩大。实验检验已有预测、量化效应或检验明确假设，不能代替应先完成的逻辑分析。
+Start with the smallest check that can distinguish the current explanations. Expand only when results, changes, or new evidence justify it. Experiments test existing predictions, quantify effects, or examine explicit hypotheses; they cannot replace logical analysis that should come first.
 
-实施授权、资料使用条件或人类参与研究等真实边界未满足时，继续允许的设计和资料工作。提出方案不等于允许执行。
+If execution authorization, conditions on material use, or real boundaries such as requirements for research involving human participants are unmet, continue permitted design and source work. Proposing a study does not authorize its execution.
 
-## 成文
+## Writing
 
-围绕“问题与缺口—方法或解释—关键关系—证据—结论的条件”组织内容，体裁随领域调整。摘要、方法和证据指向同一研究对象。出现逻辑断裂时先检查对象或主张是否被替换，再修文字。否定结果与条件性结论如实呈现。
+Organize the account around the problem and gap, method or explanation, key relationships, evidence, and conditions on the conclusion. Adapt the form to the field. The abstract, methods, and evidence must address the same research object. When an argument breaks, first check whether the object or claim has been substituted, then revise the prose. Report negative results and conditional conclusions accurately.

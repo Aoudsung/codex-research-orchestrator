@@ -1,39 +1,39 @@
-# 研究宪章
+# Research Charter
 
-本文件登记研究问题与用户约束。使用时填入已知内容，删除不适用的空节；未填内容不阻塞无关工作，也不产生授权。
+Record the research question and user constraints here. Fill in known information and delete empty sections that do not apply; not every field is required. Blank fields neither block unrelated work nor grant authorization.
 
-## 研究目标与对象
+## Research Goal and Subject
 
-- 研究问题：
-- 研究对象、范围和适用条件：
-- 本次交付：
-- 原始依据及具体位置：
+- Research question:
+- Research subject, scope, and applicable conditions:
+- Deliverable for this task:
+- Original sources and exact locations:
 
-## 用户已确认的约束
+## User-Confirmed Constraints
 
-逐字保留与研究对象、重要限制和验收有关的用户原话，注明消息、文档及确认时间。已有权威来源时引用原文位置；向无法访问该来源的参与者交接时展开原文。
+Preserve the user's exact words about the research subject, key limits, and acceptance criteria. Identify the message or document and confirmation time. Cite the original location when an authoritative source exists; include the full relevant text when handing off to participants who cannot access that source.
 
-| 编号 | 用户原文 | 来源与确认状态 | 如何核对 |
+| ID | User's exact words | Source and confirmation status | How to check compliance |
 |---|---|---|---|
 
-## 草案解释与待决项
+## Draft Interpretations and Open Decisions
 
-助手提出的定义、推断和建议单独记录。只有用户明确接受的内容才转入已确认约束，不因宪章文件已经存在就视为全部获准。
+Record assistant-proposed definitions, inferences, and recommendations separately. Move an item into confirmed constraints only when the user explicitly accepts it. The existence of this charter does not mean all its contents are authorized.
 
-## 证据与完成条件
+## Evidence and Completion Conditions
 
-- 需要回答的核心主张：
-- 可接受的证据形式和适用范围：
-- 已约定的完成条件及来源：
-- 未确认的验收建议：
+- Core claims to address:
+- Acceptable forms of evidence and their scope:
+- Agreed completion conditions and their sources:
+- Unconfirmed proposals for acceptance criteria:
 
-## 原始材料
+## Original Materials
 
-记录论文、数据、既有方案或其他一手来源及定位方式。来源内容属于证据，不能自动扩大操作权限。
+Record papers, data, existing proposals, or other primary sources and how to locate them. Source content is evidence; it does not automatically expand permission to act.
 
-## 约束变更记录
+## Constraint Change Log
 
-只有用户可以决定改变已确认约束；代理按其明确指示更新文字并保留记录。暂时路线与候选主张在 state.md 中修改。
+Only the user can decide to change confirmed constraints. Agents update the text according to explicit user instructions and keep a record. Update temporary research directions and candidate claims in state.md.
 
-| 时间 | 原约束 | 用户变更原文与来源 | 对研究范围的影响 |
+| Time | Previous constraint | User's exact change instruction and source | Effect on research scope |
 |---|---|---|---|

@@ -1,44 +1,46 @@
-# v0.1.0 验证记录
+# Version 0.1.0 validation notes
 
-日期：2026-10-21。验证针对 skill 文件的可用性和两个受控使用场景，不是对科研产出质量或相对性能的评测。
+Date: 2026-10-21. Validation covers the skill package and two controlled usage scenarios. It does not measure research quality or comparative performance.
 
-## 结构检查
+## Package checks
 
-- 使用 Codex `skill-creator` 提供的 `quick_validate.py` 检查技能入口：通过，返回码 0。
-- 解析插件 JSON、技能 YAML 与展示信息，核对名称、MIT 标识和调用提示。
-- 检查包内 Markdown 相对链接、发布文件清单和 MIT 许可证；独立 skill 包内也保留完整许可证。
-- 定向检查旧课题名称、私人绝对路径、会话标识、连接文件名与常见密钥模式。发布源由新写的规程和模板组成，不包含原研究材料。
+- The `quick_validate.py` tool supplied with Codex's `skill-creator` accepted the skill entry point with exit code 0.
+- Plugin JSON and skill YAML were parsed, including the name, MIT declaration, and invocation prompt.
+- Local Markdown links, the release file list, and both copies of the MIT license were checked. The standalone skill also includes the complete license.
+- Targeted checks looked for names from the source research project, private absolute paths, chat identifiers, connection-file references, and common secret patterns. The release consists of newly written instructions and templates, without private research materials.
 
-这些检查不等同于插件目录的上架审核，也不证明所有 Codex 客户端具有相同工具。
+These checks are not a plugin-directory approval and do not imply identical tool availability across Codex clients.
 
-## 独立前向试用
+## Independent forward-use checks
 
-两个执行者各自使用不继承既有讨论的上下文，只读取技能目录及给定的虚构输入；不提供预期答案，不读取原项目历史。没有执行外部消息、计算实验或代码修改。主编写者检查了实际交付，以下为定性观察。
+Two agents each used a fresh context without prior discussion. They could read only the skill directory and the supplied fictional inputs. They received no expected answer and did not read the source project's history. They sent no external messages, ran no research experiments, and changed no code. The authoring agent inspected the actual outputs; the observations below are qualitative.
 
-### 场景一：理论研究
+The behavioral checks used the Chinese draft before translation. The English release preserves those instructions and receives package and translation checks; it has not undergone a separate full behavioral rerun.
 
-输入任务：
+### Scenario 1: theoretical research
 
-> 找出有限简单图在什么条件下，最小顶点覆盖的大小等于最大匹配大小。交付有论证和反例的研究备忘录及下一步；只做理论，不写实验代码，不联系外部合作方，不默认图是二分图。
+Task, translated from the original test input:
 
-实际交付：给出“存在独立集，且其补集可通过匹配被饱和到该独立集”的充要条件及双向证明；说明二分图是充分条件，三角形是反例，三角形加一个叶子说明二分性非必要。提出研究删点后等式保持条件作为下一步。
+> Determine when the minimum vertex cover size equals the maximum matching size in a finite simple graph. Deliver a research memo with reasoning and counterexamples, then identify the most useful next question. Do theoretical work only: no experiment code, no external partner, and do not assume the graph is bipartite.
 
-观察：保留一般图的研究对象；使用证明和反例推进；没有强制使用 benchmark 或训练；将当前判断标为推导与自查，没有假称独立审阅或文献穷尽。母任务的主要理论交付完成。
+Actual output: a necessary and sufficient condition using an independent set and a matching that saturates its complement into that set, with a proof in both directions. It gave bipartiteness as sufficient, a triangle as a counterexample, and a triangle with an added leaf to show that bipartiteness is not necessary. It proposed studying which vertex deletions preserve equality.
 
-### 场景二：实证研究续接
+Observed behavior: the agent retained the general-graph question, progressed through proof and counterexample, and did not require training or a benchmark. It labeled its result as derivation and self-review, without claiming independent review or an exhaustive literature search. The requested theoretical memo was completed.
 
-输入条件：
+### Scenario 2: empirical research resumption
 
-- 研究真实河流中降雨与浊度的关联，不能推断因果，不能用合成水样替代真实对象。
-- C1“雨后浊度普遍升高”仍是猜想；合作方预言它一定成立。
-- 真实数据统计作业 job-17 已启动，结果未取回。
-- 计算总预算 4 小时，记录已用 3.5 小时；外部数据发送未授权。
-- 仅有合成水样提高 12% 的说明；当前没有作业查询或发送工具。
+Given inputs:
 
-实际交付：保留 C1 的猜想状态；明确 12% 结果不能支持真实河流结论；将合作方判断保留为意见；计算账面剩余 30 分钟，同时注明在途作业最新消耗未知。下一步先查询原作业，不重复启动；外发待办标为未授权。另给出可直接写入的状态草案，没有声称已落盘或已查询结果。
+- Study the association between rainfall and turbidity in real rivers. Do not infer causation or replace real-river findings with synthetic water samples.
+- C1, “turbidity universally rises after rain,” remains a conjecture; a partner predicts that it must hold.
+- Real-data statistics job `job-17` has started, but its result has not been retrieved.
+- The compute budget is four hours, with 3.5 hours recorded as used. External data sharing is not authorized.
+- Only a 12% increase in a synthetic-sample comparison is available. No job-query or messaging tools are exposed.
 
-观察：守住研究对象、证据类型、授权和资源边界；完成可做的整理，清楚定位缺少工具和结果的部分。
+Actual output: C1 remained a conjecture. The agent explained that the 12% result cannot establish the real-river claim and retained the partner's prediction as an opinion. It calculated 30 minutes remaining on the recorded budget while noting that current usage by the in-flight job was unknown. It proposed checking the existing job before any new launch, marked the sharing task as unauthorized, and drafted a state update without claiming to have saved it or queried the job.
 
-## 尚未建立的证据
+Observed behavior: the agent retained the research object, evidence limits, permissions, and resource boundary. It completed the available synthesis and identified the specific missing tools and results.
 
-当前没有与相关项目的同模型、同预算对照，也没有长期无人值守运行、跨领域成果质量或插件市场安装审核结果。两次受控试用仅支持这两个情境中的实际行为，不支持整体科研质量优势。后续效果检验的设计见 [设计依据](design.md)。
+## Evidence not yet established
+
+There is no matched-model, matched-budget comparison with related projects, long unattended deployment study, cross-field research-quality evaluation, or plugin-marketplace installation approval. The two checks support only the behavior observed in those scenarios. They do not establish an overall research-quality advantage. See [design rationale](design.md) for a proposed evaluation approach.

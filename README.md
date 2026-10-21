@@ -1,61 +1,59 @@
 # Codex Research Orchestrator
 
-**专为 Codex 打造的多智能体科研协作框架。让无人值守研究持续围绕关键科学问题、真实创新与用户需求推进。**
+**A multi-agent research framework built specifically for Codex. Keep autonomous research focused on the scientific question, meaningful innovation, and the user's goals.**
 
-An open-source research collaboration skill built for Codex, with scientific problem selection, independent reasoning, and persistent alignment to the user's research goals.
+[MIT License](LICENSE) · [Skill entry point](skills/codex-research-orchestrator/SKILL.md) · [Design rationale](docs/design.md) · [Related work](docs/related-work.md)
 
-[MIT License](LICENSE) · [技能入口](skills/codex-research-orchestrator/SKILL.md) · [设计依据](docs/design.md) · [相关工作对照](docs/related-work.md)
+## Why this project exists
 
-## 为什么做这个项目
+This project grew out of the author's experience coordinating sustained research with multiple agents. The motivating problem is that agents can keep searching, discussing, running experiments, and writing while gradually losing the original scientific question. An easier substitute can become the target. A combination of familiar methods, presented fluently, can obscure a weak contribution. Without supervision, these deviations can accumulate across handoffs and produce a polished proposal with little research value.
 
-本项目来自作者组织长期、多智能体科研协作的实践。促使我们设计这套方案的问题是：agent 可以持续搜索、讨论、运行实验和写稿，却仍可能逐步偏离原始科学问题，把容易完成的替代任务当作研究目标，或用已有方法的组合与流畅文字掩盖创新不足。无人值守会使这些偏差在多轮交接中累积，最终交出形式完整、研究价值却不足的方案。
+The framework is designed around three goals:
 
-我们因此围绕三个目标组织协作：
+1. **Identify the key scientific problem.** Each round states the current difficulty, the judgment that must change, and the evidence needed to change it. Analyze necessary conditions before choosing a method.
+2. **Maintain continuity of research purpose.** Keep the original object, question, and confirmed constraints in an authoritative record. Allow methods and approaches to change when evidence rejects them.
+3. **Stay aligned with the user.** Separate confirmed requirements, draft interpretations, execution permissions, and resource limits throughout research, review, implementation, and resumption.
 
-1. **把握关键科学问题。** 每轮明确当前困难、需要改变的判断和能支持判断的证据；分析必要条件，再选择研究方法。
-2. **保持研究主线一致。** 原始对象、问题和用户确认的约束有权威来源；具体机制与路线可以推翻，避免为了局部成功偷换目标，也避免锁死错误方案。
-3. **持续对齐用户需求。** 把已确认要求、草案解释、执行授权和资源边界分别记录，贯穿研究、审阅、实施与续接。
+These are the project's motivation and design goals. They do not establish that every existing framework produces weak work, or that this framework has already demonstrated superior research quality.
 
-这是本项目的设计动机与目标。它不等于所有现有框架都产生低质量结果，也不等于本项目已经通过对照实验证明质量优势。
+## The design contribution
 
-## 本项目的创新设计
+The contribution is an inspectable **research collaboration protocol for Codex** that connects the mechanisms below. Multi-agent systems, reflection, review, and memory all have precedents; this project does not claim to have invented them.
 
-本项目的贡献是把以下机制组织成一套可执行、可检查的 **Codex 科研协作协议**。多智能体、反思、审稿和记忆均已有相关工作；我们不将这些单独宣称为首创。
-
-| 设计 | 在研究过程中实际改变什么 | 对应文件 |
+| Design | What it changes in practice | Implementation |
 |---|---|---|
-| 以科学问题和判断变化推进 | 每轮说明解决什么困难、什么证据能改变下一步；文档增长和角色一致不计作充分进展 | [研究方法](skills/codex-research-orchestrator/references/method.md) |
-| 约束、决策、主张分层 | 保留用户原始要求；方法选择可调整；有效性和创新主张必须能被反驳 | [技能入口](skills/codex-research-orchestrator/SKILL.md) |
-| 独立判断后再合作 | 关键分析与审阅先隔离既有评价，再交换推导和反例，减少全体继承同一错误分解 | [协作规则](skills/codex-research-orchestrator/references/collaboration.md) |
-| 将创新论证落实到机制 | 比较与最近工作的实质差异、差异带来的性质和贡献分量；跨领域借鉴必须给出结构对应与成立条件 | [研究方法](skills/codex-research-orchestrator/references/method.md) |
-| 审阅、实施和证据续接 | 逐项处理反馈；审阅覆盖具体版本和条件；原文、当前判断与执行证据分别保存 | [记录规则](skills/codex-research-orchestrator/references/records.md) |
-| 可观察但不越权的协作改进 | 观察者定位空转、重复劳动和交接断点，提交有证据的最小建议，由用户决定 | [观察规则](skills/codex-research-orchestrator/references/observer.md) |
+| Progress through scientific questions and changed judgments | Each round explains which difficulty it resolves and which evidence changes the next step. More text or agent agreement is not enough. | [Research methods](skills/codex-research-orchestrator/references/method.md) |
+| Separate constraints, decisions, and claims | Preserve the user's original requirements; revise method choices; make effectiveness and novelty claims open to refutation. | [Skill entry point](skills/codex-research-orchestrator/SKILL.md) |
+| Independent judgment before collaboration | Isolate prior evaluations during key analysis and review, then compare derivations and counterexamples. | [Collaboration](skills/codex-research-orchestrator/references/collaboration.md) |
+| Ground innovation in mechanisms | Compare substantive differences from the closest work, the properties those differences produce, and the contribution they support. Check conditions before transferring ideas across fields. | [Research methods](skills/codex-research-orchestrator/references/method.md) |
+| Connect review, implementation, and evidence | Resolve findings individually, track review coverage by version and conditions, and preserve sources separately from current conclusions. | [Records](skills/codex-research-orchestrator/references/records.md) |
+| Improve coordination without transferring control | An optional observer diagnoses repetition, stalled progress, and broken handoffs, then proposes evidence-based changes for the user to decide. | [Observation](skills/codex-research-orchestrator/references/observer.md) |
 
-预期作用及失效条件见 [设计依据](docs/design.md)。这里的创新属于协作机制与工作流设计；尚未提出新的基础模型算法，也没有宣称全领域首创或已验证的性能领先。
+[Design rationale](docs/design.md) explains the expected effects and failure conditions. The contribution is in collaboration and workflow design. This release does not introduce a new foundation-model algorithm or claim field-wide priority or measured performance leadership.
 
-## 为什么专为 Codex
+## Built specifically for Codex
 
-框架以 Codex 的 `SKILL.md` 为入口，按需加载参考规则与项目模板。主对话承担研究统筹；子代理承担可隔离的调查、推理和执行；项目文件承接跨轮状态；终端、连接器和可用的会话工具承接实际工作。具体映射写在 [Codex 接入](skills/codex-research-orchestrator/references/codex-runtime.md)。
+The framework enters through a Codex `SKILL.md` and loads references and project templates only when needed. The main chat leads the research. Subagents handle separable investigation, reasoning, and implementation. Project files preserve state across rounds. Available terminals, connectors, and chat tools carry out the work. [Codex integration](skills/codex-research-orchestrator/references/codex-runtime.md) maps these responsibilities to the host.
 
-不需要另起一个 Python 多代理服务，也不要求固定模型版本。Codex CLI、IDE 和桌面端的可用能力可能不同，技能以当前工具为准。外部研究合作方可以是另一位研究者或模型，ChatGPT Pro 只是可选绑定。当前轮内推进与跨时段唤醒分开：后者由用户要求并配置宿主调度。
+No separate Python multi-agent service or fixed model version is required. Available capabilities can differ across Codex CLI, IDE, and desktop clients; the skill follows the tools exposed in the current session. An external partner can be another researcher or model. ChatGPT Pro is one optional choice. Continuing in the current session and waking later are separate capabilities; the latter requires a user request and host scheduling.
 
-技能结构与加载依据 [Codex 官方技能文档](https://learn.chatgpt.com/docs/build-skills)，子代理行为依据 [官方子代理文档](https://learn.chatgpt.com/docs/agent-configuration/subagents)。本项目由 Aoudsung 独立维护，与 OpenAI 无隶属或背书关系。
+The package follows the [official skill documentation](https://learn.chatgpt.com/docs/build-skills) and [subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents). This is an independent community project maintained by Aoudsung, with no OpenAI affiliation or endorsement.
 
-## 与现有方案的关系
+## Relationship to existing projects
 
-| 项目 | 官方材料描述的重点 | 本项目选择解决的问题 |
+| Project | Focus described in its official materials | This project's focus |
 |---|---|---|
-| [AI Scientist-v2](https://github.com/SakanaAI/AI-Scientist-v2) | 从主题到实验和论文，结合实验管理、树搜索与反馈 | 将研究问题、约束、独立判断和长期交接显式组织为 Codex 工作规程 |
-| [Agent Laboratory](https://github.com/SamuelSchmidgall/AgentLaboratory) | 多角色科研流程，支持人工反馈、co-pilot 与状态恢复 | 将用户要求与科学主张分开维护，并明确审阅材料隔离及反馈处理责任 |
-| [AI-Researcher](https://github.com/HKUDS/AI-Researcher) | 文献、创意、实现、验证到论文的端到端多代理系统 | 将上述研究工作接入已有 Codex 工作区，按领域选择证据方式 |
-| [karpathy/autoresearch](https://github.com/karpathy/autoresearch) | 给 agent 一个小型训练环境，修改、运行、比较指标并保留改进 | 支持目标与评价协议尚需研究的开放问题，记录反例、条件和主张变化 |
-| [uditgoenka/autoresearch](https://github.com/uditgoenka/autoresearch) | 已支持 Codex；基于成功判据的有界循环，也有单次探索模式 | 面向开放科研持续维护科学问题、可修订主张和独立评判，而非仅以机械成功判据组织进展 |
+| [AI Scientist-v2](https://github.com/SakanaAI/AI-Scientist-v2) | Topic-to-experiment-to-paper automation with experiment management, tree search, and feedback | Make research questions, constraints, independent judgment, and sustained handoffs explicit in a Codex workflow |
+| [Agent Laboratory](https://github.com/SamuelSchmidgall/AgentLaboratory) | Multi-role research with human feedback, co-pilot mode, and state recovery | Maintain user requirements separately from scientific claims, with explicit review input isolation and feedback ownership |
+| [AI-Researcher](https://github.com/HKUDS/AI-Researcher) | An end-to-end system for literature, ideas, implementation, validation, and papers | Connect research work to an existing Codex workspace and select evidence methods for the field |
+| [karpathy/autoresearch](https://github.com/karpathy/autoresearch) | An agent edits a small training setup, runs it, compares a metric, and keeps improvements | Support open questions whose aims and evaluation still need research, including counterexamples, conditions, and claim revisions |
+| [uditgoenka/autoresearch](https://github.com/uditgoenka/autoresearch) | Already supports Codex, bounded loops with success predicates, and single-pass exploration | Sustain open scientific inquiry through question alignment, revisable claims, independent assessment, and evidence records |
 
-比较截至 **2026-10-21**，只说明已核对文档中的设计侧重点，不代表其他项目无法扩展。尤其“支持 Codex”“有多代理”“有审阅”“能续接”都不是本项目独有能力。精确来源和比较边界见 [相关工作](docs/related-work.md)。
+This comparison was checked on **2026-10-21**. It describes documented design emphasis, not limits on what other projects can be extended to do. Codex support, multiple agents, review, and resumption are not unique to this project. See [related work](docs/related-work.md) for direct sources and comparison limits.
 
-## 安装
+## Install
 
-最直接的方式是在你的研究项目中安装这个 skill：
+To add the skill to a research project:
 
 ```sh
 git clone https://github.com/Aoudsung/codex-research-orchestrator.git
@@ -64,82 +62,83 @@ cp -R codex-research-orchestrator/skills/codex-research-orchestrator \
   /path/to/your-research-project/.agents/skills/
 ```
 
-将示例路径替换成你的项目路径；目标已有同名技能时先比较版本，避免覆盖本地修改。也可以让 Codex 使用技能安装器，从本仓库的 `skills/codex-research-orchestrator` 目录安装。
+Replace the example path with your project directory. If a skill with the same name already exists, compare versions before replacing local changes. You can also ask Codex's skill installer to install `skills/codex-research-orchestrator` from this repository.
 
-仓库还提供 `plugin.json`，便于作为纯技能插件分发。它未配置外部 MCP 服务或后台进程，不需要在仓库中放 API 密钥。研究所需的具体工具与环境由使用者的 Codex 会话提供。
+The repository includes `plugin.json` for distribution as a skill-only plugin. It configures no external MCP service or background process and needs no API key in the repository. Research tools and execution environments come from the user's Codex session.
 
-## 开始研究
+## Start research
 
-在 Codex 中输入：
-
-```text
-使用 $codex-research-orchestrator 帮我研究以下问题：……
-研究对象与不能改变的要求：……
-已有材料：……
-本次需要交付：……
-允许的实现、实验和外部沟通范围：……
-可用资源或预算：……
-```
-
-不必先填完一张长表。Codex 会先读取已有资料，只询问会改变结果或授权的关键缺口。需要持久记录时，使用内置模板建立研究目录；已有研究直接沿用原入口。
-
-续接时输入：
+In Codex, use:
 
 ```text
-使用 $codex-research-orchestrator 继续 research/my-topic。
-先核对最新约束、暂停状态和正在运行的工作，再推进下一项必要研究。
+Use $codex-research-orchestrator to investigate this question: ...
+Research object and constraints: ...
+Available materials: ...
+Deliverable for this task: ...
+Allowed implementation, experiments, and external communication: ...
+Available resources or budget: ...
 ```
 
-典型工作过程：
+You do not need to fill a long form first. Codex reads existing materials and asks only about gaps that materially affect the result or authorization. When persistent records are useful, it creates a research directory from the templates. Existing projects retain their own entry points.
+
+To resume:
+
+```text
+Use $codex-research-orchestrator to continue research/my-topic.
+Check the latest constraints, pause status, and running work before
+starting the next necessary action.
+```
+
+A typical flow:
 
 ```mermaid
 flowchart LR
-    G[研究目标与关键问题] --> A[分析与机制设计]
-    A --> R[独立判断与审阅]
-    R --> D[主研究者处理反馈]
-    D --> E[获准的实现或观测]
-    D --> S[主张与证据记录]
+    G[Research goal and key question] --> A[Analysis and mechanism design]
+    A --> R[Independent judgment and review]
+    R --> D[Lead resolves feedback]
+    D --> E[Authorized implementation or observation]
+    D --> S[Claims and evidence records]
     E --> S
-    S --> N[下一项必要工作]
+    S --> N[Next necessary action]
     N --> A
-    S --> F[达到约定交付]
+    S --> F[Agreed deliverable complete]
 ```
 
-这是按问题选择的协作关系，不要求每轮经过所有节点。理论研究可以通过证明推进，文献研究可以通过原始材料与反证推进。
+Choose steps according to the question; not every round needs every node. Theory can progress through proofs, and literature research through primary sources and counterevidence.
 
-## 迁移到不同研究方向
+## Adapt to different fields
 
-改变的是研究问题、证据标准、参与者与执行资源；保留的是问题对齐、独立判断、反馈处理和证据续接。技能提供理论、计算系统、实证观测、实验设计、定性文献与复现的证据选择指引。
+Change the research question, evidence standards, participants, and execution resources. Keep question alignment, independent judgment, feedback handling, and evidence-based continuation. The skill includes guidance for theory, computational systems, empirical observation, experiments, qualitative research, and reproduction.
 
-- **算法与系统研究**：保持测量与实现语义一致，用适当对照检验机制主张。
-- **理论研究**：通过定义、推导、证明与反例推进，不强制安排训练或 benchmark。
-- **实证与定性研究**：核对资料选择、测量或解释方法与主张之间的关系，不把相关性或流畅叙述当因果证据。
+- **Algorithms and systems:** preserve implementation and measurement semantics, and test mechanism claims against suitable comparisons.
+- **Theory:** use definitions, derivations, proofs, and counterexamples without requiring training or benchmarks.
+- **Empirical and qualitative research:** connect source selection and measurement or interpretation to claims; do not treat correlation or fluent narrative as causal evidence.
 
-这些是设计适配范围，未宣称已经在所有领域完成端到端实证验证。
+These are intended uses, not a claim of completed end-to-end validation in every field.
 
-## 文件结构
+## Repository layout
 
 ```text
 codex-research-orchestrator/
 ├── README.md
 ├── LICENSE
 ├── plugin.json
-├── docs/                         # 设计、比较与验证记录
+├── docs/                         # Design, comparisons, and validation
 └── skills/codex-research-orchestrator/
-    ├── SKILL.md                  # Codex 技能入口
-    ├── agents/openai.yaml        # 技能展示信息
-    ├── assets/project-template/  # 宪章、项目配置、当前状态
-    └── references/               # 研究、协作、交接、观察与 Codex 接入
+    ├── SKILL.md                  # Codex skill entry point
+    ├── agents/openai.yaml        # Display metadata
+    ├── assets/project-template/  # Charter, settings, and current state
+    └── references/               # Methods, collaboration, records, and integration
 ```
 
-## 当前边界
+## Current scope
 
-v0.1.0 是由代理执行的指令与模板框架。它约束研究过程中的决策方式，但不提供程序级的预算强制执行、自动证明器或独立实验集群调度器。研究结论仍需真实依据；未来可以用原始目标偏离、关键主张支撑、独立审阅有效性和相同预算下的研究产出来检验设计效果。
+Version 0.1.0 is an instruction-and-template framework executed by an agent. It guides research decisions but does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
 
-验证范围记录在 [验证说明](docs/validation.md)。欢迎围绕具体失效案例提交改进，说明触发条件、当前行为和最小修正，避免把单个课题的特殊规则写成通用要求。
+[Validation notes](docs/validation.md) state what was checked. Contributions should describe a concrete failure, its trigger, the current behavior, and the smallest useful correction. Avoid turning one project's special requirements into universal rules.
 
-## 作者与许可
+## Author and license
 
-由 [Aoudsung](https://github.com/Aoudsung) 发起并维护，来自作者长期科研协作流程的提炼。仓库中的协作规程与模板为本项目编写；相关开源项目列为对照与参考来源，不宣称其已有思想为本项目首创。
+Created and maintained by [Aoudsung](https://github.com/Aoudsung), based on the author's sustained research collaboration practices. The collaboration instructions and templates were written for this project. Other open-source projects are cited for comparison and context; their established ideas are not claimed as original here.
 
-Copyright © 2026 Aoudsung. 按 [MIT License](LICENSE) 开源。
+Copyright © 2026 Aoudsung. Released under the [MIT License](LICENSE).

@@ -1,6 +1,6 @@
 ---
 name: codex-research-orchestrator
-description: 为 Codex 编排可续接的科研协作：明确研究问题与授权，组织独立分析、外部讨论、方案审阅、实现或实验交接，并依据证据持续更新判断。用于启动或继续多轮研究、组织 Codex 多代理科研或建立研究工作流；单次知识问答、普通代码修改和仅润色文字无需启动整套流程。
+description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, external collaboration, review, implementation or experiment handoffs, and evidence-based continuation. Use to start or resume multi-round research or organize a Codex research team. Do not start the full workflow for a one-off factual answer, routine code change, or text-only polish.
 license: MIT
 metadata:
   version: "0.1.0"
@@ -8,76 +8,76 @@ metadata:
 
 # Codex Research Orchestrator
 
-围绕关键科学问题、真实的创新依据和用户需求组织长期研究。每轮围绕一个会改变判断的问题，取得证据、处理反馈，再选择下一步。保护用户确定的研究对象和授权；具体机制、候选主张与当前路线都可以被证据推翻。
+Organize sustained research around the key scientific question, a supported contribution, and the user's needs. Each round should change a meaningful judgment through evidence. Protect the research object and authorization the user has set; revise or reject mechanisms, candidate claims, and current approaches when evidence warrants it.
 
-这是专门为 Codex 编写的科研协作技能，使用其技能加载、项目文件、子代理和可用工具完成工作。不同研究通过项目配置迁移，不绑定模型版本、私有会话、服务器或固定人数。首次使用时读 [Codex 接入](references/codex-runtime.md)，识别当前客户端能力。文件本身不创建后台服务，也不保证研究必然成功。
+This skill is built for Codex. It uses skill discovery, project files, subagents, and available tools. Adapt it to different fields through project settings, without fixing a model version, private chat, server, or team size. On first use, read [Codex integration](references/codex-runtime.md) to identify the current client's capabilities. These files do not create a background service or guarantee research success.
 
-## 进入任务
+## Enter the task
 
-**先判断是建立研究、续接研究，还是处理一个局部请求。** 局部任务只使用相关规则，不强制建全套档案。已有项目沿用其目录、契约和角色绑定，不建立第二套状态来源。
+**Determine whether the request starts a project, resumes one, or asks for a bounded contribution.** For a bounded request, use only the relevant guidance. Keep existing project paths, contracts, and role assignments; do not create a second source of state.
 
-建立研究时，从用户请求和已有资料中提取以下内容；只询问会改变研究语义、主要交付、资源边界或外发范围的缺口：
+For a new project, extract the following from the request and available materials. Ask only about gaps that change the scientific meaning, main deliverable, resource limits, or permission to share:
 
-- 要回答的问题、研究对象、适用条件，以及本次要交付什么。
-- 用户已经确认的约束、原始依据和确认来源；助手拟定的解释另列为草案。
-- 当前允许的行动：资料研究、推导、写作、实现、实验、外部沟通各到什么范围。
-- 可用参与者、工具、执行环境与预算。已明确的授权持续有效，不逐轮重复询问。
+- The question, research object, conditions, and requested deliverable.
+- Confirmed user constraints, original evidence, and confirmation sources. Keep assistant interpretations as drafts.
+- Authorized actions: reading, reasoning, writing, implementation, experiments, and external communication.
+- Available participants, tools, execution environment, and budget. Existing authorization remains valid; do not request it again every round.
 
-需要持久记录时，在用户指定目录或合理的课题目录中，用 [charter.md](assets/project-template/charter.md)、[project.md](assets/project-template/project.md)、[state.md](assets/project-template/state.md) 建立最小记录，填入已知事实。模板空项表示未记录，不能视为授权；明确的用户指令直接登记，无须再申请批准。仅因草案尚未全部确认，不阻塞已有明确范围内的工作。
+When persistent records are needed, use [charter.md](assets/project-template/charter.md), [project.md](assets/project-template/project.md), and [state.md](assets/project-template/state.md) in the user's chosen or a suitable research directory. Fill known facts. Empty fields are not authorization; record explicit user instructions without asking for confirmation again. An incomplete draft does not block work whose scope is already clear.
 
-续接时先读用户约束的权威原文、项目配置、当前状态和相关最近记录，核对最新暂停指示、尚在运行的任务和待收回执。独立分析或审阅例外，按 [协作规则](references/collaboration.md) 隔离既有评价。不要重新启动已在运行的工作。
+On resumption, read the authoritative user constraints, project settings, current state, and relevant recent records. Check the latest pause instructions, running jobs, and pending results. Independent analysis and review are exceptions: isolate prior judgments as specified in [collaboration](references/collaboration.md). Do not restart work already in progress.
 
-## 分清三类内容
+## Keep three categories separate
 
-| 类别 | 例子 | 如何改变 |
+| Category | Examples | How it changes |
 |---|---|---|
-| 用户约束 | 研究对象、已指定的方法限制、交付范围、预算与外发授权 | 只按用户指示更新，保留来源与变更记录 |
-| 当前决策 | 候选方法、分工、搜索路线、当前实验方案 | 在授权内依据证据调整，记录原因 |
-| 候选主张 | 有效性、因果解释、定理、泛化或性能预测 | 写明条件、依据与反证标准，随证据修订或推翻 |
+| User constraints | Research object, required limits, deliverables, budget, sharing permissions | Update only on the user's instruction; retain the source and change record |
+| Current decisions | Candidate method, division of work, search strategy, experiment plan | Revise within authorization when evidence supports it; record why |
+| Candidate claims | Effectiveness, causal explanation, theorem, generalization, performance prediction | State conditions, evidence, and refutation criteria; revise or reject as needed |
 
-文献里的定义、合作方建议、助手推断和未确认的宪章草案都不能自动变成用户约束。发现候选不满足约束时，修正或淘汰候选；不要以容易证明、容易运行或容易发表为理由改写原问题。
+Definitions in a paper, collaborator suggestions, assistant inferences, and draft charter text do not automatically become user constraints. If a candidate violates a constraint, repair or reject it. Do not replace the original question because a substitute is easier to prove, run, or publish.
 
-## 工作循环
+## Research loop
 
-1. **选定要改变的判断。** 从当前目标和未解困难出发，说明取得什么结果即可决定下一步。避免把“再讨论一轮”作为目标。
-2. **选择能回答问题的方法。** 先处理可通过资料、推导、反例或实现核对解决的问题，再安排必要观测。设计、实证、理论、复现采用不同证据方式，见 [研究方法](references/method.md)。
-3. **组织工作并取得原始结果。** 独立研究、共同讨论、审阅、实现各有不同输入。按 [协作规则](references/collaboration.md) 选择参与者，用 [交接提示词](references/prompts.md) 提供足够材料；没有并行收益的短诊断循环由主研究者完成。
-4. **核对结果改变了什么。** 检查关键推导、来源或受影响实现；区分新证据与对方意见。审阅发现逐项采纳、反驳或保留未决，均给依据；只补查实质变化或未覆盖部分。
-5. **更新并继续。** 主研究者串行更新状态、主张和决策，保存原始材料及简短工作索引，格式见 [记录规则](references/records.md)。只要目标尚未完成，下一项必要工作明确且在授权和预算内，就接着做。
+1. **Choose the judgment to change.** Connect the current difficulty to the research goal. State what result would decide the next step. “Have another discussion” is not a research objective.
+2. **Choose a method that can answer it.** Resolve what sources, derivations, counterexamples, or implementation checks can settle before arranging necessary observations. Design, empirical work, theory, and reproduction require different evidence; see [research methods](references/method.md).
+3. **Assign work and obtain original results.** Independent research, joint discussion, review, and implementation need different inputs. Select participants using [collaboration](references/collaboration.md), and provide sufficient context using [handoff prompts](references/prompts.md). Keep short diagnostic loops with the lead when delegation would add no value.
+4. **Determine what the result changes.** Check the key derivation, source, or affected behavior. Distinguish new evidence from another participant's opinion. Accept, rebut, or leave each review finding open, with reasons. Recheck only material changes or uncovered questions.
+5. **Record and continue.** The lead updates state, claims, and decisions serially, preserving original materials and a short work index under [recordkeeping](references/records.md). Continue the next necessary action when the objective is unfinished and the action is clear, authorized, and within budget.
 
-研究进展包括明确成立条件、排除候选、修正推导、取得有判别力的观测和完成有效实现。篇幅、轮数、角色数量、一致意见或局部指标上涨不能单独证明进展或整体有效。
+Progress can mean establishing conditions, ruling out a candidate, repairing a derivation, obtaining a discriminating observation, or completing a valid implementation. More pages, rounds, agents, agreement, or a better internal metric do not alone establish research progress or overall effectiveness.
 
-## 角色与控制权
+## Roles and control
 
-| 角色 | 责任与边界 |
+| Role | Responsibility and limit |
 |---|---|
-| 用户 | 确定研究对象、重要取舍、权限和资源；可暂停或改变目标 |
-| 主研究者 | 研究语义、路径选择、协作调度、反馈处理、记录汇总和最终验收 |
-| 研究合作方 | 主动调研、提出机制、推导和反例；关键问题先独立判断再对照 |
-| 独立审阅者 | 对指定版本和主张给出有依据的判断，不继承其他人的结论 |
-| 实施者 | 按明确方案完成实现或获准实验，返回对应版本的真实证据；方法歧义交回主研究者 |
-| 协作观察者（可选） | 诊断协作瓶颈并提出建议，不接管研究、指挥成员或改写规则 |
+| User | Sets the research object, material tradeoffs, permissions, and resources; may pause or change the goal |
+| Research lead | Owns scientific meaning, approach selection, coordination, feedback handling, shared records, and final acceptance |
+| Research partner | Investigates, proposes mechanisms, derives results, and constructs counterexamples; forms an independent view on key questions before comparison |
+| Independent reviewer | Evaluates a specified version and its claims from evidence, without inheriting others' conclusions |
+| Implementer | Implements the agreed approach or runs authorized experiments; returns version-linked evidence and escalates methodological ambiguity |
+| Collaboration observer, optional | Diagnoses coordination problems and proposes changes; does not take over research, direct participants, or rewrite rules |
 
-角色是职责，不是必须创建的会话。复用用户指定的参与者；确有独立或并行价值时才使用临时代理。单代理可以兼做研究与实施，自查应标为自查，不能称独立审阅。观察者仅在用户要求协作评估时启用，见 [观察规则](references/observer.md)。
+Roles describe responsibilities, not a required set of chats. Reuse participants the user has designated. Create temporary agents only when independence or parallel work adds value. One agent may research and implement, but must label its own check as self-review. Enable the observer only when the user requests a coordination assessment; see [observation](references/observer.md).
 
-## 持续推进与停止
+## Continue and stop
 
-按用户授权的持续范围推进。单轮请求完成后交付；持续研究不以一次回复、审阅通过或文档写完为停点，也不将“还缺核心机制”本身当成停点。遇到瓶颈先区分当前路径失败和问题条件冲突，再换材料、推理方法、分解或候选。
+Follow the scope of the user's request. Deliver when a single-round request is complete. For sustained research, one reply, review approval, or finished document is not a stopping point. A missing core mechanism is not itself a reason to stop. At a bottleneck, distinguish failure of the current approach from a conflict in the problem conditions, then change sources, methods, decomposition, or candidates.
 
-以下情况形成检查点并说明具体边界：
+Create a checkpoint and explain the concrete boundary when:
 
-- 本次约定的交付和相关验收已经完成。
-- 用户要求暂停；暂停范围内的工作停止。
-- 预算或时间边界已到，或下一步会越过边界。
-- 必要输入、权限或外部结果缺失，且没有可独立推进的必要工作。
-- 证据揭示用户约束之间的冲突，必须由用户决定。
+- The requested deliverable and relevant acceptance checks are complete.
+- The user pauses work; stop within the stated scope.
+- A budget or time limit is reached, or the next action would exceed it.
+- Required input, permission, or an external result is missing, and no necessary independent work remains.
+- Evidence exposes a conflict among user constraints that requires the user's decision.
 
-询问前完成不受影响的授权工作。不要把普通路线选择、候选失败或缺少绝对保证升级为用户审批。也不要以“持续研究”为由无限重试、申请更多资源或启动未获准的实验。
+Complete unaffected authorized work before asking. Do not turn ordinary approach choices, failed candidates, or a lack of absolute guarantees into approval requests. Sustained research does not authorize unlimited retries, more resources, or unapproved experiments.
 
-需要跨时段继续时，仅在用户要求且宿主支持时使用其调度工具。保存研究目录、续接入口、授权范围、预算和停止条件；没有新进展时保持安静，只在实质结果、失败或需要用户决定时通知。没有调度工具时交付续接点，如实说明当前没有后台运行。
+For work across sessions or time periods, use the host's scheduling tools only when requested and available. Save the research directory, resumption entry point, authorized scope, budget, and stop conditions. Stay quiet without meaningful change; notify on substantive results, failure, or a needed decision. Without a scheduler, provide a checkpoint and state that no background work is running.
 
-## 交付
+## Deliver
 
-先给当前最强、且证据支持的结论，再说明条件、关键依据、完成的交付物和真实未决项。对于方案，核对本轮涉及的用户约束，并指向具体机制、定义或证据位置。对于阶段结果，说明下一项行动；达到约定目标后直接交付，不扩大审计或实验。
+Lead with the strongest supported conclusion, then state its conditions, key evidence, completed artifacts, and actual open questions. For a proposal, check the user constraints relevant to this round against specific mechanisms, definitions, or evidence. For an interim result, identify the next action. Once the agreed objective is met, deliver without expanding the audit or experiment scope.
 
-表达自然精炼，评价给出理由；区分用户原话、原始来源、已有实现、推导与假设。研究能力来自可检查的工作，不来自预定的正面结论。
+Use clear, concise language and give reasons for judgments. Distinguish user statements, original sources, existing implementation, derivations, and assumptions. Research quality comes from inspectable work, not a predetermined positive conclusion.

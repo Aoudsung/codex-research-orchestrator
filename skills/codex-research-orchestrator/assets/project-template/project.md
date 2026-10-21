@@ -1,64 +1,64 @@
-# 项目配置
+# Project Configuration
 
-填写当前项目实际使用的绑定，不复制其他项目的私有标识。已有明确授权直接登记；未知项写“未记录”，不自行扩大，也不重复询问已授权事项。
+Record the bindings actually used by this project. Do not copy private identifiers from other projects. Record existing explicit authorization directly; mark unknown items as "not recorded" without expanding permission or asking again about actions already authorized.
 
-## 入口与当前任务
+## Entry Points and Current Task
 
-- 课题名与研究目录：
-- 用户约束的权威来源：
-- 当前任务类型与交付范围：
-- 主研究者及状态维护者：
-- 既有代码、数据、执行契约和证据入口：
-- 工作语言与成文要求：
+- Research topic and directory:
+- Authoritative source of user constraints:
+- Current task type and deliverable scope:
+- Lead researcher and state maintainer:
+- Entry points for existing code, data, execution contracts, and evidence:
+- Working language and writing requirements:
 
-## 参与者
+## Participants
 
-角色可以按需要合并；没有独立上下文时如实标为自查。用户指定常驻参与者时保持绑定，工具不足需说明，不静默替换。
+Combine roles as needed. Label a review as self-review when it has no independent context. Keep bindings to ongoing participants specified by the user. Explain tool limitations without silently replacing participants.
 
-| 职责 | 实际参与者或工具 | 已知能力与读写范围 | 交接入口 |
+| Responsibility | Actual participant or tool | Known capabilities and read/write scope | Handoff entry point |
 |---|---|---|---|
-| 主研究者 | | | |
-| 研究合作方（如有） | | | |
-| 独立审阅者（如需） | | | |
-| 实施者（如需） | | | |
-| 协作观察者（按需） | | 只读研究材料；只写观察记录 | |
+| Lead researcher | | | |
+| Research collaborator (if any) | | | |
+| Independent reviewer (if needed) | | | |
+| Implementer (if needed) | | | |
+| Collaboration observer (as needed) | | Read research materials; write observation records only | |
 
-## 授权
+## Authorization
 
-| 行动 | 已授权范围 | 来源 | 明确限制或待确认项 |
+| Action | Authorized scope | Source | Explicit limits or items requiring confirmation |
 |---|---|---|---|
-| 资料读取、检索、推导与写作 | | | |
-| 本地或远程代码修改 | | | |
-| 实验、计算或其他执行 | | | |
-| 向外部合作方发送材料 | | | |
-| 使用常驻会话或创建新会话 | | | |
-| 公开发布 | | | |
+| Read materials, search, derive, and write | | | |
+| Modify local or remote code | | | |
+| Run experiments, computations, or other operations | | | |
+| Send materials to external collaborators | | | |
+| Use ongoing sessions or create new sessions | | | |
+| Publish publicly | | | |
 
-## 执行与资源
+## Execution and Resources
 
-- 获准执行环境及连接方式的安全引用（不填密钥）：
-- 可用计算、设备或数据条件：
-- 本批预算、用量单位、时长或次数上限：
-- 已用量来源与下一批估算方式：
-- 运行前需核对的实际资源和停止条件：
+- Authorized execution environment and safe connection reference (no secrets):
+- Available compute, devices, or data:
+- Budget, usage units, duration, or run limit for this batch:
+- Source of usage totals and method for estimating the next batch:
+- Actual resources and stop conditions to check before execution:
 
-未知预算不是无限额度；无需执行的研究仍可继续。环境能访问，不表示所有操作获准。
+An unknown budget does not mean unlimited resources. Research that needs no execution can continue. Access to an environment does not authorize every operation.
 
-## 持续推进
+## Continued Work
 
-- 授权范围：本次交付 / 持续研究 / 指定批次（按用户指令填写）。
-- 用户暂停或恢复指示及其来源：
-- 完成条件、时间或资源边界：
-- 调度：按用户要求填写已有调度工具与绑定；未配置则没有后台唤醒。
-- 通知：有实质进展、失败或需要用户决定时；用户另有要求则照办。
+- Authorized scope: this deliverable / ongoing research / specified batch (follow the user's instructions).
+- User pause or resume instructions and their sources:
+- Completion conditions, time limits, or resource limits:
+- Scheduling: record the existing scheduling tool and bindings requested by the user; without a configured schedule, there are no background wake-ups.
+- Notifications: report material progress, failures, or decisions needed from the user; follow any other user instructions.
 
-## 可选观察
+## Optional Observation
 
-- 是否由用户请求：
-- 可读取的研究目录与允许写入的独立观察目录：
-- 观察问题及已确认标准：
-- 建议由谁决定、由谁落实：
+- Whether the user requested it:
+- Research directories that may be read and separate observation directory that may be written:
+- Observation questions and confirmed criteria:
+- Who decides on recommendations and who implements them:
 
-## 配置变更
+## Configuration Changes
 
-记录会影响权限、资源、参与者或执行语义的变化及来源。常规路线选择留在 state.md。
+Record changes that affect permissions, resources, participants, or execution semantics, with their sources. Keep routine choices of research direction in state.md.

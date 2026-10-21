@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex 科研协作框架"
+  short_description: "组织跨领域科研协作，让独立研究、审阅、实施与证据记录持续衔接"
+  default_prompt: "使用 $codex-research-orchestrator，根据我的研究目标和现有资料建立或继续研究，沿用已确认的约束、授权与资源边界。"

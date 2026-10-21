@@ -62,6 +62,8 @@ If resources were consumed, add actual units and supporting evidence. Do not rec
 
 ## Resumption Checkpoint
 
+For growing histories, use [research memory](memory.md) to index source-backed records and their dependencies. Search summaries first, then read selected full sources. Update the underlying records before indexing them; the database does not become the authority for user constraints. Keep old versions and explicitly record supersession, withdrawal, and conclusions that need review.
+
 Record the location and necessary verbatim text of current authoritative constraints, draft status, current design and claims, key evidence, pending feedback, authorization and budget, pause status, active conversation or job IDs, and the next action.
 
 For ordinary resumption, use the checkpoint to return to authoritative sources; do not treat a summary as a new constraint. First check active work and collect available results, then decide whether to start the next action. For independent judgment, use an isolated input package instead of reading overall state that contains other evaluations.

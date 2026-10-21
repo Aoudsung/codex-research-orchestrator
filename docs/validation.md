@@ -11,6 +11,38 @@ Date: 2026-10-21. Validation covers the skill package and two controlled usage s
 
 These checks are not a plugin-directory approval and do not imply identical tool availability across Codex clients.
 
+## Memory and context helper
+
+The final helper passed **21 regression tests** on the designated Linux validation server using Python 3.10.12 and SQLite 3.37.2 with FTS5. No model, GPU, or external service was used. The command, run from the repository root, was:
+
+```sh
+python3 -m unittest discover -s tests -p test_research_memory.py -q
+```
+
+The run completed with exit code 0. Checks cover durable reads, source changes, transitive invalidation, withdrawal and supersession, fresh control files, complete review targets, exact whole-record budgeting, allowlist isolation, excluded-record ranking independence, safe project paths, compact CLI output, and existing-output protection.
+
+An independent engineering review identified a concurrent refresh that could replace a committed `withdrawn` or `superseded` state with `needs_review`. The update now preserves those terminal states. A two-connection interleaving test covers both cases. The final run includes that regression.
+
+A reproducible synthetic scale check used 1,000 source records:
+
+```sh
+python3 tests/benchmark_memory.py
+```
+
+| Measurement | Observed result |
+|---|---:|
+| Total source characters | 982,704 |
+| Requested search entries | 5 |
+| Median search time, three calls | 187.20 ms |
+| Context assembly time | 189.84 ms |
+| Packet characters | 11,548 |
+| Packet budget | 12,000 |
+| Context CLI response characters | 172 |
+
+The scale check initially exposed a 72,808-character command response because the entire manifest was printed. The final CLI returns only paths, sizes, and counts; the full lead manifest stays on disk. The test checks this boundary separately from the packet budget.
+
+These are one-environment measurements on simple synthetic lexical queries. They establish the observed output sizes and runtime, not semantic recall, production latency, or superiority to the referenced memory projects.
+
 ## Independent forward-use checks
 
 Two agents each used a fresh context without prior discussion. They could read only the skill directory and the supplied fictional inputs. They received no expected answer and did not read the source project's history. They sent no external messages, ran no research experiments, and changed no code. The authoring agent inspected the actual outputs; the observations below are qualitative.
@@ -43,4 +75,4 @@ Observed behavior: the agent retained the research object, evidence limits, perm
 
 ## Evidence not yet established
 
-There is no matched-model, matched-budget comparison with related projects, long unattended deployment study, cross-field research-quality evaluation, or plugin-marketplace installation approval. The two checks support only the behavior observed in those scenarios. They do not establish an overall research-quality advantage. See [design rationale](design.md) for a proposed evaluation approach.
+There is no matched-model, matched-budget comparison with related projects, long unattended deployment study, cross-field research-quality evaluation, or plugin-marketplace installation approval. The controlled scenarios and tool tests support only the behavior they cover. They do not establish an overall research-quality advantage. See [design rationale](design.md) for a proposed evaluation approach.

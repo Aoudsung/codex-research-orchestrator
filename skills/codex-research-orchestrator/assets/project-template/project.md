@@ -52,6 +52,16 @@ An unknown budget does not mean unlimited resources. Research that needs no exec
 - Scheduling: record the existing scheduling tool and bindings requested by the user; without a configured schedule, there are no background wake-ups.
 - Notifications: report material progress, failures, or decisions needed from the user; follow any other user instructions.
 
+## Memory and Task Context (when needed)
+
+- Live control files for the current goal, confirmed constraints, permissions, budget, and pause instructions:
+- Whether those files are suitable for independent disclosure:
+- Local memory directory: `.research-memory/` inside this research project.
+- Task packet character budget and space reserved for reasoning and outputs:
+- Curated source cards and the lead responsible for recording dependencies:
+
+Use the memory guide only when persistent retrieval helps. Keep control files current, and do not treat a database entry or an old packet as a substitute for a new user instruction. Independent participants receive curated packets, not the database or lead manifests.
+
 ## Optional Observation
 
 - Whether the user requested it:

@@ -27,6 +27,7 @@ The contribution is an inspectable **research collaboration protocol for Codex**
 | Independent judgment before collaboration | Isolate prior evaluations during key analysis and review, then compare derivations and counterexamples. | [Collaboration](skills/codex-research-orchestrator/references/collaboration.md) |
 | Ground innovation in mechanisms | Compare substantive differences from the closest work, the properties those differences produce, and the contribution they support. Check conditions before transferring ideas across fields. | [Research methods](skills/codex-research-orchestrator/references/method.md) |
 | Connect review, implementation, and evidence | Resolve findings individually, track review coverage by version and conditions, and preserve sources separately from current conclusions. | [Records](skills/codex-research-orchestrator/references/records.md) |
+| Retrieve research memory by validity and recipient | Keep live controls, typed source snapshots, explicit dependencies, and bounded context packets; filter independent inputs before ranking. | [Memory and context](skills/codex-research-orchestrator/references/memory.md) |
 | Improve coordination without transferring control | An optional observer diagnoses repetition, stalled progress, and broken handoffs, then proposes evidence-based changes for the user to decide. | [Observation](skills/codex-research-orchestrator/references/observer.md) |
 
 [Design rationale](docs/design.md) explains the expected effects and failure conditions. The contribution is in collaboration and workflow design. This release does not introduce a new foundation-model algorithm or claim field-wide priority or measured performance leadership.
@@ -50,6 +51,21 @@ The package follows the [official skill documentation](https://learn.chatgpt.com
 | [uditgoenka/autoresearch](https://github.com/uditgoenka/autoresearch) | Already supports Codex, bounded loops with success predicates, and single-pass exploration | Sustain open scientific inquiry through question alignment, revisable claims, independent assessment, and evidence records |
 
 This comparison was checked on **2026-10-21**. It describes documented design emphasis, not limits on what other projects can be extended to do. Codex support, multiple agents, review, and resumption are not unique to this project. See [related work](docs/related-work.md) for direct sources and comparison limits.
+
+## Memory and context management
+
+Long research histories need more than a growing summary. The bundled local memory tool separates **live controls**, **the current task packet**, and **persistent source-backed records**. It uses Python 3.10+ and SQLite FTS5 without an API key, embedding download, or background service.
+
+- Search small indexes before reading full evidence.
+- Keep claims, decisions, evaluations, evidence, proposals, and checkpoints distinct.
+- Retain source snapshots and explicitly invalidate registered dependent conclusions when evidence changes.
+- Read current constraints and pause instructions directly from registered control files whenever a packet is built.
+- Assemble complete records under a strict character budget; fail if required material cannot fit.
+- Build independent-analysis and review packets from a curated allowlist, with filtering before ranking and a separate manifest for the lead.
+
+The design draws on [Mem0, QMD, Letta, Graphiti, and claude-mem](docs/memory-foundations.md). Their mechanisms are adapted to scientific claims, evidence validity, and independent judgment. This release does not copy their runtimes or claim semantic retrieval: the built-in search is lexical, and scientific relevance still needs researcher judgment.
+
+See [the memory-tool guide](docs/memory-tool.md) for setup, records, and context assembly. The tool checks its own outputs; it cannot make an inherited conversation independent or enforce filesystem access restrictions.
 
 ## Install
 
@@ -128,12 +144,13 @@ codex-research-orchestrator/
     ├── SKILL.md                  # Codex skill entry point
     ├── agents/openai.yaml        # Display metadata
     ├── assets/project-template/  # Charter, settings, and current state
+    ├── scripts/                 # Local research memory and context helper
     └── references/               # Methods, collaboration, records, and integration
 ```
 
 ## Current scope
 
-Version 0.1.0 is an instruction-and-template framework executed by an agent. It guides research decisions but does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
+Version 0.1.0 combines agent instructions, templates, and a local memory/context helper. It guides research decisions but does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
 
 [Validation notes](docs/validation.md) state what was checked. Contributions should describe a concrete failure, its trigger, the current behavior, and the smallest useful correction. Avoid turning one project's special requirements into universal rules.
 

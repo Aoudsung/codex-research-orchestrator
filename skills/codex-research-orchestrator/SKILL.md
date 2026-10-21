@@ -27,6 +27,8 @@ When persistent records are needed, use [charter.md](assets/project-template/cha
 
 On resumption, read the authoritative user constraints, project settings, current state, and relevant recent records. Check the latest pause instructions, running jobs, and pending results. Independent analysis and review are exceptions: isolate prior judgments as specified in [collaboration](references/collaboration.md). Do not restart work already in progress.
 
+For growing histories, use [research memory and task context](references/memory.md). Search short indexes before reading full sources, keep authoritative controls live, and build a fresh packet for the recipient and question. Do not load the entire history or give an independent reviewer the general resumption context.
+
 ## Keep three categories separate
 
 | Category | Examples | How it changes |

@@ -30,6 +30,10 @@ Each delegation must provide the necessary context and clear boundaries. Indepen
 
 When the user has bound persistent conversations to the project, temporary subagents handle only their authorized, separate subtasks. Creating a new user-visible conversation, messaging another conversation, and using an external service must each follow the authorization requirements of the relevant tool.
 
+## Local Memory Tool
+
+For sustained research, Codex can invoke the bundled `scripts/research_memory.py` through its terminal in the authorized environment. It uses Python's standard library and SQLite FTS5, with no additional model service. Read [memory and task context](memory.md) before initializing a project or assembling an independent-review packet. If the environment cannot run the helper, retain explicit file-based records and report that indexed retrieval and checked context assembly were not performed.
+
 ## Automation Boundaries
 
 Distinguish progress within the current turn from scheduling work across sessions. Codex can continue the former within the task's scope; the latter requires a user request and host scheduling support. Record pauses, budgets, and restrictions on external sharing in resumable records, rather than relying on vague promises in conversation context.

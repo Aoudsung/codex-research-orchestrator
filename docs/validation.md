@@ -1,6 +1,6 @@
-# Version 0.1.0 validation notes
+# Validation notes
 
-Date: 2026-10-21. Validation covers the skill package and two controlled usage scenarios. It does not measure research quality or comparative performance.
+Date: 2026-10-21. Version 0.1.0 validation covers the skill package and two controlled usage scenarios. It does not measure research quality or comparative performance.
 
 ## Package checks
 
@@ -43,7 +43,7 @@ The scale check initially exposed a 72,808-character command response because th
 
 These are one-environment measurements on simple synthetic lexical queries. They establish the observed output sizes and runtime, not semantic recall, production latency, or superiority to the referenced memory projects.
 
-## Changes after 0.1.0 (unreleased)
+## Version 0.1.1 changes
 
 These changes apply lessons from a separate research system's memory and context design. That system's code and data are not part of this package.
 
@@ -52,9 +52,9 @@ These changes apply lessons from a separate research system's memory and context
 - The assembly time moved from the first line to the last line, so rebuilt packets agree on all earlier text.
 - The references add rules on output contracts and repair, inputs for each step, whole-state updates, failure history, and incremental work-index entries.
 
-Local run on 2026-10-21: macOS, Python 3.13.1, SQLite 3.45.3. The command above passed **25 tests**: the 21 earlier tests unchanged, plus 4 new ones. The new tests cover the count and index within budget and the index as an ordered prefix under a tight budget; neutral independent labels without titles or paths; newest-first filling; and identical text before the timestamp. The CLI test also checks the indexed count. This run did not use the Linux server above.
+Local runs on 2026-10-21, on macOS, with Python 3.13.1 / SQLite 3.45.3 and with Python 3.10.20 / SQLite 3.53.1. In both, the command above passed **25 tests**: the 21 earlier tests unchanged, plus 4 new ones. The new tests cover the count and index within budget and the index as an ordered prefix under a tight budget; neutral independent labels without titles or paths; newest-first filling; and identical text before the timestamp. The CLI test also checks the indexed count. These runs did not use the Linux server above.
 
-One run of `python3 tests/benchmark_memory.py` in the same environment gave a 101.59 ms median search, 105.08 ms context assembly, an 11,975-character packet (budget 12,000), and a 203-character CLI response. The packet is larger than in the 0.1.0 table because the index uses budget the 0.1.0 packet left empty. Timings come from a different machine and are not comparable with the table above.
+One run of `python3 tests/benchmark_memory.py` with Python 3.13.1 gave a 101.59 ms median search, 105.08 ms context assembly, an 11,975-character packet (budget 12,000), and a 203-character CLI response. Python 3.10.20 gave the same packet and response sizes. The packet is larger than in the 0.1.0 table because the index uses budget the 0.1.0 packet left empty. Timings come from a different machine and are not comparable with the table above.
 
 ## Independent forward-use checks
 

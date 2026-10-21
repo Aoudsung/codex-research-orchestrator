@@ -151,7 +151,7 @@ codex-research-orchestrator/
 
 ## Current scope
 
-Version 0.1.0 combines agent instructions, templates, and a local memory/context helper. It guides research decisions but does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
+Version 0.1.1 combines agent instructions, templates, and a local memory/context helper. It guides research decisions but does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
 
 [Validation notes](docs/validation.md) state what was checked. Contributions should describe a concrete failure, its trigger, the current behavior, and the smallest useful correction. Avoid turning one project's special requirements into universal rules.
 

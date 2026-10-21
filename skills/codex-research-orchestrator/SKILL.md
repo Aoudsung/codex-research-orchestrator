@@ -3,7 +3,7 @@ name: codex-research-orchestrator
 description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, external collaboration, review, implementation or experiment handoffs, and evidence-based continuation. Use to start or resume multi-round research or organize a Codex research team. Do not start the full workflow for a one-off factual answer, routine code change, or text-only polish.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # Codex Research Orchestrator

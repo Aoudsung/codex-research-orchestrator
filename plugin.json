@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-research-orchestrator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A research collaboration skill built for Codex: independent analysis, evidence-linked review, bounded execution, and resumable research across domains.",
   "author": { "name": "Aoudsung" },
   "repository": "https://github.com/Aoudsung/codex-research-orchestrator",

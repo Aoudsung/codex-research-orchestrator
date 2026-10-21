@@ -317,11 +317,74 @@ class MemoryTests(unittest.TestCase):
         manifest = json.loads((self.project / result["manifest"]).read_text())
         self.assertEqual([selected], manifest["selected_ids"])
         self.assertEqual(30, result["omitted_count"])
+        self.assertEqual(30, result["indexed_omission_count"])
         self.assertEqual(1, result["selected_count"])
         self.assertEqual(len(self.packet("compact.txt")), result["packet_chars"])
         self.assertNotIn("omissions", result)
         self.assertNotIn("sources", result)
         self.assertLess(len(output.getvalue()), 500)
+
+    def test_packet_counts_and_indexes_every_omitted_record_within_budget(self):
+        matched = self.remember("alpha matched")
+        large_body = "alpha " + "large body " * 400
+        large = self.remember(large_body)
+        unmatched = [self.remember("unrelated " + str(index)) for index in range(3)]
+        manifest = self.context(max_chars=3000)
+        packet = self.packet()
+        self.assertLessEqual(len(packet), 3000)
+        self.assertEqual([matched], manifest["selected_ids"])
+        self.assertIn("Not shown: 4 of 5 admitted records. Indexed below: 4.", packet)
+        order = [entry["id"] for entry in manifest["omissions"]]
+        self.assertEqual([large] + unmatched[::-1], order)
+        self.assertIn("Record " + str(large) + " | evidence | Material 2 | " + str(len(large_body)) + " chars | over budget\n", packet)
+        self.assertEqual(["Record " + str(value) for value in order], [entry["index_label"] for entry in manifest["omissions"]])
+        tight = self.context(output="tight.txt", max_chars=len(packet) - 1)
+        tight_packet = self.packet("tight.txt")
+        self.assertLessEqual(len(tight_packet), len(packet) - 1)
+        indexed = [entry["id"] for entry in tight["omissions"] if "index_label" in entry]
+        self.assertEqual(order[:len(indexed)], indexed)
+        self.assertEqual(3, len(indexed))
+        self.assertIn("Not shown: 4 of 5 admitted records. Indexed below: 3.", tight_packet)
+        self.assertEqual(order, [entry["id"] for entry in tight["omissions"]])
+
+    def test_independent_index_uses_neutral_labels_without_titles_or_paths(self):
+        shown = self.remember("alpha shown", title="PRIVATE_TITLE_SHOWN")
+        hidden = self.remember("unmatched text", title="PRIVATE_TITLE_HIDDEN", source="private-path.txt",
+                               scope="Lab protocol B;\nfirst run only")
+        manifest = self.context(profile="analysis", allow=[shown, hidden])
+        packet = self.packet()
+        self.assertIn("Not shown: 1 of 2 admitted records. Indexed below: 1.", packet)
+        self.assertIn("Omitted material 1 | 14 chars | no query match | Scope: Lab protocol B; first run only\n", packet)
+        for forbidden in ("PRIVATE_TITLE", "private-path", "Record "):
+            self.assertNotIn(forbidden, packet)
+        self.assertEqual([{"id": hidden, "reason": "no lexical query match", "index_label": "Omitted material 1"}],
+                         manifest["omissions"])
+
+    def test_fill_recent_adds_unmatched_records_newest_first_within_budget(self):
+        matched = self.remember("alpha matched")
+        older = self.remember("older unmatched " + "x" * 300)
+        newer = self.remember("newer unmatched " + "y" * 300)
+        self.assertEqual([matched], self.context(output="plain.txt")["selected_ids"])
+        filled = self.context(output="filled.txt", fill_recent=True)
+        self.assertEqual([matched, newer, older], filled["selected_ids"])
+        self.assertEqual([], filled["omissions"])
+        tight = self.context(output="tight.txt", fill_recent=True, max_chars=filled["packet_chars"] - 1)
+        self.assertEqual([matched, newer], tight["selected_ids"])
+        self.assertEqual([{"id": older, "reason": "whole record exceeds remaining character budget",
+                           "index_label": "Record " + str(older)}], tight["omissions"])
+        self.assertLessEqual(tight["packet_chars"], filled["packet_chars"] - 1)
+
+    def test_timestamp_is_last_so_rebuilt_packets_share_all_leading_text(self):
+        self.remember()
+        with patch.object(memory_module, "now", return_value="2026-10-21T00:00:00+00:00"):
+            self.context(output="first.txt")
+        with patch.object(memory_module, "now", return_value="2026-10-22T09:30:00+00:00"):
+            self.context(output="second.txt")
+        first, second = self.packet("first.txt"), self.packet("second.txt")
+        cut = first.index("Assembled at ")
+        self.assertEqual(first[:cut], second[:cut])
+        self.assertNotEqual(first, second)
+        self.assertTrue(first.endswith("Assembled at 2026-10-21T00:00:00+00:00.\n"))
 
     def test_refresh_preserves_concurrent_withdrawal_and_supersession(self):
         other = Memory(self.project)

@@ -13,6 +13,12 @@ Read this file when creating records or submitting work with substantive results
 
 Create directories as needed. Keep research files separate from the general skill; starting a study does not change skill source files. Preserve historical prompts, original replies, and acceptance records as they were. Add corrections as new records that reference the old ones.
 
+## Update State as a Whole
+
+Build the complete new version of a state file, check it as a whole, then replace the old file in one step: write a new file and rename it over the old one. Check required fields, size limits on the complete result, and that references resolve. Checking each patch is not enough, because the result can still break a limit. Do not apply a list of field edits that can stop halfway and leave a mix of old and new values.
+
+If the check fails, the previous version stays in force. Record the failed update and its reason as history. Failed attempts and rejected outputs remain readable in `rounds/`. A lesson drawn from a failure changes claims or decisions only through a later, explicit lead record that cites its evidence; reflections are not promoted automatically.
+
 ## Round Record
 
 ```markdown
@@ -59,6 +65,8 @@ One fictional entry:
 ```
 
 If resources were consumed, add actual units and supporting evidence. Do not record unknown use as zero. Add correction entries that identify the corrected ID rather than rewriting history. Do not run extra experiments for bookkeeping or log every tool call.
+
+Each entry records what changed, with pointers to evidence. Do not copy the full state, or the full list of materials available at that point, into every entry. Repeated whole copies make the index grow with the square of the history.
 
 ## Resumption Checkpoint
 

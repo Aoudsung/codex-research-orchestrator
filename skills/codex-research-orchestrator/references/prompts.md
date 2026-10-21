@@ -56,6 +56,18 @@ Use the same five sections and include exact versions of the proposal and execut
 
 Replace the deliverable requirements with: scope of changes or execution, corresponding version, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and uncovered items. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work.
 
+## Inputs for a Specific Step
+
+Give each step the material its decision needs, in the form that step uses. A general history dump costs context and can bury the inputs that matter. Put long code, data, or logs in labelled plain-text sections or fenced blocks, with line numbers when the recipient must cite locations. Do not embed them as escaped strings inside JSON. Serialize JSON once, and only where the output itself must be JSON.
+
+## Output Contracts and Repair
+
+When the result must follow a format, put the full contract in the first request: field names, exact types (for example, a string rather than an object), allowed values, and one minimal valid example. A repair prompt must not be the first place a requirement appears.
+
+When an output breaks the contract, send the same contract and example again, with a short, specific statement of the violation: the field, the expected type or value, and what was received. Do not paste the rejected output back in full; recipients tend to copy what they are shown. If a repair returns the same output, resending will not help. Change the input instead: the contract, the example, or how the task is split. Record the attempt as no progress.
+
+Keep failed attempts as history. A rejected output stays readable in the round record. A lesson from it reaches the current state only through a later, explicit lead record with its evidence.
+
 ## Constraint or Authorization Conflict
 
 Use a brief report only when the user must decide: which confirmed constraint or resource boundary conflicts with which fact; where the evidence is; options that preserve the original constraint; how changing it would affect the research object or cost; and a recommendation with reasons. Handle ordinary candidate failures without creating an approval task.

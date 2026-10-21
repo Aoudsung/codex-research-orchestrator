@@ -43,13 +43,22 @@ For independent work, the lead first curates an allowlist. Filtering happens bef
 
 Classification does not remove opinions already present inside a source file. Inspect the allowed files and controls for such content before calling the work independent. The tool can restrict the packet it builds, but cannot restrict the agent's wider filesystem access or erase an inherited conversation.
 
+Keep storage and access separate. If identical content is stored once and referenced from several places, who may read it is still an explicit per-recipient list. A shared copy, an "already seen" marker, or a global position in the history does not grant a participant access to anything.
+
 ## Budget and completeness
 
-Set a character budget for the rendered packet, leaving room for task instructions, reasoning, tool results, and the answer. This is a strict Python character count, not a model-token estimate. Choose the budget for the task and available context; no universal character-to-token conversion is assumed.
+Stored is not the same as visible. The database keeps the full history; a recipient can use only what its packet and prompt contain. Two limits follow, and they are different:
 
-Live controls, the designated full proposal, and required evidence must fit in full. If they do not fit, generation fails rather than truncating conditions or quietly reducing review scope. Increase the budget, split the question with an explicit scope, or use a suitable context window.
+- **Packet budget:** set from the recipient's input window, minus task instructions, reasoning, tool results, and the answer. This is a strict Python character count, not a model-token estimate; no universal character-to-token conversion is assumed. Near the window limit, count the complete final prompt (packet plus instructions) with the recipient's actual tokenizer.
+- **Stored history:** has no packet limit. It reaches a recipient only through a new packet, an explicit `read`, or material the lead supplies.
 
-Optional records enter whole, in permitted retrieval order. The lead manifest records selection and omission. A packet is a dated snapshot: rebuild it after new instructions, changed evidence, or a new proposal version.
+Fill the packet in tiers:
+
+1. **Required:** live controls, the designated full proposal, and `--require` records must fit in full. If they do not fit, generation fails rather than truncating conditions or quietly reducing review scope. Increase the budget, split the question with an explicit scope, or use a suitable context window.
+2. **Fill:** optional records enter whole, in permitted retrieval order. With `--fill-recent`, admitted records without a lexical match then fill the remaining budget, newest first. Without it, a query word that does not occur leaves those records out even when budget remains.
+3. **Index:** a closing section counts every admitted record that is not in the packet and indexes as many as still fit. The order is query matches over budget, then invalid records, then the rest, newest first. A `resume` index shows record IDs and titles; an independent index shows only neutral labels, sizes, reasons, and a short scope. The count is always present, so omitted material is never silently absent.
+
+The lead manifest records every selection and omission and which omissions were indexed. A packet is a dated snapshot: rebuild it after new instructions, changed evidence, or a new proposal version. Unchanging text comes first and the assembly time last. A model provider can reuse a cached prefix only when the leading tokens match exactly, the same model and settings are used, and the cache entry still exists. The tool does not measure cache reuse.
 
 ## Updates and invalidation
 

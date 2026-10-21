@@ -61,6 +61,7 @@ Long research histories need more than a growing summary. The bundled local memo
 - Retain source snapshots and explicitly invalidate registered dependent conclusions when evidence changes.
 - Read current constraints and pause instructions directly from registered control files whenever a packet is built.
 - Assemble complete records under a strict character budget; fail if required material cannot fit.
+- Count every admitted record left out of a packet and index as many as fit, so stored history is never silently invisible.
 - Build independent-analysis and review packets from a curated allowlist, with filtering before ranking and a separate manifest for the lead.
 
 The design draws on [Mem0, QMD, Letta, Graphiti, and claude-mem](docs/memory-foundations.md). Their mechanisms are adapted to scientific claims, evidence validity, and independent judgment. This release does not copy their runtimes or claim semantic retrieval: the built-in search is lexical, and scientific relevance still needs researcher judgment.

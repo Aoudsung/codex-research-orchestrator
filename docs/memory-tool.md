@@ -122,9 +122,23 @@ Give the independent participant the packet in an isolated context. Keep the man
 
 ## Budget behavior
 
-The budget is the Python character count of the entire rendered packet, not a token estimate. Controls, the complete review target, and required records must fit intact. If any required input is invalid or too large, generation fails without producing a partial packet.
+The budget is the Python character count of the entire rendered packet, not a token estimate. Choose it from the recipient's input window, leaving space for instructions, reasoning, tool results, and the final answer. The database itself has no such limit; stored history reaches a recipient only through a packet, a `read`, or the lead.
 
-Optional retrieved records enter whole. The manifest records the actual character count, selected records, source mappings, and omissions. The independent packet does not reveal excluded evaluation titles or paths. Choose a packet budget that leaves space in the model context for instructions, reasoning, tool results, and the final answer.
+Controls, the complete review target, and required records must fit intact. If any required input is invalid or too large, generation fails without producing a partial packet.
+
+Optional retrieved records enter whole, in ranked order. By default, admitted records with no lexical match stay out even when budget remains. Add `--fill-recent` to let them fill the remaining budget, newest first:
+
+```sh
+python3 skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project research/demo context "matching cover" \
+  --profile resume --fill-recent --max-chars 12000 --output resume-02.md
+```
+
+Every packet ends with a `Not shown` section. It states how many admitted records are absent and indexes as many as fit in the remaining budget: query matches over budget first, then invalid records, then the rest, newest first. A `resume` entry gives the record ID, kind, title, size, and reason, so the lead can `read` it. An independent entry gives a neutral label, size, reason, and up to 120 characters of scope; titles, paths, and IDs stay in the manifest. Index entries never push the packet over budget, so a small budget may show only the count.
+
+The manifest records the actual character count, selected records, source mappings, every omission, and which omissions were indexed, by their packet label. The independent packet does not reveal excluded evaluation titles or paths.
+
+Text that does not change between builds comes first; the assembly time is the last line. Two packets built from the same inputs therefore agree up to that line. A provider can reuse a cached prefix only if the leading tokens match exactly, the model and settings are the same, and the cache entry has not been evicted. The helper does not observe or measure cache reuse.
 
 ## Change and invalidation
 
@@ -142,7 +156,12 @@ Record validity is separate from scientific truth. `needs_review` does not mean 
 
 ## Guarantees and limits
 
-The tool checks project-local paths, explicit record relationships, source snapshots, live controls, profile eligibility, and packet size. Independent retrieval ranks only the admitted materials, so excluded evaluations do not contribute to that ranking.
+The tool checks project-local paths, explicit record relationships, source snapshots, live controls, profile eligibility, and packet size. Each guarantee below holds only under the stated condition:
+
+- Excluded records do not affect independent ranking, because ranking statistics are computed from the admitted records alone. The same query, allowlist, and record contents give the same ranking.
+- Every admitted record is either in the packet or counted in its `Not shown` section. Whether it is also indexed depends on the remaining budget.
+- A packet never exceeds `--max-chars` Python characters. That bound is on characters, not on the recipient's tokens.
+- Each write commits all of its changes or none of them: a new record with its dependencies, index entry, and any supersession; a withdrawal with its downstream invalidations; a check with all of its invalidations. Invalidations found while checking a new record's dependencies are committed first, and they remain if the record is then rejected. The packet and manifest are created together, and a failed write removes whichever file was created. A process killed between the two writes can still leave the manifest alone.
 
 It cannot verify the truth of a claim, the user's identity or authorization, the completeness of declared dependencies, the scientific adequacy of a selected evidence set, or the independence of the wider agent context. It checks locally saved sources; external sources need deliberate refresh. Generated packets describe the moment they were built and must be rebuilt after relevant changes.
 

@@ -264,6 +264,7 @@ class SetupTests(unittest.TestCase):
                 else:
                     self.assertNotIn("tool_timeout_sec", entry)
                     self.assertNotIn("timeout", entry)
+                    self.assertEqual(entry["timeoutSeconds"], 660)
             self.assertEqual(output["host_connectivity"], "not-verified")
         self.assertFalse((self.project / ".agent-bridge").exists())
         self.assertFalse((self.project / ".codex").exists())
@@ -408,11 +409,15 @@ class SetupTests(unittest.TestCase):
         self.assertIn("--peers antigravity", output["next_action"])
         self.assertEqual(before, self.snapshot())
 
-    def test_antigravity_apply_only_exports(self):
+    def test_antigravity_project_apply_preserves_other_servers(self):
         self.install()
+        config = self.project / ".agents/mcp_config.json"
+        config.write_text(json.dumps({"mcpServers": {"other": {"command": "existing"}}}))
         output = self.connect("antigravity", ("codex",))
-        self.assertIsNone(output["applied"])
-        self.assertIn("Import", output["next_action"])
+        self.assertEqual(output["applied"], str(config))
+        self.assertEqual(json.loads(config.read_text())["mcpServers"]["other"], {"command": "existing"})
+        self.assertTrue((self.project / output["backup"] / ".agents/mcp_config.json").is_file())
+        self.assertEqual(self.connect("antigravity", ("codex",))["changed"], [])
         self.assertFalse((self.project / ".codex").exists())
         self.assertFalse((self.project / ".mcp.json").exists())
 

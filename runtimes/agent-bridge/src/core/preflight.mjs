@@ -91,6 +91,8 @@ export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
   let modelVerifiedBy = null;
   let conversationId = null;
   let initEvent = null;
+  let terminalStatus = null;
+  const deniedActions = [];
   const toolErrors = [];
   const assistantChunks = [];
   const events = [];
@@ -112,8 +114,8 @@ export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
           ev.subtype === "init"
         ) {
           initEvent = ev;
-          if (ev.model || ev.model_id || ev.modelId) {
-            actualModel = ev.model || ev.model_id || ev.modelId;
+          if (ev.model || ev.model_id || ev.modelId || ev.init?.model) {
+            actualModel = ev.model || ev.model_id || ev.modelId || ev.init.model;
             modelVerifiedBy = "runtime_init_metadata";
           }
           if (ev.conversation_id || ev.conversationId || ev.session_id || ev.thread_id) {
@@ -123,6 +125,13 @@ export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
               ev.session_id ||
               ev.thread_id;
           }
+        }
+
+        // Current Antigravity CLI wraps terminal status and response in result.
+        if (ev.event === "result" && ev.result && typeof ev.result === "object") {
+          terminalStatus = ev.result.status || null;
+          if (Array.isArray(ev.result.denied_actions)) deniedActions.push(...ev.result.denied_actions);
+          if (typeof ev.result.response === "string") assistantChunks.push(ev.result.response);
         }
 
         // Also check top-level metadata fields on other structured events
@@ -202,6 +211,8 @@ export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
     modelVerifiedBy,
     conversationId,
     initEvent,
+    terminalStatus,
+    deniedActions,
     toolErrorCount: toolErrors.length,
     toolErrors,
     eventCount: events.length,

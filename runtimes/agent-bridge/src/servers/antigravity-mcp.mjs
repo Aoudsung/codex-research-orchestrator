@@ -14,7 +14,7 @@ import {
 
 const server = new McpStdioServer({
   name: "antigravity-mcp",
-  version: "0.3.0",
+  version: "0.3.1",
   instructions:
     "MCP server allowing OpenAI Codex and Anthropic Claude Code to communicate with Google Antigravity with explicit task/session/model bindings and reported identity evidence, upfront permission preflight, structured patch delivery, and cursor-based lifecycle tracking.",
 });
@@ -176,6 +176,11 @@ server.registerTool(
           type: "boolean",
           description:
             "If true (default: true), fail immediately if actual runtime model does not match requiredModel; never silently fall back.",
+        },
+        effort: {
+          type: "string",
+          enum: ["low", "medium", "high", "xhigh", "max"],
+          description: "CLI reasoning effort for this invocation; requires a supported model variant.",
         },
         conversationId: {
           type: "string",
@@ -378,13 +383,14 @@ server.registerTool(
           conversationId: effectiveConvId,
         });
 
-        const cliArgs = [];
+        const cliArgs = ["--output-format", "stream-json"];
         if (effectiveReqModel) {
           cliArgs.push("--model", effectiveReqModel);
         }
         if (effectiveConvId) {
           cliArgs.push("--conversation", effectiveConvId);
         }
+        if (args.effort) cliArgs.push("--effort", args.effort);
         cliArgs.push("-p", args.prompt);
 
         const cliRes = await runCommand({
@@ -400,6 +406,17 @@ server.registerTool(
         );
         const actualModel = runtimeMeta.actualModel || null;
         const actualConvId = runtimeMeta.conversationId || null;
+
+        if (runtimeMeta.deniedActions.length || (runtimeMeta.terminalStatus && runtimeMeta.terminalStatus !== "SUCCESS")) {
+          const errorCode = runtimeMeta.deniedActions.length ? "CLI_PERMISSION_DENIED" : "CLI_TURN_FAILED";
+          const error = runtimeMeta.deniedActions.length
+            ? "The CLI denied one or more tool actions; a zero exit code does not establish execution."
+            : `The CLI reported terminal status ${runtimeMeta.terminalStatus}.`;
+          bridgeDb.updateTaskPhase({ taskId: taskRecord.id, phase: "awaiting_revision", error });
+          return { ok: false, agent: "antigravity", backend: "cli", taskId: taskRecord.id,
+            errorCode, error, retryable: false, deniedActions: runtimeMeta.deniedActions,
+            actualModel, conversationId: actualConvId, durationMs: cliRes.durationMs };
+        }
 
         // Check for deterministic tool compatibility errors (e.g. `unsupported_tool: write_file`)
         if (runtimeMeta.toolErrorCount > 0) {

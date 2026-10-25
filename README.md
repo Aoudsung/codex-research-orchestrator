@@ -63,7 +63,7 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py con
 
 This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, and updates only its project-local Codex entries. It preserves unrelated settings and backs up changed configuration. Omit `--apply` to prepare the config without registering it.
 
-Claude Code project configuration is also supported. Antigravity receives a generated JSON config for import through its supported settings interface; the helper does not guess or edit its global configuration. Select only the peers you intend to use.
+Claude Code project configuration and Antigravity CLI/IDE workspace configuration are also supported. Antigravity uses `.agents/mcp_config.json`; its export remains available for other supported settings interfaces. Select only the peers you intend to use.
 
 Provider execution requires the selected CLI and its normal login. A generated config is not proof of a live connection or model access. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
 
@@ -129,6 +129,7 @@ Memory and coordination state remain separate. A delivered patch or successful p
 - [Research design and novelty](docs/design.md)
 - [Memory design references](docs/memory-foundations.md)
 - [v0.3 validation](docs/validation-v0.3.md)
+- [Real-client communication and wakeup checks](docs/validation-v0.3.1.md)
 
 Public content is in English. The framework can support different research fields through project-specific questions, evidence standards, collaborators, and resources.
 

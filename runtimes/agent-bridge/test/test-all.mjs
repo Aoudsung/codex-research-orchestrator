@@ -206,7 +206,7 @@ db.db.close();
   const antigravity = new Client('antigravity');
   for (const client of [codex, claude, antigravity]) {
     const initialized = await client.request('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'synthetic-test', version: '0.2.0' } });
-    assert.equal(initialized.serverInfo.version, '0.3.0');
+    assert.equal(initialized.serverInfo.version, '0.3.1');
     const listed = await client.request('tools/list');
     assert.ok(listed.tools.some(t => t.name === 'bridge_send_message'));
   }
@@ -314,6 +314,33 @@ db.db.close();
   }
   const wrong = await mockAgy.call('antigravity_exec', { prompt: 'WRONG model fixture', model: 'synthetic-model', cwd: tmp }, true);
   assert.equal(wrong.ok, false);
+  // Match the envelopes observed in current real clients, including RC0 tool denials.
+  const nativeMock = path.join(tmp, 'native-envelope-provider');
+  fs.writeFileSync(nativeMock, `#!${process.execPath}
+const args=process.argv.slice(2); let input='';
+process.stdin.on('data', chunk => input+=chunk);
+process.stdin.on('end', () => {
+  if (args[args.indexOf('--effort')+1] !== 'low') process.exit(3);
+  const model=args[args.indexOf('--model')+1];
+  const denied=(input+' '+args.join(' ')).includes('DENIED');
+  if (args[args.indexOf('--output-format')+1] === 'stream-json') {
+    console.log(JSON.stringify({event:'init',conversation_id:'native-session',init:{model}}));
+    console.log(JSON.stringify({event:'result',result:{conversation_id:'native-session',status:'SUCCESS',response:'Native response',denied_actions:denied?[{action:'mcp'}]:[]}}));
+  } else console.log(JSON.stringify({session_id:'native-session',is_error:false,result:'Native response',modelUsage:{[model]:{canonicalModel:model}},permission_denials:denied?[{tool_name:'test-tool'}]:[]}));
+});
+`);
+  fs.chmodSync(nativeMock, 0o755);
+  const nativeAgy = new Client('antigravity', { AGY_BIN: nativeMock });
+  const nativeClaude = new Client('claude-code', { CLAUDE_BIN: nativeMock });
+  for (const [client, tool] of [[nativeAgy, 'antigravity_exec'], [nativeClaude, 'claude_exec']]) {
+    const result = await client.call(tool, { prompt: 'Native envelope', model: 'synthetic-model', effort: 'low', cwd: tmp });
+    assert.equal(result.response, 'Native response');
+    assert.equal(db.getTaskById(result.taskId).binding.actualModel, 'synthetic-model');
+    const denied = await client.call(tool, { prompt: 'DENIED', model: 'synthetic-model', effort: 'low', cwd: tmp }, true);
+    assert.equal(denied.ok, false);
+    assert.equal(denied.errorCode, 'CLI_PERMISSION_DENIED');
+    assert.equal(db.getTaskById(denied.taskId).phase, 'awaiting_revision');
+  }
   const noFallback = await antigravity.call('antigravity_exec', { prompt: 'Unavailable selected executable', model: 'synthetic-model', cwd: tmp }, true);
   assert.equal(noFallback.ok, false);
   assert.equal(noFallback.errorCode, 'CLI_UNAVAILABLE');

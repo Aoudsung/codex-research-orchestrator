@@ -53,9 +53,9 @@ The helper resolves the executable, runtime, and database paths for this machine
 |---|---|---|
 | `codex` | `.research-orchestrator/mcp/codex.toml` using `mcp_servers` tables | Updates project `.codex/config.toml` |
 | `claude-code` | `.research-orchestrator/mcp/claude-code.json` using `mcpServers` | Updates project `.mcp.json` |
-| `antigravity` | `.research-orchestrator/mcp/antigravity.json` using `mcpServers` | Exports only; import through the host's supported MCP interface |
+| `antigravity` | `.research-orchestrator/mcp/antigravity.json` using `mcpServers` | Updates workspace `.agents/mcp_config.json` for Antigravity CLI/IDE |
 
-These project formats follow the [official OpenAI documentation for Codex MCP](https://learn.chatgpt.com/docs/extend/mcp) and [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp). The helper preserves unrelated settings and rejects conflicting entries. It does not modify user-global settings or invent an Antigravity configuration location.
+These project formats follow the [official OpenAI documentation for Codex MCP](https://learn.chatgpt.com/docs/extend/mcp), [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp), and [Antigravity MCP documentation](https://antigravity.google/docs/mcp?tab=cli). The helper preserves unrelated settings and rejects conflicting entries. It does not modify user-global settings. Other Antigravity surfaces can import the generated export through their supported interface.
 
 For a Claude Code host, for example:
 
@@ -100,7 +100,8 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py \
 | Missing provider CLI | Install the selected provider's CLI before using its execution tools. Shared messaging does not require it. CLI presence still does not verify login. |
 | Provider is not authenticated | Use that provider's supported local login process; setup and `doctor` do not verify authentication. |
 | Configuration collision or edited managed entry | Inspect the named entry and reconcile it with the intended connection. Preserve unrelated settings, then rerun; the helper will not silently replace the conflict. |
-| Export exists but host tools are missing | Apply Codex or Claude Code project configuration, or manually import the Antigravity export. Then complete host trust/approval, reopen or reload, and inspect MCP status again. |
+| Export exists but host tools are missing | Apply the supported project configuration. Then complete host trust/approval, reopen or reload, and inspect MCP status again. |
+| Headless call reports success but no reply arrives | Inspect tool-denial records and the message ledger. Grant only the required tools, including `bridge_reply_message` if used. A zero exit code can include a denied tool action. |
 
 Add `--json` for structured diagnosis. `doctor` reports filesystem and executable checks; it does not establish provider login or host connectivity. Missing optional Node.js does not block research without the bridge.
 
@@ -127,9 +128,13 @@ In a delegated implementation workflow, the external author performs analysis, e
 
 When a channel cannot push a result, use only the scoped scheduled check the user authorized. Do not create polling loops for all agents. A timeout preserves the original task; reconcile its status before deciding whether further action is needed.
 
-Generated Codex and Claude Code configurations set an 11-minute tool timeout (`tool_timeout_sec = 660` for Codex; `timeout = 660000` milliseconds for Claude Code), to accommodate the bridge's default 10-minute delivery wait. Antigravity exports do not guess a timeout field. These defaults do not guarantee the same support across every host version or operation.
+Generated configurations set an 11-minute tool timeout (`tool_timeout_sec = 660` for Codex, `timeout = 660000` milliseconds for Claude Code, and `timeoutSeconds = 660` for Antigravity), to accommodate the bridge's default 10-minute delivery wait. These defaults do not guarantee the same support across every host version or operation.
 
 The bridge's actual wait and coalescing values must fit the host and MCP client's supported deadlines. Keep the delivery wait below those limits. A server timeout longer than the client permits does not extend the client limit.
+
+Before unattended use, grant the selected message tools through the host's supported permission controls. Include reading, sending, and replying; connection setup alone grants none of them. In Codex, `approval_policy = "never"` rejects a tool that still requires approval. In Antigravity headless mode, a denied tool can appear in `denied_actions` even with `status: "SUCCESS"`. Use the configured host adapter and verify a real continuation receipt and reply. The [live-client check](validation-v0.3.1.md) documents the tested surfaces and route.
+
+For small checks, select a low-cost model and pass `effort: "low"` to `claude_exec`, `claude_resume`, or CLI-backed `antigravity_exec`. Codex execution accepts `model_reasoning_effort="low"` through `configOverrides`. Keep the exact model and conversation binding on subsequent calls.
 
 ## Model and conversation evidence
 

@@ -450,6 +450,8 @@ def entries_for(project, client, peers, runtime, node, providers):
             entries["cro_" + peer.replace("-", "_")]["tool_timeout_sec"] = 660
         elif client == "claude-code":
             entries["cro_" + peer.replace("-", "_")]["timeout"] = 660000
+        else:
+            entries["cro_" + peer.replace("-", "_")]["timeoutSeconds"] = 660
     return entries
 
 
@@ -472,7 +474,8 @@ def connection_paths(client):
     root = Path(".research-orchestrator/mcp")
     export = root / (client + (".toml" if client == "codex" else ".json"))
     state = root / (client + ".managed.json")
-    config = {"codex": Path(".codex/config.toml"), "claude-code": Path(".mcp.json")}.get(client)
+    config = {"codex": Path(".codex/config.toml"), "claude-code": Path(".mcp.json"),
+              "antigravity": Path(".agents/mcp_config.json")}[client]
     return export, state, config
 
 
@@ -558,9 +561,7 @@ def connect(args, project):
         state["applied"] = entries
     files[manifest] = json_text(state)
     changed, saved = write_files(project, files, [config] if applied else [])
-    if args.client == "antigravity":
-        next_action = f"Import the mcpServers entries from {project / export} using your Antigravity client's MCP configuration interface."
-    elif applied:
+    if applied:
         next_action = f"Reopen {args.client} in {project} and inspect its MCP server status."
     else:
         extra = ["--client", args.client, "--peers", *peers, "--node", node["path"], "--apply"]
@@ -649,11 +650,8 @@ def doctor(args, project):
     elif bridge_requested and checks["configuration"].get("generated") == "changed":
         action = f"Inspect the edited MCP export in {project / '.research-orchestrator/mcp'} before reconnecting."
     elif bridge_requested and not checks["configuration"].get("selection_applied"):
-        if args.client == "antigravity" and checks["configuration"].get("selection_generated"):
-            action = f"Import the mcpServers entries from {project / connection_paths(args.client)[0]} in Antigravity."
-        else:
-            action = cli_command(project, "connect", "--client", args.client, "--peers", *peers,
-                                 "--node", checks["node"]["path"], "--apply")
+        action = cli_command(project, "connect", "--client", args.client, "--peers", *peers,
+                             "--node", checks["node"]["path"], "--apply")
     elif bridge_requested and any(not item["executable"] for item in checks["providers"].values()):
         missing = next(peer for peer, item in checks["providers"].items() if not item["executable"])
         action = f"Install the {missing} provider CLI ({AGENTS[missing][0]}) before using that peer."
@@ -692,7 +690,7 @@ def parser():
             command.add_argument("--peers", nargs="+", help="Explicit other agents (space or comma separated)")
             command.add_argument("--node", help="Node >=24 executable path or command")
         if name == "connect":
-            command.add_argument("--apply", action="store_true", help="Register project Codex/Claude config; Antigravity exports only")
+            command.add_argument("--apply", action="store_true", help="Register project config for Codex, Claude Code or Antigravity CLI/IDE")
     return root
 
 

@@ -3,7 +3,7 @@ name: codex-research-orchestrator
 description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, reciprocal agent collaboration, review, and evidence-based continuation. Use to start or resume multi-round research, organize a research team, or coordinate authorized work across Codex, Claude Code, and Antigravity. Use only relevant guidance for a bounded contribution.
 license: MIT
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
 ---
 
 # Codex Research Orchestrator

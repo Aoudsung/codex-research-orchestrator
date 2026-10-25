@@ -68,7 +68,7 @@ project so we can investigate separate explanations and compare them.
 
 Peers can exchange questions, evidence, revisions, and results in both directions within the agreed scope. You choose their responsibilities; a provider name does not fix who leads, implements, or reviews. Independent analysis and review receive selected original materials and the relevant proposal, without prior evaluations that would bias the judgment.
 
-Connection setup needs Node.js 24 or later and the full bundle's bridge runtime. It generates configuration with real absolute paths. Codex can apply requested project settings for Codex or Claude Code; Antigravity configuration is exported for manual import. The host may still require trust approval or a reload. Each provider keeps its own supported authentication setup.
+Connection setup needs Node.js 24 or later and the full bundle's bridge runtime. It generates configuration with real absolute paths and can apply requested project settings for Codex, Claude Code, or Antigravity CLI/IDE. The host may still require trust approval or a reload. Each provider keeps its own supported authentication setup.
 
 A configuration file does not establish a live connection. Codex checks the tools available in the current session before using them. Setup does not launch provider models or authorize experiments, external sharing, publication, or ongoing background work. See [connection details](mcp-setup.md) when you need them.
 

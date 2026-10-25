@@ -12,7 +12,7 @@ import {
 
 const server = new McpStdioServer({
   name: "claude-code-mcp",
-  version: "0.3.0",
+  version: "0.3.1",
   instructions:
     "MCP server for communicating with Anthropic Claude Code CLI (`claude -p`, `--resume`, `--continue`) with explicit task/session/model bindings and reported identity evidence, structured patch delivery, and bidirectional messaging.",
 });
@@ -29,19 +29,24 @@ function parseClaudeJsonOutput(stdout) {
     return { sessionId: null, actualModel: null, response: "", raw: null };
   }
 
-  const extractFromObj = (obj) => ({
-    sessionId: obj.session_id || obj.sessionId || null,
-    actualModel: obj.model || obj.model_id || obj.modelId || null,
-    response:
-      typeof obj.result === "string"
-        ? obj.result
-        : typeof obj.content === "string"
-          ? obj.content
-          : JSON.stringify(obj),
-    costUsd: obj.total_cost_usd ?? obj.cost_usd ?? null,
-    isError: Boolean(obj.is_error),
-    raw: obj,
-  });
+  const extractFromObj = (obj) => {
+    const usage = Object.entries(obj.modelUsage || {});
+    const usageModel = usage.length === 1 ? (usage[0][1].canonicalModel || usage[0][0]) : null;
+    return {
+      sessionId: obj.session_id || obj.sessionId || null,
+      actualModel: obj.model || obj.model_id || obj.modelId || usageModel,
+      response:
+        typeof obj.result === "string"
+          ? obj.result
+          : typeof obj.content === "string"
+            ? obj.content
+            : JSON.stringify(obj),
+      costUsd: obj.total_cost_usd ?? obj.cost_usd ?? null,
+      isError: Boolean(obj.is_error || obj.permission_denials?.length),
+      permissionDenials: obj.permission_denials || [],
+      raw: obj,
+    };
+  };
 
   try {
     const obj = JSON.parse(trimmed);
@@ -87,6 +92,7 @@ function buildClaudeCliArgs(
   if (args.model) {
     cliArgs.push("--model", args.model);
   }
+  if (args.effort) cliArgs.push("--effort", args.effort);
   if (args.systemPrompt) {
     cliArgs.push("--system-prompt", args.systemPrompt);
   }
@@ -145,6 +151,11 @@ server.registerTool(
         requiredModel: {
           type: "string",
           description: "Strict required model ID.",
+        },
+        effort: {
+          type: "string",
+          enum: ["low", "medium", "high", "xhigh", "max"],
+          description: "Reasoning effort for this CLI invocation.",
         },
         systemPrompt: {
           type: "string",
@@ -344,7 +355,10 @@ server.registerTool(
         stderr: execResult.stderr || undefined,
       };
     } else {
-      const errClass = classifyExecutionError(
+      const errClass = parsed.permissionDenials?.length ? {
+        category: "CLI_PERMISSION_DENIED", retryable: false,
+        message: "The CLI denied one or more tool actions; execution is incomplete.",
+      } : classifyExecutionError(
         execResult.stderr || execResult.error || "",
         execResult.stdout || ""
       );
@@ -409,6 +423,11 @@ server.registerTool(
         model: {
           type: "string",
           description: "Optional model override.",
+        },
+        effort: {
+          type: "string",
+          enum: ["low", "medium", "high", "xhigh", "max"],
+          description: "Reasoning effort for this resumed CLI turn.",
         },
         permissionMode: {
           type: "string",
@@ -482,6 +501,8 @@ server.registerTool(
 
     return {
       ok: isSuccess,
+      errorCode: parsed.permissionDenials?.length ? "CLI_PERMISSION_DENIED" : undefined,
+      permissionDenials: parsed.permissionDenials,
       agent: "claude-code",
       sessionId: effectiveSessionId,
       actualModel: parsed.actualModel || null,

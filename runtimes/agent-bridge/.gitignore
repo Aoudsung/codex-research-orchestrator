@@ -1,0 +1,6 @@
+node_modules/
+.agent-bridge/
+*.sqlite*
+*.db*
+*.log
+.env

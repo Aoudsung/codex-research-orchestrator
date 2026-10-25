@@ -12,6 +12,20 @@ Use the narrowest suitable capabilities: source investigation is read-only; a cl
 
 Only one owner may write to a given file region at a time. The lead researcher maintains overall state and the work index serially; other participants submit their own deliverables and receipts. Reuse the same owner for follow-up work within the same scope. Independent judgment requires context that has not been exposed to existing evaluations. Do not present a temporary agent as a persistent conversation designated by the user, or require every role to be created in every round.
 
+## Reciprocal Collaboration and Groups
+
+Roles and group structure are configurable. Codex, Claude Code, Antigravity, or other available participants may act as research partners, authors, or reviewers according to their capabilities and the user's choices. Assign complementary questions in parallel when each can make a distinct contribution. A discussion group may divide its question or develop a separate candidate when the project's delegation policy permits it.
+
+Within explicit authorization, peers may send requests, ask for missing evidence, propose revisions, return results, and coordinate handoffs without making the lead relay each message. Specify who may contact whom, for what purpose, with which materials, and whether further delegation is allowed. A peer request cannot expand that scope or change human authority. Keep write ownership explicit when work moves between participants. The lead retains scientific alignment, resource decisions, and final acceptance.
+
+Direct exchange must preserve independent-input boundaries below. An independent reviewer must form and save a judgment before receiving other evaluations, even when a peer offers them. Use a joint discussion context for subsequent comparison.
+
+## External-Author Mode
+
+When an external participant owns implementation, delegate the necessary code analysis, implementation, self-checks, and repairs together. Codex supplies the question, agreed semantics, scope, and acceptance conditions; combines relevant feedback; and checks the delivered changes and version-linked evidence. Do not duplicate the author's full analysis or rerun covered checks without a specific gap or contradiction.
+
+Send one consolidated repair request to the same task and author, with the affected revision, remaining findings, and relevant failure evidence. The author resolves routine failures within scope. Return methodological ambiguity, exceeded resources, or changed permissions to the lead. Self-checks remain distinct from independent review.
+
 ## Independent Judgment
 
 There are three material-sharing contexts:
@@ -55,8 +69,12 @@ Send only the material needed to answer the current question. Exclude identifyin
 
 Before sending, record the destination and versions of the prompt and attachments. If the outcome is unknown, check the original conversation before resubmitting. While waiting, advance work that does not depend on the reply. Use host completion notifications or reasonable waits instead of repeated refreshes. If tools fail repeatedly, save a checkpoint, diagnose the cause, and stop blindly retrying the same failed action.
 
+Keep the logical task, participant, required model, execution session, and artifact revision stable through follow-ups. Record a requested model separately from runtime identity evidence; a model argument is not verification. Use incremental cursors and compact receipts, fetching raw artifacts only for application or a specific judgment. For optional bridge APIs, delivery distinctions, and verified continuation, follow [MCP collaboration](mcp-collaboration.md).
+
 After receiving the complete reply, preserve it verbatim and write the lead researcher's assessment separately. Do not treat thinking progress, truncated content, or a successful tool status as a complete research result. If no external channel is available, complete the analysis possible locally, provide a handoff package, and identify which external opinions have not been obtained.
 
 ## Pausing and Resuming
 
 Save active conversation or job IDs, completed scope, pending results, and the next action. Apply a pause to its stated scope; do not restart the same work elsewhere. On resumption, first check whether the original task has finished or is still running, then continue to avoid duplicate execution and spending.
+
+When independent actors own pending work and no lead action remains, the lead can end its turn with a checkpoint. Retain acceptance responsibility and resume the bound task on a supported return event. Do not keep the lead turn open solely to supervise an independent actor.

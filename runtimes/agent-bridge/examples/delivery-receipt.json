@@ -1,0 +1,10 @@
+{
+  "tool": "bridge_send_message",
+  "arguments": {
+    "taskId": "example-task",
+    "fromAgent": "antigravity",
+    "toAgent": "codex",
+    "content": "Declared revision 2 is ready for validation.",
+    "metadata": { "delivery": { "final": true, "revision": 2, "patchIds": ["example-patch-2"] } }
+  }
+}

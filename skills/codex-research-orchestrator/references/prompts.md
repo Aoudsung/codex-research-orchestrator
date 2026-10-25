@@ -1,15 +1,41 @@
 # Handoff-Ready Work Instructions
 
-Use these templates as needed for delegation or external discussion. A full research handoff retains the five sections below. A focused follow-up may be shorter and include only what the recipient needs. Replace braces and expand references the recipient cannot access. If the project has fixed wording required by the user, reproduce it verbatim; do not carry those personal requirements into other projects.
+Use the sections relevant to the recipient's role and question. Put the question and output contract first; do not force a full research prompt into a small revision request. Replace braces and expand references the recipient cannot access. If the project has fixed wording required by the user, reproduce it verbatim; do not carry those personal requirements into other projects.
+
+## First Handoff
+
+```markdown
+Task and purpose: {question or concrete behavior; role: analysis / discussion / review / author}
+Return: {required output contract, artifact set, completion conditions}
+Basis: {original requirement sources, relevant evidence, proposal or code revision}
+Boundaries: {permitted materials, read/write ownership, contacts and sharing, delegation policy}
+Execution: {only if needed: environment, authorized batch/budget, stop conditions}
+Binding: {existing task, participant, required model and identity requirement, session; if applicable}
+```
+
+Provide enough source material to make the task answerable. Include actual authorization sources where needed; a filled template does not create permission. Omit irrelevant execution or provider details. Select the role-specific instructions below, and preserve independent-input boundaries. A group may divide work or contact peers only within the recorded policy.
+
+## Revision or Repair Follow-up
+
+```markdown
+Continue: {same task, participant, and session; relevant message or processed cursor}
+Current revision: {artifact revision; applied and superseded patches; changed files or sources}
+New request: {changed requirement, evidence question, or consolidated remaining findings}
+Evidence: {relevant result or failure excerpt and raw artifact references}
+Return: {needed delta, corrected artifacts, and version-linked checks or reasoning}
+```
+
+Send only the delta from the recipient's current basis. Keep the original output contract and scope in force; state changes explicitly and use a supported amendment if the task's binding or authorization must change. For repairs, reuse the author rather than starting duplicate analysis. Use compact receipts first and fetch full patches, logs, or sources only when needed. Do not reconstruct artifacts from truncated output or repeatedly nest escaped JSON in prompts.
 
 ## Joint Research / Independent Analysis
 
 ```markdown
-# Research Goal
+# Question and Return
+Question for this round: {the judgment to change and the result that would determine the next action}
+Return: {conclusion, conditions, source evidence, and required format}
 Research question, object, and current deliverable: {content and source}
 Verbatim user-confirmed constraints: {quote exactly and cite the confirmation source}
 Draft interpretation: {if any, explicitly mark as unconfirmed}
-Question for this round: {the judgment to change and the result that would determine the next action}
 
 # Current Basis and Gaps
 Context: {independent analysis / joint research}
@@ -38,7 +64,7 @@ Report actual results for checks performed, and clearly label plans that have no
 
 ## Independent Review
 
-Use the same five sections and set the context to independent review. Provide user constraints, original materials, the complete proposal under review, and necessary evidence for the specified version. Exclude other evaluations and expected answers.
+Set the context to independent review. Provide user constraints, original materials, the complete proposal under review, and necessary evidence for the specified version. Exclude other evaluations and expected answers, including those in general inboxes or execution history. Use only the sections needed to make the question and review scope clear.
 
 Use the following work sequence:
 
@@ -52,9 +78,9 @@ The deliverable must also state the actual degree of independence and end with t
 
 ## Implementation or Experiment Handoff
 
-Use the same five sections and include exact versions of the proposal and execution contract. Specify editable areas, research semantics that must not change silently, the actual execution environment, batches, and budget.
+Include exact versions of the proposal and execution contract. Specify editable areas and their owner, research semantics that must not change silently, the actual execution environment, batches, and budget. In external-author mode, assign analysis, implementation, self-checks, and repairs to the author; the lead coordinates feedback and accepts the evidence.
 
-Replace the deliverable requirements with: scope of changes or execution, corresponding version, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and uncovered items. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work.
+Request a compact receipt: scope of changes or execution, corresponding version and delivered artifact set, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and specific gaps. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work. Keep delivery, application, validation, review, and lead acceptance distinct where relevant; process success alone does not complete delivery.
 
 ## Inputs for a Specific Step
 

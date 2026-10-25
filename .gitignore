@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 dist/
 .research-memory/
+.agent-bridge/
+node_modules/

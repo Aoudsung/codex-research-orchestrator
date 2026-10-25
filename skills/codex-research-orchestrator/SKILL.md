@@ -1,16 +1,16 @@
 ---
 name: codex-research-orchestrator
-description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, external collaboration, review, implementation or experiment handoffs, and evidence-based continuation. Use to start or resume multi-round research or organize a Codex research team. Do not start the full workflow for a one-off factual answer, routine code change, or text-only polish.
+description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, reciprocal agent collaboration, review, and evidence-based continuation. Use to start or resume multi-round research, organize a research team, or coordinate authorized work across Codex, Claude Code, and Antigravity. Use only relevant guidance for a bounded contribution.
 license: MIT
 metadata:
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
 # Codex Research Orchestrator
 
 Organize sustained research around the key scientific question, a supported contribution, and the user's needs. Each round should change a meaningful judgment through evidence. Protect the research object and authorization the user has set; revise or reject mechanisms, candidate claims, and current approaches when evidence warrants it.
 
-This skill is built for Codex. It uses skill discovery, project files, subagents, and available tools. Adapt it to different fields through project settings, without fixing a model version, private chat, server, or team size. On first use, read [Codex integration](references/codex-runtime.md) to identify the current client's capabilities. These files do not create a background service or guarantee research success.
+This skill enables agents to exchange requests, evidence, revisions, and results and resume authorized work with less manual relay. Adapt roles and channels through project settings, without fixing a provider combination, model, session, or team size. On first use, read [Codex integration](references/codex-runtime.md) to identify the current client's capabilities. Native Codex work remains usable without an added runtime. For optional collaboration through the repository's `runtimes/agent-bridge`, read [MCP collaboration](references/mcp-collaboration.md). Installation alone does not create a background service or establish support for every provider and host.
 
 ## Enter the task
 
@@ -43,7 +43,7 @@ Definitions in a paper, collaborator suggestions, assistant inferences, and draf
 
 1. **Choose the judgment to change.** Connect the current difficulty to the research goal. State what result would decide the next step. “Have another discussion” is not a research objective.
 2. **Choose a method that can answer it.** Resolve what sources, derivations, counterexamples, or implementation checks can settle before arranging necessary observations. Design, empirical work, theory, and reproduction require different evidence; see [research methods](references/method.md).
-3. **Assign work and obtain original results.** Independent research, joint discussion, review, and implementation need different inputs. Select participants using [collaboration](references/collaboration.md), and provide sufficient context using [handoff prompts](references/prompts.md); state any required output format in full in the first request. Keep short diagnostic loops with the lead when delegation would add no value.
+3. **Coordinate work and obtain original results.** Independent research, joint discussion, review, and implementation need different inputs. Select participants using [collaboration](references/collaboration.md), and provide sufficient context using [handoff prompts](references/prompts.md); state any required output format in full in the first request. Authorized peers may exchange questions and evidence or coordinate handoffs directly. Keep short diagnostic loops with the current owner when delegation would add no value.
 4. **Determine what the result changes.** Check the key derivation, source, or affected behavior. Distinguish new evidence from another participant's opinion. Accept, rebut, or leave each review finding open, with reasons. Recheck only material changes or uncovered questions.
 5. **Record and continue.** The lead updates state, claims, and decisions serially, preserving original materials and a short work index under [recordkeeping](references/records.md). Continue the next necessary action when the objective is unfinished and the action is clear, authorized, and within budget.
 
@@ -60,7 +60,7 @@ Progress can mean establishing conditions, ruling out a candidate, repairing a d
 | Implementer | Implements the agreed approach or runs authorized experiments; returns version-linked evidence and escalates methodological ambiguity |
 | Collaboration observer, optional | Diagnoses coordination problems and proposes changes; does not take over research, direct participants, or rewrite rules |
 
-Roles describe responsibilities, not a required set of chats. Reuse participants the user has designated. Create temporary agents only when independence or parallel work adds value. One agent may research and implement, but must label its own check as self-review. Enable the observer only when the user requests a coordination assessment; see [observation](references/observer.md).
+Roles are configurable responsibilities. Reuse participants the user has designated. Groups may divide work and develop distinct candidates within an explicit delegation policy. Keep one owner per write area and the lead responsible for scientific decisions and final acceptance. In external-author mode, the author owns analysis, implementation, self-checks, and repairs; Codex coordinates and accepts relevant evidence without repeating that workflow. One agent may research and implement, but must label its own check as self-review. Enable the observer only when the user requests a coordination assessment; see [observation](references/observer.md).
 
 ## Continue and stop
 
@@ -76,7 +76,9 @@ Create a checkpoint and explain the concrete boundary when:
 
 Complete unaffected authorized work before asking. Do not turn ordinary approach choices, failed candidates, or a lack of absolute guarantees into approval requests. Sustained research does not authorize unlimited retries, more resources, or unapproved experiments.
 
-For work across sessions or time periods, use the host's scheduling tools only when requested and available. Save the research directory, resumption entry point, authorized scope, budget, and stop conditions. Stay quiet without meaningful change; notify on substantive results, failure, or a needed decision. Without a scheduler, provide a checkpoint and state that no background work is running.
+For scheduled work across sessions or time periods, use the host's scheduling tools only when requested and available. Save the research directory, resumption entry point, authorized scope, budget, and stop conditions. Stay quiet without meaningful change; notify on substantive results, failure, or a needed decision. Without a configured scheduler, provide a checkpoint and do not promise scheduled wakeups.
+
+The lead may finish its current turn after independent actors own the pending work and no lead action remains. Keep the task bindings and next action for a genuine return event; delegated work still needs final acceptance. Use supported events for capable channels, and authorized, channel-scoped scheduled checks for channels without push. An inbox event or forwarding success alone does not establish that the target chat resumed; see [MCP continuation](references/mcp-collaboration.md#wait-and-resume).
 
 ## Deliver
 

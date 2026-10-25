@@ -1,8 +1,22 @@
 # Codex Research Orchestrator
 
-**A multi-agent research framework built specifically for Codex. Keep autonomous research focused on the scientific question, meaningful innovation, and the user's goals.**
+**A research collaboration framework for Codex, with autonomous information exchange and task coordination across Claude Code, Antigravity, and Codex.**
 
-[MIT License](LICENSE) · [Skill entry point](skills/codex-research-orchestrator/SKILL.md) · [Design rationale](docs/design.md) · [Related work](docs/related-work.md)
+[MIT License](LICENSE) · [Skill entry point](skills/codex-research-orchestrator/SKILL.md) · [MCP setup](docs/mcp-setup.md) · [Design rationale](docs/design.md) · [Related work](docs/related-work.md)
+
+## New in v0.2: autonomous cross-agent collaboration
+
+Claude Code, Antigravity, and Codex can exchange requests, evidence, revisions, and results through an optional shared MCP bridge. Agents can continue an authorized task across turns and provider boundaries with less manual message relay, while preserving the task's participants, scope, and acceptance criteria.
+
+The bridge supports reciprocal communication: a research partner can request clarification, an implementer can return a patch, and a reviewer can send focused feedback to the same task. Any configured participant can initiate a permitted exchange. A shared record keeps messages, artifact revisions, and verification results connected.
+
+- **Persistent collaboration:** continue the same task and session through revisions, with explicit model requirements and identity evidence.
+- **Incremental exchange:** receive new messages by cursor and fetch complete artifacts only when needed.
+- **Structured delivery:** connect patches, replacements, validation results, and final acceptance without treating a successful process exit as completed work.
+- **Event-driven continuation:** combine dispatch with delivery waiting, or resume through a configured host notification route that confirms acceptance.
+- **User-defined boundaries:** retain read/write scopes, execution permissions, independent-review inputs, and the lead's scientific decisions.
+
+Install the [optional bridge runtime](runtimes/agent-bridge/README.md) for the connections you need. The research skill and memory helper also work without it. Provider CLIs and host notification routes remain explicit local configuration; the repository does not install accounts or enable unattended processes automatically.
 
 ## Why this project exists
 
@@ -27,6 +41,7 @@ The contribution is an inspectable **research collaboration protocol for Codex**
 | Independent judgment before collaboration | Isolate prior evaluations during key analysis and review, then compare derivations and counterexamples. | [Collaboration](skills/codex-research-orchestrator/references/collaboration.md) |
 | Ground innovation in mechanisms | Compare substantive differences from the closest work, the properties those differences produce, and the contribution they support. Check conditions before transferring ideas across fields. | [Research methods](skills/codex-research-orchestrator/references/method.md) |
 | Connect review, implementation, and evidence | Resolve findings individually, track review coverage by version and conditions, and preserve sources separately from current conclusions. | [Records](skills/codex-research-orchestrator/references/records.md) |
+| Coordinate autonomous cross-agent exchange | Preserve task and session bindings across requests, evidence, patches, and verification; let authorized participants continue from actual deliveries. | [MCP collaboration](skills/codex-research-orchestrator/references/mcp-collaboration.md) |
 | Retrieve research memory by validity and recipient | Keep live controls, typed source snapshots, explicit dependencies, and bounded context packets; filter independent inputs before ranking. | [Memory and context](skills/codex-research-orchestrator/references/memory.md) |
 | Improve coordination without transferring control | An optional observer diagnoses repetition, stalled progress, and broken handoffs, then proposes evidence-based changes for the user to decide. | [Observation](skills/codex-research-orchestrator/references/observer.md) |
 
@@ -36,7 +51,7 @@ The contribution is an inspectable **research collaboration protocol for Codex**
 
 The framework enters through a Codex `SKILL.md` and loads references and project templates only when needed. The main chat leads the research. Subagents handle separable investigation, reasoning, and implementation. Project files preserve state across rounds. Available terminals, connectors, and chat tools carry out the work. [Codex integration](skills/codex-research-orchestrator/references/codex-runtime.md) maps these responsibilities to the host.
 
-No separate Python multi-agent service or fixed model version is required. Available capabilities can differ across Codex CLI, IDE, and desktop clients; the skill follows the tools exposed in the current session. An external partner can be another researcher or model. ChatGPT Pro is one optional choice. Continuing in the current session and waking later are separate capabilities; the latter requires a user request and host scheduling.
+No separate Python multi-agent service or fixed model version is required. Available capabilities can differ across Codex CLI, IDE, and desktop clients; the skill follows the tools exposed in the current session. The optional Node.js bridge connects Claude Code, Antigravity, and Codex. Other research partners can use their available channels. Continuing within a tool call and resuming in a later turn are separate capabilities; later continuation requires a configured host route or an authorized schedule.
 
 The package follows the [official skill documentation](https://learn.chatgpt.com/docs/build-skills) and [subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents). This is an independent community project maintained by Aoudsung, with no OpenAI affiliation or endorsement.
 
@@ -81,7 +96,7 @@ cp -R codex-research-orchestrator/skills/codex-research-orchestrator \
 
 Replace the example path with your project directory. If a skill with the same name already exists, compare versions before replacing local changes. You can also ask Codex's skill installer to install `skills/codex-research-orchestrator` from this repository.
 
-The repository includes `plugin.json` for distribution as a skill-only plugin. It configures no external MCP service or background process and needs no API key in the repository. Research tools and execution environments come from the user's Codex session.
+The repository includes `plugin.json` for skill distribution. To enable cross-agent exchange, follow [MCP setup](docs/mcp-setup.md) and register only the required adapters. The skill manifest does not silently register services or background processes. Keep provider credentials in the provider's supported local authentication system, outside this repository.
 
 ## Start research
 
@@ -141,6 +156,7 @@ codex-research-orchestrator/
 ├── LICENSE
 ├── plugin.json
 ├── docs/                         # Design, comparisons, and validation
+├── runtimes/agent-bridge/         # Optional shared MCP runtime and three adapters
 └── skills/codex-research-orchestrator/
     ├── SKILL.md                  # Codex skill entry point
     ├── agents/openai.yaml        # Display metadata
@@ -151,9 +167,9 @@ codex-research-orchestrator/
 
 ## Current scope
 
-Version 0.1.1 combines agent instructions, templates, and a local memory/context helper. It guides research decisions but does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
+Version 0.2.0 combines research instructions, templates, local memory, and an optional MCP collaboration runtime. It supports autonomous information exchange within the user's authorization. It does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
 
-[Validation notes](docs/validation.md) state what was checked. Contributions should describe a concrete failure, its trigger, the current behavior, and the smallest useful correction. Avoid turning one project's special requirements into universal rules.
+[v0.2 validation notes](docs/validation-v0.2.md) state what was checked, including three-process MCP communication and synthetic provider execution. Contributions should describe a concrete failure, its trigger, the current behavior, and the smallest useful correction. Avoid turning one project's special requirements into universal rules.
 
 ## Author and license
 

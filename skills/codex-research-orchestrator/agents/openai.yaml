@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Research Orchestrator"
-  short_description: "Coordinate research, independent review, and evidence"
-  default_prompt: "Use $codex-research-orchestrator to start or continue research from my goals and existing materials, preserving confirmed constraints, authorization, and resource limits."
+  short_description: "Coordinate research and reciprocal agent collaboration"
+  default_prompt: "Use $codex-research-orchestrator to continue research and authorized agent collaboration from my goals, materials, constraints, and resource limits."

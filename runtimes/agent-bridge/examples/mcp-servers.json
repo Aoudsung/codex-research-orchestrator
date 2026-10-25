@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "codex-bridge": {
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/repository/runtimes/agent-bridge/src/servers/codex-mcp.mjs"],
+      "env": { "AGENT_BRIDGE_DB": "/absolute/path/to/local-state/bridge.sqlite", "MCP_CALLER_AGENT": "<client-agent>", "CODEX_BIN": "/absolute/path/to/codex" }
+    },
+    "claude-code-bridge": {
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/repository/runtimes/agent-bridge/src/servers/claude-code-mcp.mjs"],
+      "env": { "AGENT_BRIDGE_DB": "/absolute/path/to/local-state/bridge.sqlite", "MCP_CALLER_AGENT": "<client-agent>", "CLAUDE_BIN": "/absolute/path/to/claude" }
+    },
+    "antigravity-bridge": {
+      "command": "/absolute/path/to/node",
+      "args": ["/absolute/path/to/repository/runtimes/agent-bridge/src/servers/antigravity-mcp.mjs"],
+      "env": { "AGENT_BRIDGE_DB": "/absolute/path/to/local-state/bridge.sqlite", "MCP_CALLER_AGENT": "<client-agent>", "AGY_BIN": "/absolute/path/to/agy" }
+    }
+  }
+}

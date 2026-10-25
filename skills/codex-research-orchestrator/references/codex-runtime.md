@@ -18,9 +18,16 @@ Discover existing tools and project configuration first, then read only enough m
 | Code changes and validation | Use workspace file tools, a terminal, relevant tests, and the environment actually authorized | Deliver the design or code and identify validation that has not run |
 | Long experiments | Retain job or terminal session IDs, use completion notifications or wait interfaces, and read key output | Save resumption steps and avoid starting duplicate runs |
 | External research collaboration | Prefer connectors or MCP; use a browser when needed and available | Continue independent local work and identify the missing external input |
+| Reciprocal agent work | Discover the optional bridge adapters or native messaging tools, then exchange scoped requests, evidence, revisions, and results | Retain explicit handoff artifacts and identify which exchanges were not sent |
 | Work across sessions | Use the automation features currently provided by Codex when the user requests them | Leave a checkpoint without promising background progress |
 
 Tool names vary across clients. Discover the current tools and follow their instructions. Do not guess interfaces from this document or bypass missing capabilities through private databases or credential access.
+
+## Optional Agent Bridge
+
+The repository's `runtimes/agent-bridge` is an opt-in runtime with Codex, Claude Code, and Antigravity adapters. It is separate from skill installation. Provider execution needs its own configured backend and permissions; do not require every adapter, register them automatically, or change account settings to use the native workflow. Read [MCP collaboration](mcp-collaboration.md) for stable task/session/model bindings, preflight, incremental messages, artifact handling, and acceptance evidence. Discover the installed schema before mapping those operations to tools.
+
+Participants can coordinate directly within explicit contact and sharing authorization. Provider names do not fix roles: Codex may coordinate an external author or contribute to another authorized participant's question. Keep one writer per area and a named lead for final acceptance. Temporary subagent tools and persistent provider sessions remain distinct capabilities.
 
 ## Subagents
 
@@ -37,6 +44,8 @@ For sustained research, Codex can invoke the bundled `scripts/research_memory.py
 ## Automation Boundaries
 
 Distinguish progress within the current turn from scheduling work across sessions. Codex can continue the former within the task's scope; the latter requires a user request and host scheduling support. Record pauses, budgets, and restrictions on external sharing in resumable records, rather than relying on vague promises in conversation context.
+
+An integrated delivery wait keeps dispatch and waiting in the current operation; it does not establish later host wakeup. Cross-turn continuation requires a configured receiver, host acceptance, and evidence that the intended target turn processed the event. Use events on capable channels. For a channel without push, use only its authorized scoped schedule. A successful CLI or inbox write is not proof of a resumed chat. If independent actors own all pending work, the lead may end its turn while retaining the checkpoint and acceptance responsibility.
 
 This skill provides agent working rules and inspectable records. It is not an operating-system sandbox or an enforced budget accounting service. Codex and the execution environment control actual permissions.
 

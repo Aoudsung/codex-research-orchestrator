@@ -10,6 +10,8 @@ Read this file when a project has enough history that repeated file reading or m
 
 The existing charter, project settings, state, and original sources remain authoritative. The database stores typed records and exact source snapshots for retrieval and version checking. It is not a second charter or an automatic truth service.
 
+An optional collaboration bridge has a separate execution source of truth: task/session/model bindings, message cursors, permission leases, artifact deliveries, and validation status. Keep scientific requirements, claims, decisions, and accepted evidence in research files and memory. Transport success cannot turn a collaborator's evaluation into a fact or override current user instructions.
+
 ## What to remember
 
 Write records after a meaningful result or decision, not after every tool call. Each record identifies its kind, title, short search summary, source file, applicable conditions or version, and declared dependencies. Keep source cards small enough to inspect, with units, assumptions, contrary results, and qualifications intact.
@@ -20,6 +22,8 @@ Write records after a meaningful result or decision, not after every tool call. 
 - `evaluation`: a participant's assessment of a specified version. It is not primary evidence.
 - `proposal`: the complete version to be reviewed.
 - `checkpoint`: ongoing work, pending results, and a resumption pointer. It is not an instruction to repeat a job.
+
+Use the existing `checkpoint` kind for a task reference, delivery revision, accepted result location, and next action. Do not add a memory kind or schema merely for bridge IDs. Leave the full inbox and patch history in execution storage, retrieving exact artifacts only for a specific judgment. A lead assessment records what a result means before it becomes a scientific claim or decision in memory.
 
 Do not infer that a repeated statement is a fact. Do not turn a collaborator's confidence into evidence. A title or summary is a retrieval aid; inspect the source before relying on the claim.
 
@@ -71,6 +75,8 @@ The tool cannot detect unregistered dependencies or changes to an online source 
 ## Resumption and compaction
 
 Before a handoff or context compaction, update the existing state with the next action, pending feedback, source pointers, running-job identifiers, and latest permissions. Store a checkpoint if it will aid retrieval.
+
+For incremental collaboration, retain a reference to the processed cursor and current artifact revision rather than replaying every message. A source read-set can help reuse unchanged context but grants no access and establishes no independence. Build a fresh recipient-specific packet when the question, evidence, or revision changes; independent participants must not receive the execution inbox or prior evaluations as general continuation context.
 
 On resumption, read live controls first, check active jobs through the actual environment, and assemble a fresh working context. A checkpoint or cached packet cannot authorize a new run or override a pause received later. Independent tasks start from curated materials and must not load the general resumption context.
 

@@ -1,11 +1,13 @@
 {
   "name": "@aoudsung/research-agent-bridge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Optional shared MCP collaboration runtime for Codex, Claude Code and Antigravity",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "test": "node test/test-all.mjs",
     "start:codex": "node src/servers/codex-mcp.mjs",

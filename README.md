@@ -1,178 +1,139 @@
 # Codex Research Orchestrator
 
-**A research collaboration framework for Codex, with autonomous information exchange and task coordination across Claude Code, Antigravity, and Codex.**
+**Start research with one goal. Keep the scientific question, evidence, and next action connected. Bring Claude Code and Antigravity into the work when you need them.**
 
-[MIT License](LICENSE) · [Skill entry point](skills/codex-research-orchestrator/SKILL.md) · [MCP setup](docs/mcp-setup.md) · [Design rationale](docs/design.md) · [Related work](docs/related-work.md)
+[Get started](docs/getting-started.md) · [Connect agents](docs/mcp-setup.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [MIT License](LICENSE)
 
-## New in v0.2: autonomous cross-agent collaboration
+## Start in three steps
 
-Claude Code, Antigravity, and Codex can exchange requests, evidence, revisions, and results through an optional shared MCP bridge. Agents can continue an authorized task across turns and provider boundaries with less manual message relay, while preserving the task's participants, scope, and acceptance criteria.
+Requires **Python 3.11+** for setup. Node.js and external provider accounts are optional.
 
-The bridge supports reciprocal communication: a research partner can request clarification, an implementer can return a patch, and a reviewer can send focused feedback to the same task. Any configured participant can initiate a permitted exchange. A shared record keeps messages, artifact revisions, and verification results connected.
-
-- **Persistent collaboration:** continue the same task and session through revisions, with explicit model requirements and identity evidence.
-- **Incremental exchange:** receive new messages by cursor and fetch complete artifacts only when needed.
-- **Structured delivery:** connect patches, replacements, validation results, and final acceptance without treating a successful process exit as completed work.
-- **Event-driven continuation:** combine dispatch with delivery waiting, or resume through a configured host notification route that confirms acceptance.
-- **User-defined boundaries:** retain read/write scopes, execution permissions, independent-review inputs, and the lead's scientific decisions.
-
-Install the [optional bridge runtime](runtimes/agent-bridge/README.md) for the connections you need. The research skill and memory helper also work without it. Provider CLIs and host notification routes remain explicit local configuration; the repository does not install accounts or enable unattended processes automatically.
-
-## Why this project exists
-
-This project grew out of the author's experience coordinating sustained research with multiple agents. The motivating problem is that agents can keep searching, discussing, running experiments, and writing while gradually losing the original scientific question. An easier substitute can become the target. A combination of familiar methods, presented fluently, can obscure a weak contribution. Without supervision, these deviations can accumulate across handoffs and produce a polished proposal with little research value.
-
-The framework is designed around three goals:
-
-1. **Identify the key scientific problem.** Each round states the current difficulty, the judgment that must change, and the evidence needed to change it. Analyze necessary conditions before choosing a method.
-2. **Maintain continuity of research purpose.** Keep the original object, question, and confirmed constraints in an authoritative record. Allow methods and approaches to change when evidence rejects them.
-3. **Stay aligned with the user.** Separate confirmed requirements, draft interpretations, execution permissions, and resource limits throughout research, review, implementation, and resumption.
-
-These are the project's motivation and design goals. They do not establish that every existing framework produces weak work, or that this framework has already demonstrated superior research quality.
-
-## The design contribution
-
-The contribution is an inspectable **research collaboration protocol for Codex** that connects the mechanisms below. Multi-agent systems, reflection, review, and memory all have precedents; this project does not claim to have invented them.
-
-| Design | What it changes in practice | Implementation |
-|---|---|---|
-| Progress through scientific questions and changed judgments | Each round explains which difficulty it resolves and which evidence changes the next step. More text or agent agreement is not enough. | [Research methods](skills/codex-research-orchestrator/references/method.md) |
-| Separate constraints, decisions, and claims | Preserve the user's original requirements; revise method choices; make effectiveness and novelty claims open to refutation. | [Skill entry point](skills/codex-research-orchestrator/SKILL.md) |
-| Independent judgment before collaboration | Isolate prior evaluations during key analysis and review, then compare derivations and counterexamples. | [Collaboration](skills/codex-research-orchestrator/references/collaboration.md) |
-| Ground innovation in mechanisms | Compare substantive differences from the closest work, the properties those differences produce, and the contribution they support. Check conditions before transferring ideas across fields. | [Research methods](skills/codex-research-orchestrator/references/method.md) |
-| Connect review, implementation, and evidence | Resolve findings individually, track review coverage by version and conditions, and preserve sources separately from current conclusions. | [Records](skills/codex-research-orchestrator/references/records.md) |
-| Coordinate autonomous cross-agent exchange | Preserve task and session bindings across requests, evidence, patches, and verification; let authorized participants continue from actual deliveries. | [MCP collaboration](skills/codex-research-orchestrator/references/mcp-collaboration.md) |
-| Retrieve research memory by validity and recipient | Keep live controls, typed source snapshots, explicit dependencies, and bounded context packets; filter independent inputs before ranking. | [Memory and context](skills/codex-research-orchestrator/references/memory.md) |
-| Improve coordination without transferring control | An optional observer diagnoses repetition, stalled progress, and broken handoffs, then proposes evidence-based changes for the user to decide. | [Observation](skills/codex-research-orchestrator/references/observer.md) |
-
-[Design rationale](docs/design.md) explains the expected effects and failure conditions. The contribution is in collaboration and workflow design. This release does not introduce a new foundation-model algorithm or claim field-wide priority or measured performance leadership.
-
-## Built specifically for Codex
-
-The framework enters through a Codex `SKILL.md` and loads references and project templates only when needed. The main chat leads the research. Subagents handle separable investigation, reasoning, and implementation. Project files preserve state across rounds. Available terminals, connectors, and chat tools carry out the work. [Codex integration](skills/codex-research-orchestrator/references/codex-runtime.md) maps these responsibilities to the host.
-
-No separate Python multi-agent service or fixed model version is required. Available capabilities can differ across Codex CLI, IDE, and desktop clients; the skill follows the tools exposed in the current session. The optional Node.js bridge connects Claude Code, Antigravity, and Codex. Other research partners can use their available channels. Continuing within a tool call and resuming in a later turn are separate capabilities; later continuation requires a configured host route or an authorized schedule.
-
-The package follows the [official skill documentation](https://learn.chatgpt.com/docs/build-skills) and [subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents). This is an independent community project maintained by Aoudsung, with no OpenAI affiliation or endorsement.
-
-## Relationship to existing projects
-
-| Project | Focus described in its official materials | This project's focus |
-|---|---|---|
-| [AI Scientist-v2](https://github.com/SakanaAI/AI-Scientist-v2) | Topic-to-experiment-to-paper automation with experiment management, tree search, and feedback | Make research questions, constraints, independent judgment, and sustained handoffs explicit in a Codex workflow |
-| [Agent Laboratory](https://github.com/SamuelSchmidgall/AgentLaboratory) | Multi-role research with human feedback, co-pilot mode, and state recovery | Maintain user requirements separately from scientific claims, with explicit review input isolation and feedback ownership |
-| [AI-Researcher](https://github.com/HKUDS/AI-Researcher) | An end-to-end system for literature, ideas, implementation, validation, and papers | Connect research work to an existing Codex workspace and select evidence methods for the field |
-| [karpathy/autoresearch](https://github.com/karpathy/autoresearch) | An agent edits a small training setup, runs it, compares a metric, and keeps improvements | Support open questions whose aims and evaluation still need research, including counterexamples, conditions, and claim revisions |
-| [uditgoenka/autoresearch](https://github.com/uditgoenka/autoresearch) | Already supports Codex, bounded loops with success predicates, and single-pass exploration | Sustain open scientific inquiry through question alignment, revisable claims, independent assessment, and evidence records |
-
-This comparison was checked on **2026-10-21**. It describes documented design emphasis, not limits on what other projects can be extended to do. Codex support, multiple agents, review, and resumption are not unique to this project. See [related work](docs/related-work.md) for direct sources and comparison limits.
-
-## Memory and context management
-
-Long research histories need more than a growing summary. The bundled local memory tool separates **live controls**, **the current task packet**, and **persistent source-backed records**. It uses Python 3.10+ and SQLite FTS5 without an API key, embedding download, or background service.
-
-- Search small indexes before reading full evidence.
-- Keep claims, decisions, evaluations, evidence, proposals, and checkpoints distinct.
-- Retain source snapshots and explicitly invalidate registered dependent conclusions when evidence changes.
-- Read current constraints and pause instructions directly from registered control files whenever a packet is built.
-- Assemble complete records under a strict character budget; fail if required material cannot fit.
-- Count every admitted record left out of a packet and index as many as fit, so stored history is never silently invisible.
-- Build independent-analysis and review packets from a curated allowlist, with filtering before ranking and a separate manifest for the lead.
-
-The design draws on [Mem0, QMD, Letta, Graphiti, and claude-mem](docs/memory-foundations.md). Their mechanisms are adapted to scientific claims, evidence validity, and independent judgment. This release does not copy their runtimes or claim semantic retrieval: the built-in search is lexical, and scientific relevance still needs researcher judgment.
-
-See [the memory-tool guide](docs/memory-tool.md) for setup, records, and context assembly. The tool checks its own outputs; it cannot make an inherited conversation independent or enforce filesystem access restrictions.
-
-## Install
-
-To add the skill to a research project:
+**1. Install the complete bundle into a research workspace.**
 
 ```sh
 git clone https://github.com/Aoudsung/codex-research-orchestrator.git
-mkdir -p /path/to/your-research-project/.agents/skills
-cp -R codex-research-orchestrator/skills/codex-research-orchestrator \
-  /path/to/your-research-project/.agents/skills/
+cd codex-research-orchestrator
+python3 setup.py install --project ../my-research
 ```
 
-Replace the example path with your project directory. If a skill with the same name already exists, compare versions before replacing local changes. You can also ask Codex's skill installer to install `skills/codex-research-orchestrator` from this repository.
+Use a workspace name of your choice. The installer copies the skill and bundled bridge files into that workspace, so you can move or remove this checkout afterward. It does not connect accounts, change global settings, or start background services.
 
-The repository includes `plugin.json` for skill distribution. To enable cross-agent exchange, follow [MCP setup](docs/mcp-setup.md) and register only the required adapters. The skill manifest does not silently register services or background processes. Keep provider credentials in the provider's supported local authentication system, outside this repository.
-
-## Start research
-
-In Codex, use:
+**2. Open `my-research` in Codex and give it your question.**
 
 ```text
-Use $codex-research-orchestrator to investigate this question: ...
-Research object and constraints: ...
-Available materials: ...
-Deliverable for this task: ...
-Allowed implementation, experiments, and external communication: ...
-Available resources or budget: ...
+Use $codex-research-orchestrator to start researching:
+[Your question here.]
 ```
 
-You do not need to fill a long form first. Codex reads existing materials and asks only about gaps that materially affect the result or authorization. When persistent records are useful, it creates a research directory from the templates. Existing projects retain their own entry points.
+Codex creates the records it needs from your request. You do not need to complete a long template or choose an agent team first. It asks only about missing information that materially changes the research or its permissions.
 
-To resume:
+**3. Continue in ordinary language.**
 
 ```text
-Use $codex-research-orchestrator to continue research/my-topic.
-Check the latest constraints, pause status, and running work before
-starting the next necessary action.
+Use $codex-research-orchestrator to continue this project.
 ```
 
-A typical flow:
+Codex checks the current goal, evidence, pending work, and next action before proceeding.
 
-```mermaid
-flowchart LR
-    G[Research goal and key question] --> A[Analysis and mechanism design]
-    A --> R[Independent judgment and review]
-    R --> D[Lead resolves feedback]
-    D --> E[Authorized implementation or observation]
-    D --> S[Claims and evidence records]
-    E --> S
-    S --> N[Next necessary action]
-    N --> A
-    S --> F[Agreed deliverable complete]
+If the skill is not listed, start a new turn in the target workspace; restart the client if necessary. See [the first-run guide](docs/getting-started.md) for manual setup and troubleshooting.
+
+## What to ask
+
+| You want to… | Say this to Codex |
+|---|---|
+| Start | “Use $codex-research-orchestrator to investigate …” |
+| Resume | “Continue this research from its current state.” |
+| Understand progress | “What have we established, what remains uncertain, and what is next?” |
+| Bring in a peer | “Connect this project to Claude Code for independent analysis.” |
+| Check setup | “Check this project's research setup and show the next fix.” |
+| Pause | “Pause this research and leave a continuation note.” |
+
+The skill handles ordinary setup details. You retain control of the research goal, material choices, external sharing, execution permissions, and budget.
+
+## Optional: connect Claude Code, Antigravity, or Codex
+
+The shared MCP bridge enables reciprocal information exchange and task collaboration: participants can send requests, ask questions, return evidence and patches, and continue an authorized task with less manual relay.
+
+For Codex to connect to Claude Code and Antigravity, run this **from the installed research workspace**:
+
+```sh
+python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py connect \
+  --project . --client codex --peers claude-code antigravity --apply
 ```
 
-Choose steps according to the question; not every round needs every node. Theory can progress through proofs, and literature research through primary sources and counterevidence.
+This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, and updates only its project-local Codex entries. It preserves unrelated settings and backs up changed configuration. Omit `--apply` to prepare the config without registering it.
 
-## Adapt to different fields
+Claude Code project configuration is also supported. Antigravity receives a generated JSON config for import through its supported settings interface; the helper does not guess or edit its global configuration. Select only the peers you intend to use.
 
-Change the research question, evidence standards, participants, and execution resources. Keep question alignment, independent judgment, feedback handling, and evidence-based continuation. The skill includes guidance for theory, computational systems, empirical observation, experiments, qualitative research, and reproduction.
+Provider execution requires the selected CLI and its normal login. A generated config is not proof of a live connection or model access. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
 
-- **Algorithms and systems:** preserve implementation and measurement semantics, and test mechanism claims against suitable comparisons.
-- **Theory:** use definitions, derivations, proofs, and counterexamples without requiring training or benchmarks.
-- **Empirical and qualitative research:** connect source selection and measurement or interpretation to claims; do not treat correlation or fluent narrative as causal evidence.
+## Check setup or upgrade
 
-These are intended uses, not a claim of completed end-to-end validation in every field.
+From the research workspace:
 
-## Repository layout
-
-```text
-codex-research-orchestrator/
-├── README.md
-├── LICENSE
-├── plugin.json
-├── docs/                         # Design, comparisons, and validation
-├── runtimes/agent-bridge/         # Optional shared MCP runtime and three adapters
-└── skills/codex-research-orchestrator/
-    ├── SKILL.md                  # Codex skill entry point
-    ├── agents/openai.yaml        # Display metadata
-    ├── assets/project-template/  # Charter, settings, and current state
-    ├── scripts/                 # Local research memory and context helper
-    └── references/               # Methods, collaboration, records, and integration
+```sh
+python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py doctor --project .
 ```
 
-## Current scope
+The check is read-only and gives the next useful action. A missing optional bridge or Node installation does not prevent basic research in Codex.
 
-Version 0.2.0 combines research instructions, templates, local memory, and an optional MCP collaboration runtime. It supports autonomous information exchange within the user's authorization. It does not provide program-enforced spending limits, an automated theorem prover, or an independent cluster scheduler. Research conclusions still need real evidence. Future evaluations can measure goal drift, support for key claims, the effect of independent review, and research output under matched budgets.
+To upgrade, obtain the new complete bundle and run its installer against the existing workspace:
 
-[v0.2 validation notes](docs/validation-v0.2.md) state what was checked, including three-process MCP communication and synthetic provider execution. Contributions should describe a concrete failure, its trigger, the current behavior, and the smallest useful correction. Avoid turning one project's special requirements into universal rules.
+```sh
+python3 setup.py install --project ../my-research --upgrade
+```
+
+Only managed skill/runtime files are replaced. The prior installation is backed up; research records, memory, bridge data, and client configuration are retained. A normal repeat install is a no-op when unchanged and will not silently replace a different version.
+
+## Choose an installation
+
+| Package | Use it when |
+|---|---|
+| **Complete repository/bundle — recommended** | You want guided installation and the optional bridge ready to configure later |
+| Standalone skill | You want Codex research and memory only, or use Codex's skill installer |
+| Bridge runtime | You already manage skills and want the MCP component separately |
+
+[Download releases](https://github.com/Aoudsung/codex-research-orchestrator/releases/latest). The full bundle includes `setup.py`; the standalone skill includes the same helper under `scripts/research_setup.py`. Native Codex research does not require all three providers.
+
+## Why this framework exists
+
+This project grew from the author's experience coordinating sustained research with multiple agents. Agents can keep searching, discussing, experimenting, and writing while gradually losing the original scientific question or overstating the value of a familiar combination of methods.
+
+The framework is designed to:
+
+- **Identify the key scientific problem:** connect each action to a difficulty, a judgment to change, and suitable evidence.
+- **Maintain continuity of purpose:** preserve the original question and user constraints while allowing methods and hypotheses to be revised.
+- **Stay aligned with the user:** keep confirmed requirements, draft interpretations, permissions, and resources distinct.
+
+Its contribution is a practical collaboration protocol for Codex, source-backed research memory, and optional cross-agent coordination. The [design rationale](docs/design.md) explains the mechanisms and their limits; [related work](docs/related-work.md) gives direct comparisons with existing automation projects. Multi-agent work, review, and memory have precedents. This project does not claim to have invented them or to guarantee valuable research.
+
+## How the parts fit
+
+| Part | Responsibility |
+|---|---|
+| Research skill | Question selection, independent reasoning, review, handoffs, and scientific alignment |
+| Project records | Current goal, requirements, evidence, decisions, and continuation point |
+| Memory helper | Typed source snapshots, lexical retrieval, dependency invalidation, and bounded context packets |
+| Optional MCP bridge | Task/session bindings, messages, artifact revisions, validation feedback, and configured event delivery |
+| Setup helper | Installation, minimal project initialization, selected connections, and read-only diagnostics |
+
+The lead retains scientific decisions and final acceptance. External authors can perform analysis, implementation, self-checks, and repairs without the lead repeating their whole workflow. Independent reviewers receive curated materials, not an unrestricted shared inbox.
+
+Memory and coordination state remain separate. A delivered patch or successful process does not by itself establish a scientific result. A host route must be verified before relying on idle-chat wakeup.
+
+## Further reading
+
+- [Getting started and everyday use](docs/getting-started.md)
+- [MCP setup and first exchange](docs/mcp-setup.md)
+- [Advanced memory commands](docs/memory-tool.md)
+- [Research design and novelty](docs/design.md)
+- [Memory design references](docs/memory-foundations.md)
+- [v0.3 validation](docs/validation-v0.3.md)
+
+Public content is in English. The framework can support different research fields through project-specific questions, evidence standards, collaborators, and resources.
 
 ## Author and license
 
-Created and maintained by [Aoudsung](https://github.com/Aoudsung), based on the author's sustained research collaboration practices. The collaboration instructions and templates were written for this project. Other open-source projects are cited for comparison and context; their established ideas are not claimed as original here.
+Created and maintained by [Aoudsung](https://github.com/Aoudsung). An independent community project with no OpenAI affiliation or endorsement.
 
 Copyright © 2026 Aoudsung. Released under the [MIT License](LICENSE).

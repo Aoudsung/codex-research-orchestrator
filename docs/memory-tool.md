@@ -2,44 +2,26 @@
 
 The bundled helper provides a local research index and bounded context packets. It uses Python 3.10+ and SQLite FTS5, with no external service, model call, or third-party Python package.
 
-Run it in the environment authorized by your project. The examples below assume a fresh project directory; do not replace existing research files with the example contents.
+Codex normally handles these operations for you. For a first project, use the [getting-started guide](getting-started.md). This page is the advanced command reference. Run commands in the environment authorized by your project; do not replace existing research files with the example contents.
 
-## Initialize a project
+## Initialize once, then use the installed helper
 
-From this repository, the helper is at:
-
-```text
-skills/codex-research-orchestrator/scripts/research_memory.py
-```
-
-Create `research/demo/controls.md` with the current objective and user-confirmed boundaries. For example:
-
-```markdown
-# Current research controls
-
-Study when minimum vertex cover and maximum matching sizes are equal
-in finite simple graphs. Do not assume all graphs are bipartite.
-
-This task permits theoretical reasoning only. Do not run experiments
-or contact external collaborators.
-```
-
-Register that file:
+From a research workspace where the skill is installed:
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo init --control controls.md
+python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py init \
+  --project . --question "When are minimum vertex cover and maximum matching equal?"
 ```
 
-You may register multiple control files. They must be inside the research project. The helper rereads their complete current contents for every context packet. Adding a pause to a registered file therefore does not require a memory import.
+Setup requires Python 3.11+ and creates minimal records, a live `controls.md`, and the memory database. It does not overwrite an existing research project. Existing projects keep their current records; when enabling memory there, explicitly register suitable existing control files with the lower-level helper's `init --control` command.
 
-Choose small authoritative files that contain the active controls. Check that their content is appropriate for independent disclosure. The helper cannot determine whether a draft interpretation was actually confirmed by the user.
+The commands below run from the research workspace and use its installed helper. A checkout used for development instead has the same script at `skills/codex-research-orchestrator/scripts/research_memory.py`.
 
-Data stay in the project's `.research-memory/` directory. Keep that generated directory out of public research exports unless its contents are explicitly approved for sharing.
+Control files are authoritative inputs, not copies of every evolving conclusion. Keep them current and suitable for the intended recipient. The helper rereads them for each context packet. The lower-level memory tool remains compatible with Python 3.10+.
 
 ## Remember source-backed material
 
-Create a small source file, such as `research/demo/matching-bound.md`:
+Create a small source file, such as `matching-bound.md`:
 
 ```markdown
 For any finite simple graph, each edge of a matching requires a distinct
@@ -47,7 +29,7 @@ vertex in any vertex cover. The minimum cover size is therefore at least
 the maximum matching size. This establishes a lower bound, not equality.
 ```
 
-Create `research/demo/bound-record.json`:
+Create `bound-record.json`:
 
 ```json
 {
@@ -62,8 +44,8 @@ Create `research/demo/bound-record.json`:
 Import the record:
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo remember bound-record.json
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . remember bound-record.json
 ```
 
 The result includes the assigned numeric ID. Use the returned ID rather than assuming an ID in an existing database.
@@ -75,11 +57,11 @@ Both the source path and JSON input path are relative to the research project an
 ## Search first, then read
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo search "matching cover" --limit 5
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . search "matching cover" --limit 5
 
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo read 1
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . read 1
 ```
 
 Search returns compact entries rather than all source bodies. A summary is a retrieval aid, not the evidence itself. Inspect a selected source and its scope before relying on it.
@@ -91,8 +73,8 @@ Queries use lexical full-text retrieval. Use explicit terms and alternate wordin
 For ordinary continuation:
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo context "matching cover" \
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . context "matching cover" \
   --profile resume --max-chars 12000 --output resume-01.md
 ```
 
@@ -101,8 +83,8 @@ The output path is relative to the research project. The helper also writes `res
 For independent analysis, explicitly allow the source and evidence IDs the participant may see:
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo context "matching cover" \
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . context "matching cover" \
   --profile analysis --allow 1 --require 1 \
   --max-chars 12000 --output analysis-01.md
 ```
@@ -110,8 +92,8 @@ python3 skills/codex-research-orchestrator/scripts/research_memory.py \
 For independent review, first save the complete proposal to a source file and import a `proposal` record. If its returned ID is 2:
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo context "matching cover" \
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . context "matching cover" \
   --profile review --allow 1 --allow 2 --target 2 --require 1 \
   --max-chars 16000 --output review-01.md
 ```
@@ -129,8 +111,8 @@ Controls, the complete review target, and required records must fit intact. If a
 Optional retrieved records enter whole, in ranked order. By default, admitted records with no lexical match stay out even when budget remains. Add `--fill-recent` to let them fill the remaining budget, newest first:
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo context "matching cover" \
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . context "matching cover" \
   --profile resume --fill-recent --max-chars 12000 --output resume-02.md
 ```
 
@@ -143,11 +125,11 @@ Text that does not change between builds comes first; the assembly time is the l
 ## Change and invalidation
 
 ```sh
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo check
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . check
 
-python3 skills/codex-research-orchestrator/scripts/research_memory.py \
-  --project research/demo withdraw 1 --reason "The source was withdrawn."
+python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
+  --project . withdraw 1 --reason "The source was withdrawn."
 ```
 
 Selected records and their declared dependencies are checked against the current source text during use. Source changes trigger `needs_review`; explicit supersession or withdrawal also invalidates registered downstream records. Historical snapshots are retained. Restore a usable record by making a fresh, justified entry rather than silently relabeling the old one as current.

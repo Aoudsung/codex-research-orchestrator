@@ -12,7 +12,7 @@ import {
 
 const server = new McpStdioServer({
   name: "claude-code-mcp",
-  version: "0.2.0",
+  version: "0.3.0",
   instructions:
     "MCP server for communicating with Anthropic Claude Code CLI (`claude -p`, `--resume`, `--continue`) with explicit task/session/model bindings and reported identity evidence, structured patch delivery, and bidirectional messaging.",
 });

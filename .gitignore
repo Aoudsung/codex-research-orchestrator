@@ -5,3 +5,4 @@ dist/
 .research-memory/
 .agent-bridge/
 node_modules/
+.research-orchestrator/

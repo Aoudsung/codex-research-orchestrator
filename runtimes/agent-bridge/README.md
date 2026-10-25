@@ -4,9 +4,26 @@ An optional local MCP runtime for autonomous, reciprocal information exchange an
 
 Three backend adapters share one durable message and task store. Participants can request work, ask questions, return artifacts, exchange focused feedback, and continue the same authorized task with less manual relay.
 
+## Recommended setup
+
+From the complete repository, run `python3 setup.py install --project /path/to/your-project`, then ask Codex to connect the peers you want. The installed setup helper creates real paths and project-scoped configuration; see the [getting-started guide](https://github.com/Aoudsung/codex-research-orchestrator/blob/main/docs/getting-started.md).
+
+The manual command below is for users managing the runtime separately.
+
 ## Run a server
 
 Requires Node.js 24 or later. No npm packages are required.
+
+Choose the directory that contains this runtime's `package.json` and `src/`:
+
+```sh
+# From the full repository checkout:
+cd runtimes/agent-bridge
+```
+
+For a standalone runtime archive, enter its extracted top-level directory instead; do not append `runtimes/agent-bridge`. For a project installed with the setup helper, the runtime directory is `.research-orchestrator/runtime/agent-bridge` under that project.
+
+From the runtime directory, run:
 
 ```sh
 AGENT_BRIDGE_DB=/absolute/path/to/project/.agent-bridge/bridge.sqlite \

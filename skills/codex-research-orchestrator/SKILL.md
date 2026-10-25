@@ -3,14 +3,31 @@ name: codex-research-orchestrator
 description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, reciprocal agent collaboration, review, and evidence-based continuation. Use to start or resume multi-round research, organize a research team, or coordinate authorized work across Codex, Claude Code, and Antigravity. Use only relevant guidance for a bounded contribution.
 license: MIT
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # Codex Research Orchestrator
 
 Organize sustained research around the key scientific question, a supported contribution, and the user's needs. Each round should change a meaningful judgment through evidence. Protect the research object and authorization the user has set; revise or reject mechanisms, candidate claims, and current approaches when evidence warrants it.
 
-This skill enables agents to exchange requests, evidence, revisions, and results and resume authorized work with less manual relay. Adapt roles and channels through project settings, without fixing a provider combination, model, session, or team size. On first use, read [Codex integration](references/codex-runtime.md) to identify the current client's capabilities. Native Codex work remains usable without an added runtime. For optional collaboration through the repository's `runtimes/agent-bridge`, read [MCP collaboration](references/mcp-collaboration.md). Installation alone does not create a background service or establish support for every provider and host.
+The user can start with one goal or ask to continue existing work. Handle ordinary setup, recordkeeping, and selection of the next action from the request and project context. Do not make the user fill templates or remember helper commands.
+
+This skill enables peers to exchange requests, evidence, revisions, and results with less manual relay. Adapt roles and channels through project settings, without fixing a provider combination, model, session, or team size. Native Codex research works without the optional bridge. Installation does not create accounts, connections, or background services.
+
+## Route the request
+
+Read only the guidance needed for the current intent; do not preload every reference.
+
+| User intent | First action and relevant guidance |
+|---|---|
+| Install or set up | Use [getting started](references/getting-started.md) to install in the chosen project and check the result. Keep writes local to that project. |
+| Start research | Extract the question from the user's words, inspect existing materials, and use [getting started](references/getting-started.md) when minimal records need initialization. Then choose the next scientific judgment below. |
+| Continue or resume | Read live controls, state, and relevant recent records as described below. Use [memory](references/memory.md) only when retrieval or context assembly is needed. |
+| Status | Read current state and relevant evidence. Report the supported conclusion, pending work, and next action. Check running work through its actual channel when available; do not restart it. |
+| Connect collaborators | Use [getting started](references/getting-started.md) for configuration, then [MCP collaboration](references/mcp-collaboration.md) for actual exchanges. Configuration is not proof of a live connection. |
+| Troubleshoot setup or connections | Run the read-only setup diagnosis described in [getting started](references/getting-started.md), then inspect only the reported issue. Use [Codex integration](references/codex-runtime.md) for host capability questions. |
+
+Read [Codex integration](references/codex-runtime.md) when client capabilities affect the requested action or when switching clients. Load [research methods](references/method.md), [collaboration](references/collaboration.md), [handoff prompts](references/prompts.md), or [recordkeeping](references/records.md) at the step that needs them. Use [observation](references/observer.md) only for a requested coordination assessment.
 
 ## Enter the task
 
@@ -23,7 +40,7 @@ For a new project, extract the following from the request and available material
 - Authorized actions: reading, reasoning, writing, implementation, experiments, and external communication.
 - Available participants, tools, execution environment, and budget. Existing authorization remains valid; do not request it again every round.
 
-When persistent records are needed, use [charter.md](assets/project-template/charter.md), [project.md](assets/project-template/project.md), and [state.md](assets/project-template/state.md) in the user's chosen or a suitable research directory. Fill known facts. Empty fields are not authorization; record explicit user instructions without asking for confirmation again. An incomplete draft does not block work whose scope is already clear.
+When persistent records are needed, use the setup helper in [getting started](references/getting-started.md) to create minimal records in the user's chosen or a suitable research directory. Preserve existing entry points. The [charter](assets/project-template/charter.md), [project settings](assets/project-template/project.md), and [state](assets/project-template/state.md) templates provide further fields only when useful. Fill known facts. Empty fields are not authorization; record explicit user instructions without asking for confirmation again. An incomplete draft does not block work whose scope is already clear.
 
 On resumption, read the authoritative user constraints, project settings, current state, and relevant recent records. Check the latest pause instructions, running jobs, and pending results. Independent analysis and review are exceptions: isolate prior judgments as specified in [collaboration](references/collaboration.md). Do not restart work already in progress.
 

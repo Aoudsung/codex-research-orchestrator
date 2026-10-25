@@ -1,21 +1,33 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-research-orchestrator",
-  "version": "0.2.0",
-  "description": "Research collaboration for Codex with autonomous information exchange and task coordination across Claude Code, Antigravity, and Codex through an optional MCP bridge.",
-  "author": { "name": "Aoudsung" },
+  "version": "0.3.0",
+  "description": "Start and resume research in Codex with guided project setup, source-backed memory, and optional collaboration across Claude Code, Antigravity, and Codex.",
+  "author": {
+    "name": "Aoudsung"
+  },
   "repository": "https://github.com/Aoudsung/codex-research-orchestrator",
   "license": "MIT",
-  "keywords": ["codex", "claude-code", "antigravity", "mcp", "research", "agent-skills", "multi-agent"],
+  "keywords": [
+    "codex",
+    "claude-code",
+    "antigravity",
+    "mcp",
+    "research",
+    "agent-skills",
+    "multi-agent"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "Codex Research Orchestrator",
-        "shortDescription": "Autonomous cross-agent research collaboration",
+        "shortDescription": "Guided research setup and cross-agent collaboration",
         "longDescription": "Connect Claude Code, Antigravity, and Codex for reciprocal, task-bound exchange of requests, evidence, revisions, and results. Coordinate research and independent review within the user's scope, with persistent memory and an optional MCP runtime.",
         "developerName": "Aoudsung",
         "category": "Productivity",
-        "defaultPrompt": ["Use $codex-research-orchestrator to start or continue my research within the recorded scope and resource limits."]
+        "defaultPrompt": [
+          "Use $codex-research-orchestrator to start or continue my research within the recorded scope and resource limits."
+        ]
       }
     }
   }

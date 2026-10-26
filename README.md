@@ -2,7 +2,7 @@
 
 **Start research with one goal. Keep the scientific question, evidence, and next action connected. Bring Claude Code and Antigravity into the work when you need them.**
 
-[Get started](docs/getting-started.md) · [Connect agents](docs/mcp-setup.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [MIT License](LICENSE)
+[Get started](docs/getting-started.md) · [Workbench](docs/workbench.md) · [Connect agents](docs/mcp-setup.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [MIT License](LICENSE)
 
 ## Start in three steps
 
@@ -46,9 +46,24 @@ If the skill is not listed, start a new turn in the target workspace; restart th
 | Understand progress | “What have we established, what remains uncertain, and what is next?” |
 | Bring in a peer | “Connect this project to Claude Code for independent analysis.” |
 | Check setup | “Check this project's research setup and show the next fix.” |
+| Open the workbench | “Open this project's collaboration workbench.” |
 | Pause | “Pause this research and leave a continuation note.” |
 
 The skill handles ordinary setup details. You retain control of the research goal, material choices, external sharing, execution permissions, and budget.
+
+## A visual workspace for collaboration
+
+The optional local workbench brings the research question, collaboration map, task board, evidence, and activity into one interface. Inspect original sources, create and dispatch tasks, send replies, or pause new executions and automatic follow-up while already admitted calls finish. It distinguishes recorded task state, artifact delivery, validation claims, and host acceptance.
+
+![Collaboration workbench overview using fictional research records](docs/images/workbench-overview.png)
+
+Try the fictional demo from the complete bundle, with Node.js 24+:
+
+```sh
+python3 setup.py workbench --demo --open
+```
+
+For a real project, use the installed helper's `workbench --project . --open` command. The demo contacts no providers. [Workbench guide](docs/workbench.md) explains source interpretation, task controls, and the exact pause behavior.
 
 ## Optional: connect Claude Code, Antigravity, or Codex
 
@@ -109,6 +124,8 @@ Its contribution is a practical collaboration protocol for Codex, source-backed 
 
 ## How the parts fit
 
+Version 0.5 adds the local collaboration workbench and a shared execution pause. It makes the existing reciprocal collaboration between Codex, Claude Code, and Antigravity visible and actionable: trace messages, inspect their sources, give scoped assignments, and control when new work may begin. The workbench does not infer scientific success from activity or replace the research records.
+
 Version 0.4 adds role-specific instructions for researchers, optional brainstormers, reviewers, implementers, collaboration optimizers, and fact observers. Only the assigned role is loaded. When direction is unclear, short independent constructions precede comparison; a main author then develops the supported direction while others supply complementary evidence.
 
 Original research must combine rigorous support with a substantive contribution. A counterexample calls for a concrete reconstruction within the original object; a ruled-out route becomes evidence for a different approach. Reproduction, surveys, and bounded contributions retain their own completion criteria. Fact collection reports changes; process diagnosis remains with the optimizer. These are protocol changes, not measured claims of higher research quality.
@@ -120,6 +137,7 @@ Original research must combine rigorous support with a substantive contribution.
 | Memory helper | Typed source snapshots, lexical retrieval, dependency invalidation, and bounded context packets |
 | Optional MCP bridge | Task/session bindings, messages, artifact revisions, validation feedback, and configured event delivery |
 | Setup helper | Installation, minimal project initialization, selected connections, and read-only diagnostics |
+| Collaboration workbench | Local visual exploration and explicit task, dispatch, messaging, and pause/resume controls |
 
 The lead retains scientific decisions and final acceptance. External authors can perform analysis, implementation, self-checks, and repairs without the lead repeating their whole workflow. Independent reviewers receive curated materials, not an unrestricted shared inbox.
 
@@ -135,6 +153,7 @@ Memory and coordination state remain separate. A delivered patch or successful p
 - [v0.3 validation](docs/validation-v0.3.md)
 - [Real-client communication and wakeup checks](docs/validation-v0.3.1.md)
 - [v0.4 role and construction checks](docs/validation-v0.4.md)
+- [v0.5 workbench validation](docs/validation-v0.5.md)
 
 Public content is in English. The framework can support different research fields through project-specific questions, evidence standards, collaborators, and resources.
 

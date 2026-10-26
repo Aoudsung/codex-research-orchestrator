@@ -206,7 +206,7 @@ db.db.close();
   const antigravity = new Client('antigravity');
   for (const client of [codex, claude, antigravity]) {
     const initialized = await client.request('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'synthetic-test', version: '0.2.0' } });
-    assert.equal(initialized.serverInfo.version, '0.4.0');
+    assert.equal(initialized.serverInfo.version, '0.5.0');
     const listed = await client.request('tools/list');
     assert.ok(listed.tools.some(t => t.name === 'bridge_send_message'));
   }

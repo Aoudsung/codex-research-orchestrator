@@ -12,12 +12,16 @@ import {
 
 const server = new McpStdioServer({
   name: "claude-code-mcp",
-  version: "0.4.0",
+  version: "0.5.0",
   instructions:
     "MCP server for communicating with Anthropic Claude Code CLI (`claude -p`, `--resume`, `--continue`) with explicit task/session/model bindings and reported identity evidence, structured patch delivery, and bidirectional messaging.",
 });
 
 const bridgeDb = new BridgeDatabase();
+server.executionAdmission = {
+  names: new Set(["claude_exec", "claude_resume", "claude_review"]),
+  admit: () => bridgeDb.admitExecution(),
+};
 const defaultCaller = process.env.MCP_CALLER_AGENT || "antigravity";
 
 /**

@@ -107,6 +107,37 @@ class SetupTests(unittest.TestCase):
         self.run_cli("connect", "--peers", "claude-code", "--node", str(self.node), code=2)
         self.assertTrue(self.run_cli("doctor")["basic_research_ready"])
 
+    def test_workbench_uses_installed_assets_after_source_is_removed(self):
+        self.install()
+        shutil.rmtree(self.bundle)
+        launched = []
+
+        def fake_process(command, **kwargs):
+            if command[-1] == "--version":
+                return subprocess.CompletedProcess(command, 0, "v24.1.0\n", "")
+            launched.append((command, kwargs))
+            return subprocess.CompletedProcess(command, 0)
+
+        with mock.patch.object(setup.subprocess, "run", side_effect=fake_process):
+            code = setup.main(["workbench", "--project", str(self.project), "--node", str(self.node),
+                               "--demo", "--port", "0", "--open"])
+        self.assertEqual(code, 0)
+        self.assertEqual(len(launched), 1)
+        command, options = launched[0]
+        self.assertEqual(Path(command[1]), self.project / setup.RUNTIME_PATH / "src/workbench/server.mjs")
+        self.assertTrue(Path(command[1]).is_file())
+        self.assertIn("--demo", command)
+        self.assertIn("--open", command)
+        self.assertEqual(options["cwd"], self.project)
+        self.assertFalse((self.project / ".agent-bridge").exists())
+        self.assertFalse((self.project / ".research-memory").exists())
+
+    def test_workbench_rejects_json_before_launching(self):
+        with mock.patch.object(setup.subprocess, "run") as process:
+            result = self.run_cli("workbench", code=2)
+        self.assertIn("omit --json", result["error"])
+        process.assert_not_called()
+
     def test_repeat_install_is_noop_and_receipt_paths_are_relative(self):
         self.install()
         before = self.snapshot()

@@ -217,7 +217,10 @@ export class McpStdioServer {
         description,
         inputSchema: normalizedSchema,
       },
-      handler,
+      handler: (args) => {
+        if (this.executionAdmission?.names.has(name)) this.executionAdmission.admit();
+        return handler(args);
+      },
     });
   }
 

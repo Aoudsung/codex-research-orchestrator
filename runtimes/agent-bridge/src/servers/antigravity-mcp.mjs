@@ -14,12 +14,16 @@ import {
 
 const server = new McpStdioServer({
   name: "antigravity-mcp",
-  version: "0.4.0",
+  version: "0.5.0",
   instructions:
     "MCP server allowing OpenAI Codex and Anthropic Claude Code to communicate with Google Antigravity with explicit task/session/model bindings and reported identity evidence, upfront permission preflight, structured patch delivery, and cursor-based lifecycle tracking.",
 });
 
 const bridgeDb = new BridgeDatabase();
+server.executionAdmission = {
+  names: new Set(["antigravity_exec"]),
+  admit: () => bridgeDb.admitExecution(),
+};
 const defaultCaller = process.env.MCP_CALLER_AGENT || "codex";
 
 /**

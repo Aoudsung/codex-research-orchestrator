@@ -20,12 +20,16 @@ import {
 
 const server = new McpStdioServer({
   name: "codex-mcp",
-  version: "0.4.0",
+  version: "0.5.0",
   instructions:
     "MCP server for communicating with OpenAI Codex CLI (`codex exec`, `codex exec resume`, `codex exec fork`, `codex review`) with explicit task/session/model bindings and reported identity evidence, structured patch delivery, and bidirectional messaging.",
 });
 
 const bridgeDb = new BridgeDatabase();
+server.executionAdmission = {
+  names: new Set(["codex_exec", "codex_resume", "codex_fork", "codex_review"]),
+  admit: () => bridgeDb.admitExecution(),
+};
 const defaultCaller = process.env.MCP_CALLER_AGENT || "antigravity";
 
 /**
@@ -152,6 +156,7 @@ server.registerTool(
           items: { type: "string" },
           description: "Optional file paths of images to attach (`-i`).",
         },
+        effort: { type: "string", enum: ["low", "medium", "high", "xhigh", "max"], description: "Reasoning effort for this invocation." },
         configOverrides: {
           type: "array",
           items: { type: "string" },
@@ -171,6 +176,7 @@ server.registerTool(
   },
   async (args) => {
     const codexBin = resolveBinary("codex", "CODEX_BIN");
+    if (args.effort && args.configOverrides?.some(value => /^\s*model_reasoning_effort\s*=/.test(value))) throw new Error("effort conflicts with model_reasoning_effort in configOverrides");
     const original = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
     const cwd = args.cwd || original?.cwd || process.cwd();
     const effectiveModel = args.model || args.requiredModel || original?.required_model || null;
@@ -241,6 +247,7 @@ server.registerTool(
         cliArgs.push("-i", img);
       }
     }
+    if (args.effort) cliArgs.push("-c", `model_reasoning_effort=${JSON.stringify(args.effort)}`);
     if (Array.isArray(args.configOverrides)) {
       for (const cfg of args.configOverrides) {
         cliArgs.push("-c", cfg);

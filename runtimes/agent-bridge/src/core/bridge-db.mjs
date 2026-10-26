@@ -67,6 +67,14 @@ export class BridgeDatabase {
           PRAGMA journal_mode = WAL;
           PRAGMA synchronous = NORMAL;
 
+          CREATE TABLE IF NOT EXISTS bridge_control (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            paused INTEGER NOT NULL DEFAULT 0,
+            changed_at TEXT DEFAULT NULL,
+            reason TEXT DEFAULT NULL
+          );
+          INSERT OR IGNORE INTO bridge_control(id, paused) VALUES (1, 0);
+
           CREATE TABLE IF NOT EXISTS bridge_counters (
             name TEXT PRIMARY KEY,
             value INTEGER NOT NULL
@@ -481,6 +489,38 @@ export class BridgeDatabase {
     }
     for (const notify of notifications) notify();
     return result;
+  }
+
+  getControlState() {
+    const row = this.db.prepare("SELECT * FROM bridge_control WHERE id = 1").get();
+    return { paused: Boolean(row.paused), changedAt: row.changed_at, reason: row.reason };
+  }
+
+  setControlState({ paused, reason = null }) {
+    if (typeof paused !== "boolean") throw new Error("paused must be a boolean");
+    const state = this._atomicEvent(() => {
+      this.db.prepare("UPDATE bridge_control SET paused = ?, changed_at = ?, reason = ? WHERE id = 1")
+        .run(Number(paused), new Date().toISOString(), reason);
+      return this.getControlState();
+    });
+    // Resume does not alter routes or leases. Only pending work on enabled routes is scheduled.
+    if (!paused) {
+      const pending = this.db.prepare(`SELECT m.* FROM messages m JOIN wakeup_routes r ON r.task_id = m.task_id
+        WHERE r.enabled = 1 AND m.wakeup_status = 'pending' AND m.status = 'unread'
+        GROUP BY m.task_id`).all();
+      for (const message of pending) this._scheduleWakeupForMessage(message);
+    }
+    return state;
+  }
+
+  admitExecution() {
+    // The commit is the start boundary: a subsequent pause never cancels admitted work.
+    return this._atomicEvent(() => {
+      if (this.getControlState().paused) {
+        throw Object.assign(new Error("Bridge is paused; new execution and automatic continuation are held"), { code: "BRIDGE_PAUSED" });
+      }
+      return { admitted: true, admittedAt: new Date().toISOString() };
+    });
   }
 
   nextSeq() {
@@ -1027,7 +1067,7 @@ export class BridgeDatabase {
         nowIso
       );
 
-    if (resolvedEnabled && resolvedDriver !== "manual") {
+    if (resolvedEnabled && resolvedDriver !== "manual" && !this.getControlState().paused) {
       try {
         ensureResidentWakeupDaemon(this.dbPath);
       } catch {
@@ -1074,6 +1114,13 @@ export class BridgeDatabase {
     taskId,
     { workerPid = process.pid, includeDispatched = false } = {}
   ) {
+    return this._atomicEvent(() => {
+      if (this.getControlState().paused) return { claimed: false, reason: "bridge_paused" };
+      return this._claimPendingWakeup(taskId, { workerPid, includeDispatched });
+    });
+  }
+
+  _claimPendingWakeup(taskId, { workerPid, includeDispatched }) {
     const route = this.getWakeupRoute(taskId);
     if (!route || !route.enabled) {
       return { claimed: false, reason: "route_disabled_or_missing" };
@@ -1674,7 +1721,7 @@ export class BridgeDatabase {
   }
 
   _scheduleWakeupForMessage(msg) {
-    if (!msg || msg.wakeup_status !== "pending" || !msg.task_id) return;
+    if (!msg || msg.wakeup_status !== "pending" || !msg.task_id || this.getControlState().paused) return;
     const route = this.getWakeupRoute(msg.task_id);
     if (!route || !route.enabled) return;
 

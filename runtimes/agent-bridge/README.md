@@ -12,6 +12,8 @@ The manual command below is for users managing the runtime separately.
 
 ## Run a server
 
+The runtime also includes a local collaboration workbench. From this directory, try `node src/workbench/server.mjs --project . --demo --open` or open a project with `node src/workbench/server.mjs --project /path/to/project --open`. It needs no frontend build or npm install. The demo is fictional; live task creation, dispatch, messages, and pause/resume require explicit user actions. See the [workbench guide](https://github.com/Aoudsung/codex-research-orchestrator/blob/main/docs/workbench.md).
+
 Requires Node.js 24 or later. No npm packages are required.
 
 Choose the directory that contains this runtime's `package.json` and `src/`:

@@ -41,6 +41,12 @@ Role-specific instructions keep this distinction close to each participant's dec
 
 ## Scope of the contribution
 
+The v0.5 workbench exposes the existing research and collaboration records through a local interface. Its map shows directed recorded messages; its task board shows stored phases; its evidence view preserves source wording and explicit dependencies. These views serve different questions. A busy graph does not establish progress, and a completed task does not validate a research claim.
+
+Task creation, execution, and messaging remain separate actions. A shared pause prevents new execution admission and automatic continuation while admitted work can finish. The pause and execution admission use the same database serialization boundary, so the displayed control has a concrete runtime effect across upgraded bridge clients. The interface makes this boundary visible without replacing scientific responsibility or user authorization.
+
+The application is bundled with the optional MCP runtime and has no frontend build or external asset dependency. A fictional in-memory demo supports first use without contacting providers or changing research records. This is a usability and control extension to the collaboration protocol, not evidence of a new research algorithm or a measured quality gain.
+
 The original deliverables are a Codex research protocol, role handoffs, record templates, and a design for adapting them across fields. They organize multi-round behavior around scientific value. They do not provide a new base model, search algorithm, or training method.
 
 Independent review, human feedback, multi-agent systems, and persistent records have precedents. The current review of related work supports a comparison of design emphasis. It cannot establish “first,” “only,” or “solves autonomous research quality.” See [related work](related-work.md).

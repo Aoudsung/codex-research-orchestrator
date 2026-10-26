@@ -3,7 +3,7 @@ name: codex-research-orchestrator
 description: Coordinate sustained research in Codex with independent construction, focused authorship, constructive review, and source-backed continuation. Use to start or resume research or coordinate authorized work across Codex, Claude Code, and Antigravity. For a bounded contribution, load only the relevant role and guidance.
 license: MIT
 metadata:
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 # Codex Research Orchestrator
@@ -45,6 +45,7 @@ A temporary contributor receives only the delegated scope, not the lead's author
 - **Retrieve growing history:** use [memory](references/memory.md). Independent analysis and review receive curated materials, not general state or the lead's inbox.
 - **Use an external channel or await a result:** follow [MCP collaboration](references/mcp-collaboration.md), which maintains session reuse, delivery waiting, timeout reconciliation, and continuation rules. Check [Codex integration](references/codex-runtime.md) when host capabilities matter.
 - **Observe collaboration:** use [observation](references/observer.md) only within the user's requested scope.
+- **Open the visual workspace or use its controls:** use [workbench](references/workbench.md) for the selected project, explicit actions, and source/status interpretation.
 
 For a new project, extract the question, deliverable, confirmed constraints, available materials, permissions, and resources from the request. Mark assistant interpretations as drafts. Use the setup helper when minimal persistent records are needed; expand the [project](assets/project-template/project.md), [charter](assets/project-template/charter.md), and [state](assets/project-template/state.md) templates only as useful. Empty fields neither grant permission nor block clear, authorized work.
 

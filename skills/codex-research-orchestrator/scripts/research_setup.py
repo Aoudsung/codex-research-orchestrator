@@ -143,6 +143,14 @@ def validate_component(root, kind):
             raise SetupError("Unrecognized runtime package")
 
 
+def validate_workbench(runtime):
+    for relative in ("src/workbench/server.mjs", "src/workbench/public/index.html",
+                     "src/workbench/public/app.js", "src/workbench/public/styles.css",
+                     "src/workbench/public/demo-data.json"):
+        if not (runtime / relative).is_file():
+            raise SetupError("Workbench files are missing; install or upgrade the complete bundle: " + relative)
+
+
 def same_tree(root, files):
     return root.is_dir() and all_entries(root) == set(files) and all(
         (root / name).read_bytes() == path.read_bytes() for name, path in files.items())
@@ -248,6 +256,8 @@ def install(args, project):
     changed_components = []
     for relative, (source, kind, allowed) in components.items():
         validate_component(source, kind)
+        if kind == "runtime":
+            validate_workbench(source)
         files = inventory(source, allowed)
         files_by_component[relative] = files
         dest = safe_path(project, relative)
@@ -667,15 +677,43 @@ class Parser(argparse.ArgumentParser):
         raise SetupError(message)
 
 
+def workbench(args, project):
+    if getattr(args, "json", False):
+        raise SetupError("Workbench runs an interactive server; omit --json and use its browser interface")
+    if not project.is_dir():
+        raise SetupError("Choose an existing project directory for the workbench")
+    if not 0 <= args.port <= 65535:
+        raise SetupError("--port must be between 0 and 65535; use 0 to select an available port")
+    runtime, _ = runtime_at(project)
+    if runtime is None:
+        raise SetupError("Workbench needs the complete bundle's runtime; install it in this project first")
+    validate_component(runtime, "runtime")
+    validate_workbench(runtime)
+    node = node_status(args.node)
+    if node["status"] != "ready":
+        raise SetupError("Workbench needs Node >=24; install it or pass --node /absolute/path/to/node")
+    command = [node["path"], str(runtime / "src/workbench/server.mjs"),
+               "--project", str(project), "--port", str(args.port)]
+    if args.demo:
+        command.append("--demo")
+    if args.open:
+        command.append("--open")
+    try:
+        return subprocess.run(command, cwd=project, check=False).returncode
+    except KeyboardInterrupt:
+        return 130
+
+
 def parser():
-    root = Parser(description=__doc__, epilog="No global settings, login, provider calls or experiments are performed.")
+    root = Parser(description=__doc__, epilog="Setup stays project-local. Workbench actions run only when explicitly submitted in its interface.")
     root.add_argument("--project", default=argparse.SUPPRESS, help="Project directory (default: current directory)")
     root.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print structured output")
     commands = root.add_subparsers(dest="command", required=True)
     for name, description in (("install", "Copy the skill and optional bundled runtime into a project"),
                               ("init", "Create records and memory, or resume an existing workspace"),
                               ("connect", "Prepare project MCP configuration; apply only when requested"),
-                              ("doctor", "Inspect readiness without modifying project state")):
+                              ("doctor", "Inspect readiness without modifying project state"),
+                              ("workbench", "Open the local collaboration workbench or a fictional demo")):
         command = commands.add_parser(name, help=description, description=description)
         command.add_argument("--project", default=argparse.SUPPRESS, help="Project directory (default: current directory)")
         command.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Print structured output")
@@ -691,6 +729,11 @@ def parser():
             command.add_argument("--node", help="Node >=24 executable path or command")
         if name == "connect":
             command.add_argument("--apply", action="store_true", help="Register project config for Codex, Claude Code or Antigravity CLI/IDE")
+        if name == "workbench":
+            command.add_argument("--node", help="Node >=24 executable path or command")
+            command.add_argument("--port", type=int, default=8765, help="Loopback HTTP port; 0 selects an available port")
+            command.add_argument("--demo", action="store_true", help="Use fictional in-memory data; never contact providers")
+            command.add_argument("--open", action="store_true", help="Open the browser after the server starts")
     return root
 
 
@@ -706,6 +749,8 @@ def main(argv=None):
         project = project.resolve()
         if project.exists() and not project.is_dir():
             raise SetupError("--project must be a directory")
+        if args.command == "workbench":
+            return workbench(args, project)
         output = {"install": install, "init": init, "connect": connect, "doctor": doctor}[args.command](args, project)
         if structured:
             print(json_text(output), end="")

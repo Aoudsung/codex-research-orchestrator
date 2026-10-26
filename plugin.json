@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-research-orchestrator",
-  "version": "0.4.0",
-  "description": "Coordinate research in Codex with focused authorship, constructive review, source-backed memory, and optional collaboration across Claude Code, Antigravity, and Codex.",
+  "version": "0.5.0",
+  "description": "Coordinate research in Codex with focused authorship, constructive review, source-backed memory, and a local collaboration workbench for Codex, Claude Code, and Antigravity.",
   "author": {
     "name": "Aoudsung"
   },
@@ -21,7 +21,7 @@
     "com.openai": {
       "interface": {
         "displayName": "Codex Research Orchestrator",
-        "shortDescription": "Focused research authorship and cross-agent collaboration",
+        "shortDescription": "Research collaboration with a visual local workbench",
         "longDescription": "Connect Claude Code, Antigravity, and Codex for reciprocal, task-bound exchange of requests, evidence, revisions, and results. Coordinate research and independent review within the user's scope, with persistent memory and an optional MCP runtime.",
         "developerName": "Aoudsung",
         "category": "Productivity",

@@ -42,6 +42,8 @@ The work stays centered on the question: what is uncertain, what evidence could 
 
 ## Continue or check progress
 
+For a visual workspace, ask Codex to open this project's collaboration workbench. With the complete bundle and Node.js 24+, it can show the recorded task flow, original messages, evidence, and source status, and expose explicit task and messaging controls. See the [workbench guide](workbench.md) for the demo and pause/resume behavior.
+
 ```text
 Use $codex-research-orchestrator to continue this project's research.
 ```
@@ -89,4 +91,4 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py doc
 
 Missing Node.js does not block research without the optional bridge. If configuration was applied but tools are absent, follow the host's trust or reload steps and check again. The helper cannot establish whether a provider is logged in or a host has loaded a connection.
 
-You can ask Codex to initialize records or connect peers without remembering command syntax. For manual use, the installed helper exposes `install`, `init`, `connect`, and `doctor`; add `--help` for the relevant options.
+You can ask Codex to initialize records, connect peers, or open the workbench without remembering command syntax. For manual use, the installed helper exposes `install`, `init`, `connect`, `doctor`, and `workbench`; add `--help` for the relevant options. The workbench is a foreground browser server and does not use the setup commands' `--json` output mode.

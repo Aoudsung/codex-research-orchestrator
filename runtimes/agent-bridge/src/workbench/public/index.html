@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#F4F7FB">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='m10 21 20-13M10 21l20 11' fill='none' stroke='%23315FCB' stroke-width='2'/%3E%3Cg fill='white' stroke-width='2'%3E%3Ccircle cx='10' cy='21' r='5' stroke='%23315FCB'/%3E%3Ccircle cx='30' cy='8' r='5' stroke='%23315FCB'/%3E%3Ccircle cx='30' cy='32' r='5' stroke='%23178A87'/%3E%3C/g%3E%3C/svg%3E">
+  <title>Research workbench</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to workspace</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Workspace navigation">
+      <a class="brand" href="#overview" aria-label="Research workbench overview"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Research<br><strong>workbench</strong></span></a>
+      <div class="workspace-label">Workspace</div>
+      <nav id="navigation"></nav>
+      <div class="sidebar-bottom"><span class="local-mark"><span></span> Local workspace</span><p>Records, reasoning,<br>and the work between.</p><button class="text-button" id="access-button">Access settings</button></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="project-identity"><span class="project-icon" aria-hidden="true">R</span><div><strong id="project-name">Research workspace</strong><span id="project-path">Connecting to local records…</span></div></div>
+        <div class="top-actions"><span id="freshness" class="freshness">Waiting for records</span><button class="icon-button" id="refresh-button" aria-label="Refresh workspace" title="Refresh workspace"></button><button class="button quiet" id="control-button" disabled>Pause new work</button></div>
+      </header>
+      <div id="demo-banner" class="demo-banner" hidden></div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <div class="work-area">
+        <main id="main-content" tabindex="-1">
+          <div class="page-heading"><div><div class="breadcrumb">Workspace <span aria-hidden="true">/</span> <span id="view-breadcrumb">Overview</span></div><h1 id="view-title">The research, in motion.</h1><p id="view-description">Follow the question, the people, and the evidence they leave behind.</p></div><button class="button primary" id="create-button">New task</button></div>
+          <form class="filter-bar" id="filter-form" role="search"><label class="search-field"><span id="search-icon" aria-hidden="true"></span><input id="search" type="search" placeholder="Search tasks and evidence" aria-label="Search workspace"><kbd aria-hidden="true">/</kbd></label><label class="select-field"><span class="sr-only">Filter by participant</span><select id="agent-filter"><option value="">All participants</option></select></label><label class="select-field"><span class="sr-only">Filter by task phase</span><select id="phase-filter"><option value="">All task phases</option></select></label><button class="text-button" type="button" id="clear-filters" hidden>Clear</button></form>
+          <div id="content" aria-live="polite"><div class="initial-loading"><span class="loading-orbit"></span><h2>Opening your workspace</h2><p>Reading the selected project’s records.</p></div></div>
+          <footer class="workspace-footer"><span>Research workbench</span><span>Recorded activity is not an online presence indicator.</span></footer>
+        </main>
+        <aside id="inspector" class="inspector" aria-label="Record inspector" tabindex="-1"></aside>
+      </div>
+    </div>
+  </div>
+  <dialog id="action-dialog" class="action-dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <dialog id="source-dialog" class="source-dialog" aria-labelledby="source-title">
+    <header class="dialog-heading">
+      <div><span class="small-label">Original source</span><h2 id="source-title">Source record</h2></div>
+      <button class="icon-button" data-close="source-dialog" aria-label="Close source"></button>
+    </header>
+    <div id="source-meta" class="source-meta"></div>
+    <pre id="source-text" tabindex="0"></pre>
+    <div id="source-status" role="status"></div>
+    <footer class="dialog-footer source-footer">
+      <p class="source-export-note">Copy and download include only the text currently loaded in this viewer.</p>
+      <div class="source-tools">
+        <button class="button quiet" id="source-copy" disabled>Copy loaded text</button>
+        <button class="button quiet" id="source-download" disabled>Download loaded text</button>
+        <button class="button quiet" id="source-more" hidden>Load next section</button>
+        <button class="button quiet" data-close="source-dialog">Close source</button>
+      </div>
+    </footer>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

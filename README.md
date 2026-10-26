@@ -109,6 +109,10 @@ Its contribution is a practical collaboration protocol for Codex, source-backed 
 
 ## How the parts fit
 
+Version 0.4 adds role-specific instructions for researchers, optional brainstormers, reviewers, implementers, collaboration optimizers, and fact observers. Only the assigned role is loaded. When direction is unclear, short independent constructions precede comparison; a main author then develops the supported direction while others supply complementary evidence.
+
+Original research must combine rigorous support with a substantive contribution. A counterexample calls for a concrete reconstruction within the original object; a ruled-out route becomes evidence for a different approach. Reproduction, surveys, and bounded contributions retain their own completion criteria. Fact collection reports changes; process diagnosis remains with the optimizer. These are protocol changes, not measured claims of higher research quality.
+
 | Part | Responsibility |
 |---|---|
 | Research skill | Question selection, independent reasoning, review, handoffs, and scientific alignment |
@@ -130,6 +134,7 @@ Memory and coordination state remain separate. A delivered patch or successful p
 - [Memory design references](docs/memory-foundations.md)
 - [v0.3 validation](docs/validation-v0.3.md)
 - [Real-client communication and wakeup checks](docs/validation-v0.3.1.md)
+- [v0.4 role and construction checks](docs/validation-v0.4.md)
 
 Public content is in English. The framework can support different research fields through project-specific questions, evidence standards, collaborators, and resources.
 

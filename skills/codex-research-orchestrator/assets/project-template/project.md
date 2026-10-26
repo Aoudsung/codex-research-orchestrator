@@ -6,7 +6,8 @@ Record only the settings useful to this project; omit irrelevant sections. Do no
 
 - Research topic and directory:
 - Authoritative source of user constraints:
-- Current task type and deliverable scope:
+- Overall objective: original research / reproduction / survey or investigation / other user-specified goal:
+- Current assignment and its completion boundary (separate from the overall objective):
 - Lead researcher and state maintainer:
 - Entry points for existing code, data, execution contracts, and evidence:
 - Working language and writing requirements:
@@ -19,11 +20,18 @@ Combine roles as needed. Label a review as self-review when it has no independen
 |---|---|---|---|
 | Lead researcher | | | |
 | Research collaborator (if any) | | | |
+| Main author for the active construction, if assigned | | | |
+| Brainstormer (optional) | | | |
 | Independent reviewer (if needed) | | | |
 | Implementer (if needed) | | | |
-| Collaboration observer (as needed) | | Read research materials; write observation records only | |
+| Collaboration optimizer (when requested) | | Diagnose from evidence; write recommendations in the observation area only | |
+| Fact observer (when requested) | | Read allowed increments; write only its observation baseline and events | |
 
 Roles are configurable and may use native agents, Codex, Claude Code, Antigravity, or another available channel. Provider names do not determine responsibilities. Keep one owner per write area and one lead responsible for scientific alignment and final acceptance.
+
+- Applicable role page and actual delegated scope for each participant:
+- Main-author question and complementary evidence or counterexample questions:
+- Optional brainstorm contact authorization and input mode: independent construction / joint discussion:
 
 - Parallel questions or group responsibilities, when useful:
 - Group delegation policy: whether members may split work, create subtasks, or hand off ownership; authorized bounds and source:
@@ -98,6 +106,11 @@ Use the memory guide only when persistent retrieval helps. Keep control files cu
 - Research directories that may be read and separate observation directory that may be written:
 - Observation questions and confirmed criteria:
 - Who decides on recommendations and who implements them:
+- Existing fact-observer binding, baseline, processed positions, and event-record locations:
+- Allowed event categories and distinction between source time and observation time:
+- Existing monitoring authorization and schedule, if any; a single check creates neither:
+
+Keep one observer instance. No new facts returns `UNCHANGED` internally. In the observation workflow, the optimizer interprets process bottlenecks and the fact observer does not; the lead retains research decisions. Existing projects keep their records and formats; use these optional fields when relevant rather than recreating the project.
 
 ## Configuration Changes
 

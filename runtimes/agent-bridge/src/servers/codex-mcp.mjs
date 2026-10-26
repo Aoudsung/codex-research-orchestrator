@@ -20,7 +20,7 @@ import {
 
 const server = new McpStdioServer({
   name: "codex-mcp",
-  version: "0.3.1",
+  version: "0.4.0",
   instructions:
     "MCP server for communicating with OpenAI Codex CLI (`codex exec`, `codex exec resume`, `codex exec fork`, `codex review`) with explicit task/session/model bindings and reported identity evidence, structured patch delivery, and bidirectional messaging.",
 });

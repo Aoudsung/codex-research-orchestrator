@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Research Orchestrator"
-  short_description: "Start or continue research with collaborating agents"
+  short_description: "Research with focused authorship and constructive review"
   default_prompt: "Use $codex-research-orchestrator to help me start or continue research: find the next useful step from my goal and the materials in this project."

@@ -6,6 +6,8 @@ Use the sections relevant to the recipient's role and question. Put the question
 
 ```markdown
 Task and purpose: {question or concrete behavior; role: analysis / discussion / review / author}
+Role instructions: {readable relevant duties and delegated authority, not an inaccessible path}
+Objective and assignment: {overall task type; this contribution's completion boundary; main author if assigned}
 Return: {required output contract, artifact set, completion conditions}
 Basis: {original requirement sources, relevant evidence, proposal or code revision}
 Boundaries: {permitted materials, read/write ownership, contacts and sharing, delegation policy}
@@ -31,6 +33,9 @@ Send only the delta from the recipient's current basis. Keep the original output
 
 ```markdown
 # Question and Return
+Assigned role and delegated authority: {relevant duties in readable form}
+Overall task type and this assignment's completion boundary: {original research or the actual bounded task}
+Main author and complementary question, if assigned: {actual ownership}
 Question for this round: {the judgment to change and the result that would determine the next action}
 Return: {conclusion, conditions, source evidence, and required format}
 Research question, object, and current deliverable: {content and source}
@@ -70,11 +75,19 @@ Use the following work sequence:
 
 1. State the materials and versions actually read, and the scope covered.
 2. Determine whether the proposal's actual research object matches the user's request. Identify any substitution of definitions, object, or goal.
-3. Check the evidence, conditions, and strongest counterexamples for key claims. Distinguish valid derivations, empirical support, and unsupported claims.
-4. For findings that affect the conclusion, provide the location, trigger, consequence, and smallest correction. Do not repeat concerns already ruled out by the proposal itself.
+3. Identify the core relationship and possible contribution, then check its evidence, conditions, closest predecessors, and strongest counterexamples. Distinguish valid derivations, empirical support, and unsupported claims.
+4. For findings that affect the conclusion, provide the location, trigger, consequence, and smallest reconstruction direction within the research object. Keep construction with the author; a reviewer need not invent a positive solution to every rejected route. Do not repeat concerns already ruled out by the proposal itself.
 5. Explain what knowledge this round added or which hypothesis it ruled out. Within scope, check whether implementation and evidence support the deliverable.
 
 The deliverable must also state the actual degree of independence and end with the strongest claim supported by the current evidence. Do not present optional improvements as blockers.
+
+For original research, distinguish handling a finding, resolving the original difficulty, and establishing a substantive contribution. For a bounded review, return the covered judgment and unresolved findings without taking over the full research objective.
+
+## Brainstorming and observation handoffs
+
+For a brainstorming assignment, include the [brainstormer duties](roles/brainstormer.md), the construction question, input mode, and necessary original materials. Request concrete alternative relationships or a developed mechanism as useful; do not demand a final proof from every early idea or make brainstorming an approval stage.
+
+For observation, specify [fact collection](roles/fact-observer.md) or [process diagnosis](roles/optimizer.md). Give permitted sources, write scope, the existing baseline, and whether this is one check or already-authorized monitoring. A fact check requests source-backed changes or exactly `UNCHANGED`; it requests no ratings or recommendations. An optimizer request asks for evidence and a process improvement without granting authority over the research.
 
 ## Implementation or Experiment Handoff
 

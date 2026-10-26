@@ -2,17 +2,23 @@
 
 Read this file when arranging collaborators, independent reviews, implementation handoffs, or external communication. Obtain tool names and role bindings from the project configuration and current host. Do not copy another project's conversations or permissions.
 
+Read only the assigned [role entry](../SKILL.md#identify-the-task-and-role). A persistent role is bound by the project's instructions; a temporary contributor receives only the delegated question and permitted operations. A role page does not itself authorize messages, further delegation, execution, or shared-state writes.
+
 ## Assigning Work
 
 The lead researcher retains responsibility for research semantics, material tradeoffs, irreversible actions, and acceptance. Delegate separable source investigation, independent reasoning, and clearly specified implementation to suitable participants. Short diagnosis–edit–verify cycles, and experiments whose next action depends on each result, usually remain with the current owner.
 
-A delegation states the goal, necessary context, permitted read and write scope, and conditions for completion. The assignee resolves routine details from interfaces and existing materials. Escalate only issues that would change research semantics, exceed authorization, or leave an expensive experiment unbounded.
+A delegation states the goal, assigned role, necessary context, permitted read and write scope, and conditions for completion. Supply the relevant role instructions in a form the recipient can read, not only an inaccessible path. State the overall research objective separately from this contribution's deliverable. The assignee resolves routine details from interfaces and existing materials. Escalate only issues that would change research semantics, exceed authorization, or leave an expensive experiment unbounded.
 
 Use the narrowest suitable capabilities: source investigation is read-only; a clear local implementation may write to specified areas; core algorithms, measurement definitions, data splits, or inference semantics require an executor with the relevant capabilities. Names and model labels do not establish competence or override host permissions.
 
 Only one owner may write to a given file region at a time. The lead researcher maintains overall state and the work index serially; other participants submit their own deliverables and receipts. Reuse the same owner for follow-up work within the same scope. Independent judgment requires context that has not been exposed to existing evaluations. Do not present a temporary agent as a persistent conversation designated by the user, or require every role to be created in every round.
 
 ## Reciprocal Collaboration and Groups
+
+When direction is unclear or blocked, ask the research contributors for short independent constructions before comparison. Their core information, representation, operations, or feedback relationships should differ. Once a direction has a supported basis, identify a main author to deepen it and assign complementary sources, counterexamples, or cost questions to others. This is a way to organize useful work, not a mandatory panel or fixed number of candidates.
+
+An optional [brainstormer](roles/brainstormer.md) can develop alternatives within existing contact authorization. It is not a review or implementation gate. Label shared construction honestly; do not later present it as independent assessment.
 
 Roles and group structure are configurable. Codex, Claude Code, Antigravity, or other available participants may act as research partners, authors, or reviewers according to their capabilities and the user's choices. Assign complementary questions in parallel when each can make a distinct contribution. A discussion group may divide its question or develop a separate candidate when the project's delegation policy permits it.
 
@@ -44,9 +50,9 @@ Form and save independent opinions before sharing and comparing them. Agreement 
 
 Arrange review according to risk when a material mechanism takes shape, a key conclusion is substantively disputed, or work approaches finalization or expensive execution. Cover key claims and the actual conditions. One review may cover several of these points; reuse coverage for unchanged versions and issues. Do not add approval gates for low-risk document corrections, routine troubleshooting, or validation already completed.
 
-A finding must identify its location, trigger or counterexample, effect on the conclusion, and the smallest necessary correction. Distinguish issues that block a conclusion from optional suggestions. Do not expand the acceptance scope.
+A reviewer first identifies the core relationship worth testing, then checks its conditions and closest predecessors. A finding must identify its location, trigger or counterexample, effect on the conclusion, and the smallest necessary reconstruction within the research object. A justified rejection is valid; the reviewer is not required to solve every failed route for the author. Distinguish issues that block a conclusion from optional suggestions. Do not expand the acceptance scope.
 
-The lead researcher records each finding as accepted, rebutted, or unresolved, with evidence. Receiving feedback does not mean it has been addressed. Passing review does not authorize implementation or experiments. Recheck only the behavior affected by changes.
+The lead researcher records each finding as accepted, rebutted, or unresolved, with evidence. Distinguish handling the finding, resolving the original difficulty, and establishing a contribution. A restriction may repair a conditional statement while leaving the original objective open. Receiving feedback does not mean it has been addressed. Passing review does not authorize implementation or experiments. Recheck only the behavior affected by changes.
 
 ## Implementation and Acceptance
 
@@ -67,11 +73,7 @@ Use host-provided connectors or collaboration tools first. Use another available
 
 Send only the material needed to answer the current question. Exclude identifying information, credentials, unrelated data, and unauthorized original materials from prompts and attachments. Use the [prompt templates](prompts.md) to expand necessary requirements into text the recipient can read. Avoid providing only inaccessible local paths.
 
-Before sending, record the destination and versions of the prompt and attachments. If the outcome is unknown, check the original conversation before resubmitting. While waiting, advance work that does not depend on the reply. Use host completion notifications or reasonable waits instead of repeated refreshes. If tools fail repeatedly, save a checkpoint, diagnose the cause, and stop blindly retrying the same failed action.
-
-Keep the logical task, participant, required model, execution session, and artifact revision stable through follow-ups. Record a requested model separately from runtime identity evidence; a model argument is not verification. Use incremental cursors and compact receipts, fetching raw artifacts only for application or a specific judgment. For optional bridge APIs, delivery distinctions, and verified continuation, follow [MCP collaboration](mcp-collaboration.md).
-
-After receiving the complete reply, preserve it verbatim and write the lead researcher's assessment separately. Do not treat thinking progress, truncated content, or a successful tool status as a complete research result. If no external channel is available, complete the analysis possible locally, provide a handoff package, and identify which external opinions have not been obtained.
+Session reuse, complete-reply collection, delivery waiting, timeout reconciliation, and notification checks are maintained in [external collaboration operations](mcp-collaboration.md). Role pages use that guide rather than defining their own timing rules. Keep operating settings in project configuration. If no external channel is available, complete permitted local analysis and identify which external opinions have not been obtained.
 
 ## Pausing and Resuming
 

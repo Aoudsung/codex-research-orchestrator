@@ -6,6 +6,7 @@ Read this file when creating records or submitting work with substantive results
 
 - `charter.md` holds the question, authoritative verbatim user constraints, and their confirmation status.
 - `project.md` holds participants, tools, execution environments, authorizations, and resource bindings.
+- Keep the overall task type, current assignment's completion boundary, assigned main author, and optional observation roles in those existing records. Add detail only when it changes the work; no new ledger is needed.
 - `state.md` holds current judgments, revisable decisions, candidate claims, unresolved issues, and next actions.
 - `rounds/RNN/` holds actual prompts, attachment lists, complete replies, and the round's assessment.
 - `implementation/` or the existing execution directory holds implementations, experimental protocols, run results, and acceptance evidence.
@@ -36,7 +37,7 @@ If the check fails, the previous version stays in force. Record the failed updat
 - Feedback handling: Finding → accepted / rebutted / unresolved → reasoning and evidence of handling.
 - Changes to claims and decisions: Previous judgment → new judgment, with conditions and criteria for refutation.
 - Review coverage: Proposal version, claims, and actual conditions; location of reusable review records.
-- Progress: Difficulties resolved, candidates ruled out, or knowledge added.
+- Progress: Findings handled, original difficulties resolved, contributions established, or knowledge added; distinguish these judgments and cite their evidence.
 - Next action: Action, required result, and branches in the judgment.
 ```
 
@@ -73,6 +74,10 @@ One fictional entry:
 If resources were consumed, add actual units and supporting evidence. Do not record unknown use as zero. Add correction entries that identify the corrected ID rather than rewriting history. Do not run extra experiments for bookkeeping or log every tool call.
 
 Each entry records what changed, with pointers to evidence. Do not copy the full state, or the full list of materials available at that point, into every entry. Repeated whole copies make the index grow with the square of the history.
+
+An accepted review finding is not evidence that the original problem is solved. If a repair only adds a restriction, keep the broader difficulty open. An original contribution requires its own mechanism difference and supporting result; neither a corrected local statement nor a finished handoff establishes it automatically. Preserve useful negative results and local corrections as knowledge without relabeling them as the requested innovation.
+
+Observation records stay in their designated area. The fact observer maintains only its authorized baseline and events; the optimizer records interpretations and proposals. Their outputs do not directly rewrite research state or acceptance decisions.
 
 ## Resumption Checkpoint
 

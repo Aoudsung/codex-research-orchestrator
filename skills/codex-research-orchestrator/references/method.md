@@ -39,6 +39,20 @@ Explain how the components work together through their core relationships. A res
 
 The task determines the contribution standard. Reproduction, falsification, measurement, theoretical explanation, data resources, and methodological innovation can all be valid goals. When novelty matters, assess the substantive difference from the closest work, the properties that follow from it, and the significance of the contribution separately. Do not make “disruptive innovation” a default requirement for every project.
 
+## Construction and completion in original research
+
+Apply this section when the user's task is original research. Reproduction, surveys, bounded reviews, and engineering support retain their own completion criteria. A contributor may complete its assignment while the overall original-research objective remains unfinished.
+
+Early candidates need a reasoned causal account, identifiable assumptions, and a way to investigate their strongest counterexamples. Do not require a finished proof, final novelty judgment, and complete experiment budget for every short idea. Before adopting a main proposal as complete, require both rigorous support appropriate to its actual claims and a substantive contribution relative to the closest work.
+
+When an idea has a flaw, locate the smallest failing condition and attempt a constructive repair of its core relationship within the original object. Derive how the revision addresses the counterexample and what assumptions or costs it adds. Relevant corrections may change an estimator, representation, feedback signal, stopping rule, or certificate; choose them because they address the failure, not because they sound sophisticated. Merely naming an error term or an unavailable assumption is not a solution.
+
+If the route is ruled out, preserve the negative evidence and reconstruct the approach. Do not present a known baseline as completion of an unmet originality objective. If repairs accumulate without explaining why the parts belong together, reconsider the underlying representation or feedback relationship. Conversely, novelty does not justify retaining a disproved claim.
+
+When novelty is weak, investigate the problem's distinctive structure, the information available to the method, and its closest predecessors. Seek a concrete mechanism difference and a nontrivial consequence supported by derivation or suitable observation. A new name, a collection of useful parts, or the fact that a general framework can express the method does not settle that assessment.
+
+A diagnosis of remaining bias, incomplete convergence, or weak novelty should lead to the next specific construction while work is authorized and resources remain. Respect pauses, round limits, and real resource boundaries. At those boundaries report the unfinished objective; do not promise a positive solution or call the study complete because a discussion ended.
+
 ## Derivations and Counterexamples
 
 Construct the strongest counterexamples directly relevant to the goal. Distinguish structural flaws, implementation deviations, and additional conditions. State a clear judgment: which claim holds, what it depends on, which claim fails, and the smallest correction needed. Lack of a guarantee does not establish impossibility; intuition and assumptions are not proofs.

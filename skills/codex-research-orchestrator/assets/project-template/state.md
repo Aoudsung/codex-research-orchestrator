@@ -4,11 +4,13 @@ Last updated:
 Current task status: in progress / awaiting results / awaiting a decision / paused by user / complete (select the actual status)
 Source and current version of user constraints:
 Authorization and resource configuration: project.md
+Overall objective and this assignment's completion boundary:
 
 ## Current Assessment
 
 - Question being addressed and its role in the research goal:
 - Full current proposal or argument and its version:
+- Main author and active construction question, when assigned:
 - Strongest conclusion reached, its conditions, and supporting evidence:
 - User constraints checked in this round and the basis for each check:
 
@@ -31,8 +33,10 @@ Use statuses as needed: conjecture, derived under stated conditions, supported b
 
 ## Reviews and Feedback
 
-| Review record | Version, claims, and conditions covered | Independence statement | Treatment of findings and open items |
-|---|---|---|---|
+| Review record | Version, claims, and conditions covered | Independence statement | Treatment of findings and open items | Original difficulty resolved? Evidence or remaining gap | Contribution established? Evidence or open claim |
+|---|---|---|---|---|---|
+
+Use only relevant columns. Handling a finding, solving the original difficulty, and establishing a contribution are separate judgments. A conditional repair may leave the original goal open; a completed bounded assignment need not establish an original contribution.
 
 ## Work in Progress
 

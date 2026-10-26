@@ -1,104 +1,85 @@
 ---
 name: codex-research-orchestrator
-description: Coordinate sustained research in Codex with a clear scientific question, independent analysis, reciprocal agent collaboration, review, and evidence-based continuation. Use to start or resume multi-round research, organize a research team, or coordinate authorized work across Codex, Claude Code, and Antigravity. Use only relevant guidance for a bounded contribution.
+description: Coordinate sustained research in Codex with independent construction, focused authorship, constructive review, and source-backed continuation. Use to start or resume research or coordinate authorized work across Codex, Claude Code, and Antigravity. For a bounded contribution, load only the relevant role and guidance.
 license: MIT
 metadata:
-  version: "0.3.1"
+  version: "0.4.0"
 ---
 
 # Codex Research Orchestrator
 
-Organize sustained research around the key scientific question, a supported contribution, and the user's needs. Each round should change a meaningful judgment through evidence. Protect the research object and authorization the user has set; revise or reject mechanisms, candidate claims, and current approaches when evidence warrants it.
+Keep the scientific question, evidence, and next action connected. Protect the user's research object and authorization; revise mechanisms, current decisions, and candidate claims when evidence warrants it. The user can begin with one goal. Handle ordinary setup and records without requiring a completed form or a fixed agent team.
 
-The user can start with one goal or ask to continue existing work. Handle ordinary setup, recordkeeping, and selection of the next action from the request and project context. Do not make the user fill templates or remember helper commands.
+Roles are responsibilities, not provider or model assignments. Use the project's actual participants and permissions. Codex can work alone; the optional bridge supports reciprocal collaboration with Claude Code, Antigravity, and other configured participants.
 
-This skill enables peers to exchange requests, evidence, revisions, and results with less manual relay. Adapt roles and channels through project settings, without fixing a provider combination, model, session, or team size. Native Codex research works without the optional bridge. Installation does not create accounts, connections, or background services.
+## Identify the task and role
 
-## Route the request
+Determine whether this is a new project, continued research, or a bounded contribution. Preserve existing entry points and designated participants. Determine the task type from the user's request and current project records; ask only when ambiguity changes the deliverable or completion criteria.
 
-Read only the guidance needed for the current intent; do not preload every reference.
-
-| User intent | First action and relevant guidance |
+| Task type | Completion boundary |
 |---|---|
-| Install or set up | Use [getting started](references/getting-started.md) to install in the chosen project and check the result. Keep writes local to that project. |
-| Start research | Extract the question from the user's words, inspect existing materials, and use [getting started](references/getting-started.md) when minimal records need initialization. Then choose the next scientific judgment below. |
-| Continue or resume | Read live controls, state, and relevant recent records as described below. Use [memory](references/memory.md) only when retrieval or context assembly is needed. |
-| Status | Read current state and relevant evidence. Report the supported conclusion, pending work, and next action. Check running work through its actual channel when available; do not restart it. |
-| Connect collaborators | Use [getting started](references/getting-started.md) for configuration, then [MCP collaboration](references/mcp-collaboration.md) for actual exchanges. Configuration is not proof of a live connection. |
-| Troubleshoot setup or connections | Run the read-only setup diagnosis described in [getting started](references/getting-started.md), then inspect only the reported issue. Use [Codex integration](references/codex-runtime.md) for host capability questions. |
+| Original research | The final main proposal needs rigorous support appropriate to its claims and a substantive contribution relative to the closest work. A correct known baseline or an unsupported new idea does not meet that objective. |
+| Reproduction | Meet the specified fidelity, implementation, comparison, and reporting requirements. A new mechanism is not required. |
+| Survey or investigation | Answer the stated question with suitable sources, coverage, and qualified conclusions. |
+| Bounded review or engineering support | Complete the assigned review, change, or execution and its relevant checks. Completion of this contribution does not establish completion of the whole study. |
 
-Read [Codex integration](references/codex-runtime.md) when client capabilities affect the requested action or when switching clients. Load [research methods](references/method.md), [collaboration](references/collaboration.md), [handoff prompts](references/prompts.md), or [recordkeeping](references/records.md) at the step that needs them. Use [observation](references/observer.md) only for a requested coordination assessment.
+Then load only the role needed for the current assignment:
 
-## Enter the task
+| Responsibility | Read when assigned |
+|---|---|
+| Research lead or delegated research contributor | [Researcher](references/roles/researcher.md) |
+| Optional exploration of alternative mechanisms | [Brainstormer](references/roles/brainstormer.md) |
+| Independent assessment of a proposal | [Reviewer](references/roles/reviewer.md) |
+| Agreed implementation or authorized execution | [Implementer](references/roles/implementer.md) |
+| Requested diagnosis of collaboration | [Collaboration optimizer](references/roles/optimizer.md) |
+| Requested collection of incremental facts | [Fact observer](references/roles/fact-observer.md) |
 
-**Determine whether the request starts a project, resumes one, or asks for a bounded contribution.** For a bounded request, use only the relevant guidance. Keep existing project paths, contracts, and role assignments; do not create a second source of state.
+A temporary contributor receives only the delegated scope, not the lead's authority over other participants, shared state, or final acceptance. Do not instantiate every role, create new conversations, or change models merely because a role is listed. Further delegation must already be authorized.
 
-For a new project, extract the following from the request and available materials. Ask only about gaps that change the scientific meaning, main deliverable, resource limits, or permission to share:
+## Route the work
 
-- The question, research object, conditions, and requested deliverable.
-- Confirmed user constraints, original evidence, and confirmation sources. Keep assistant interpretations as drafts.
-- Authorized actions: reading, reasoning, writing, implementation, experiments, and external communication.
-- Available participants, tools, execution environment, and budget. Existing authorization remains valid; do not request it again every round.
+- **Install, start, connect, or diagnose setup:** use [getting started](references/getting-started.md). Keep routine writes in the chosen project. Configuration does not prove a live connection.
+- **Resume or report status:** read live user controls, project settings, current state, and relevant recent evidence. Check pauses, active jobs, and pending results before restarting anything.
+- **Construct or evaluate a research approach:** use [research methods](references/method.md). Arrange participants and independent inputs through [collaboration](references/collaboration.md).
+- **Hand off or record results:** use [purpose-specific prompts](references/prompts.md) and [recordkeeping](references/records.md).
+- **Retrieve growing history:** use [memory](references/memory.md). Independent analysis and review receive curated materials, not general state or the lead's inbox.
+- **Use an external channel or await a result:** follow [MCP collaboration](references/mcp-collaboration.md), which maintains session reuse, delivery waiting, timeout reconciliation, and continuation rules. Check [Codex integration](references/codex-runtime.md) when host capabilities matter.
+- **Observe collaboration:** use [observation](references/observer.md) only within the user's requested scope.
 
-When persistent records are needed, use the setup helper in [getting started](references/getting-started.md) to create minimal records in the user's chosen or a suitable research directory. Preserve existing entry points. The [charter](assets/project-template/charter.md), [project settings](assets/project-template/project.md), and [state](assets/project-template/state.md) templates provide further fields only when useful. Fill known facts. Empty fields are not authorization; record explicit user instructions without asking for confirmation again. An incomplete draft does not block work whose scope is already clear.
+For a new project, extract the question, deliverable, confirmed constraints, available materials, permissions, and resources from the request. Mark assistant interpretations as drafts. Use the setup helper when minimal persistent records are needed; expand the [project](assets/project-template/project.md), [charter](assets/project-template/charter.md), and [state](assets/project-template/state.md) templates only as useful. Empty fields neither grant permission nor block clear, authorized work.
 
-On resumption, read the authoritative user constraints, project settings, current state, and relevant recent records. Check the latest pause instructions, running jobs, and pending results. Independent analysis and review are exceptions: isolate prior judgments as specified in [collaboration](references/collaboration.md). Do not restart work already in progress.
+## Keep authority and evidence separate
 
-For growing histories, use [research memory and task context](references/memory.md). Search short indexes before reading full sources, keep authoritative controls live, and build a fresh packet for the recipient and question. Do not load the entire history or give an independent reviewer the general resumption context.
+| Category | Treatment |
+|---|---|
+| User-confirmed constraints | Preserve the original wording and source. Change them only on the user's instruction. |
+| Current decisions | Revise within authorization when evidence supports a different choice; record why. |
+| Candidate claims | State conditions, evidence, and refutation criteria; revise or reject them when needed. |
 
-## Keep three categories separate
-
-| Category | Examples | How it changes |
-|---|---|---|
-| User constraints | Research object, required limits, deliverables, budget, sharing permissions | Update only on the user's instruction; retain the source and change record |
-| Current decisions | Candidate method, division of work, search strategy, experiment plan | Revise within authorization when evidence supports it; record why |
-| Candidate claims | Effectiveness, causal explanation, theorem, generalization, performance prediction | State conditions, evidence, and refutation criteria; revise or reject as needed |
-
-Definitions in a paper, collaborator suggestions, assistant inferences, and draft charter text do not automatically become user constraints. If a candidate violates a constraint, repair or reject it. Do not replace the original question because a substitute is easier to prove, run, or publish.
+Draft charter text, a paper's definitions, a collaborator's confidence, and assistant interpretations do not become user constraints. Do not substitute a smaller research object because it is easier to prove, implement, or publish.
 
 ## Research loop
 
-1. **Choose the judgment to change.** Connect the current difficulty to the research goal. State what result would decide the next step. “Have another discussion” is not a research objective.
-2. **Choose a method that can answer it.** Resolve what sources, derivations, counterexamples, or implementation checks can settle before arranging necessary observations. Design, empirical work, theory, and reproduction require different evidence; see [research methods](references/method.md).
-3. **Coordinate work and obtain original results.** Independent research, joint discussion, review, and implementation need different inputs. Select participants using [collaboration](references/collaboration.md), and provide sufficient context using [handoff prompts](references/prompts.md); state any required output format in full in the first request. Authorized peers may exchange questions and evidence or coordinate handoffs directly. Keep short diagnostic loops with the current owner when delegation would add no value.
-4. **Determine what the result changes.** Check the key derivation, source, or affected behavior. Distinguish new evidence from another participant's opinion. Accept, rebut, or leave each review finding open, with reasons. Recheck only material changes or uncovered questions.
-5. **Record and continue.** The lead updates state, claims, and decisions serially, preserving original materials and a short work index under [recordkeeping](references/records.md). Continue the next necessary action when the objective is unfinished and the action is clear, authorized, and within budget.
+Use this loop when assigned research construction. Other roles follow their assigned scope and duties; this loop does not grant them construction work or lead authority.
 
-Progress can mean establishing conditions, ruling out a candidate, repairing a derivation, obtaining a discriminating observation, or completing a valid implementation. More pages, rounds, agents, agreement, or a better internal metric do not alone establish research progress or overall effectiveness.
+1. **Choose the judgment to change.** Connect an unresolved difficulty to the original goal, available information, and evidence that could decide the next step.
+2. **Construct and investigate.** Resolve what reasoning, original sources, or implementation checks can settle. When direction is unclear or blocked, form short independent proposals with different core relationships before comparison. Select a main author to deepen the supported direction; give other contributors complementary questions.
+3. **Test the argument.** Trace the mechanism or explanation to the claimed outcome. Examine decisive counterexamples, transfer conditions, closest predecessors, and necessary observations. Early candidates may have open conditions; do not replace exploration with a demand for a finished proof at every round.
+4. **Handle findings constructively.** Locate the smallest failing condition and repair the core relationship within the research object. If a route is ruled out, preserve the evidence and reconstruct the approach. Repeated patches without a coherent explanation are a reason to reconsider the representation or feedback relationship.
+5. **Record what changed and continue.** Distinguish a handled finding, a resolved original difficulty, and an established contribution. Reuse unchanged review and validation coverage. The lead updates shared state serially and continues the next necessary authorized action.
 
-## Roles and control
+For original research, a diagnosis of limited novelty or a remaining error is an intermediate result. Continue concrete construction within the active scope and resources. Do not claim completion from a baseline fallback, a closed finding, more rounds, agreement, or improved internal metrics. Negative results and local corrections remain useful knowledge; they establish the requested original contribution only when they actually meet that deliverable's criteria.
 
-| Role | Responsibility and limit |
-|---|---|
-| User | Sets the research object, material tradeoffs, permissions, and resources; may pause or change the goal |
-| Research lead | Owns scientific meaning, approach selection, coordination, feedback handling, shared records, and final acceptance |
-| Research partner | Investigates, proposes mechanisms, derives results, and constructs counterexamples; forms an independent view on key questions before comparison |
-| Independent reviewer | Evaluates a specified version and its claims from evidence, without inheriting others' conclusions |
-| Implementer | Implements the agreed approach or runs authorized experiments; returns version-linked evidence and escalates methodological ambiguity |
-| Collaboration observer, optional | Diagnoses coordination problems and proposes changes; does not take over research, direct participants, or rewrite rules |
+## Ownership and stopping
 
-Roles are configurable responsibilities. Reuse participants the user has designated. Groups may divide work and develop distinct candidates within an explicit delegation policy. Keep one owner per write area and the lead responsible for scientific decisions and final acceptance. In external-author mode, the author owns analysis, implementation, self-checks, and repairs; Codex coordinates and accepts relevant evidence without repeating that workflow. One agent may research and implement, but must label its own check as self-review. Enable the observer only when the user requests a coordination assessment; see [observation](references/observer.md).
+Keep one writer per area. The lead owns scientific tradeoffs and final acceptance; the author owns assigned construction, implementation, self-checks, and repairs. Accept work using sufficient evidence for its actual version instead of repeating the author's whole workflow. Independent review remains distinct from self-checking.
 
-## Continue and stop
+Deliver a bounded task when its objective and relevant checks are complete. For ongoing research, a reply, review approval, or finished document is not itself the stopping point. A missing mechanism is not a reason to stop while a necessary, authorized next action remains.
 
-Follow the scope of the user's request. Deliver when a single-round request is complete. For sustained research, one reply, review approval, or finished document is not a stopping point. A missing core mechanism is not itself a reason to stop. At a bottleneck, distinguish failure of the current approach from a conflict in the problem conditions, then change sources, methods, decomposition, or candidates.
+Respect user pauses, round limits, budgets, and execution boundaries. At a real boundary, record the unfinished objective, completed scope, pending work, and concrete next action without presenting a pause or exhausted route as scientific success. Do not promise that persistence guarantees a positive result.
 
-Create a checkpoint and explain the concrete boundary when:
-
-- The requested deliverable and relevant acceptance checks are complete.
-- The user pauses work; stop within the stated scope.
-- A budget or time limit is reached, or the next action would exceed it.
-- Required input, permission, or an external result is missing, and no necessary independent work remains.
-- Evidence exposes a conflict among user constraints that requires the user's decision.
-
-Complete unaffected authorized work before asking. Do not turn ordinary approach choices, failed candidates, or a lack of absolute guarantees into approval requests. Sustained research does not authorize unlimited retries, more resources, or unapproved experiments.
-
-For scheduled work across sessions or time periods, use the host's scheduling tools only when requested and available. Save the research directory, resumption entry point, authorized scope, budget, and stop conditions. Stay quiet without meaningful change; notify on substantive results, failure, or a needed decision. Without a configured scheduler, provide a checkpoint and do not promise scheduled wakeups.
-
-The lead may finish its current turn after independent actors own the pending work and no lead action remains. Keep the task bindings and next action for a genuine return event; delegated work still needs final acceptance. Use supported events for capable channels, and authorized, channel-scoped scheduled checks for channels without push. An inbox event or forwarding success alone does not establish that the target chat resumed; see [MCP continuation](references/mcp-collaboration.md#wait-and-resume).
+When independent actors own pending work and the lead has no remaining action, the lead may end its turn with a checkpoint and retained acceptance responsibility. An integrated delivery-wait call must first return. Use only configured continuation or authorized channel-specific checks; do not create monitoring or claim idle-chat wakeup from an inbox event alone.
 
 ## Deliver
 
-Lead with the strongest supported conclusion, then state its conditions, key evidence, completed artifacts, and actual open questions. For a proposal, check the user constraints relevant to this round against specific mechanisms, definitions, or evidence. For an interim result, identify the next action. Once the agreed objective is met, deliver without expanding the audit or experiment scope.
-
-Use clear, concise language and give reasons for judgments. Distinguish user statements, original sources, existing implementation, derivations, and assumptions. Research quality comes from inspectable work, not a predetermined positive conclusion.
+State the strongest supported conclusion, its conditions, evidence, actual deliverables, and open questions. Distinguish facts, derivations, source statements, and assumptions. For a proposal, show how the relevant user constraints are met. Once the assigned objective is achieved, deliver without adding unrelated review or experiments.

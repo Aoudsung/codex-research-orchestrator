@@ -1,8 +1,14 @@
-# Optional MCP Collaboration
+# External collaboration and optional MCP
 
-Read this file when using an MCP bridge for reciprocal work among Codex, Claude Code, and Antigravity. The repository's optional `runtimes/agent-bridge` supplies shared task and artifact tracking with provider adapters. The skill remains usable with native tools alone. Select and configure only the adapters needed; skill installation does not register providers, grant permissions, or start a listener.
+Read this file when sending external work, collecting replies, or handling delivery waits and continuation. These operating rules apply to the authorized channel; role duties remain in the relevant role page. The repository's optional `runtimes/agent-bridge` supplies shared task and artifact tracking for reciprocal work among Codex, Claude Code, and Antigravity. The skill remains usable with native tools alone. Select and configure only the adapters needed; skill installation does not register providers, grant permissions, or start a listener.
 
 Discover the installed tools and their current schemas before use. Available providers, execution modes, and host notification support vary. The API names below identify shared operations, not a required sequence or a guarantee that every client exposes them.
+
+## Channel operations
+
+Record the destination and versions of the first prompt and attachments. Keep the authorized task and conversation through follow-ups; send changed requirements, evidence, and remaining findings instead of replaying the whole basis. If delivery is unknown, check the original conversation before resubmitting. Advance independent work while waiting, and diagnose repeated tool failures instead of blindly retrying.
+
+For a browser or other channel without push, collect the complete final reply through its reliable full-response operation. Visible thinking progress and truncated excerpts are not research results. Preserve the original reply separately from the lead's interpretation. Use only an already-authorized channel-specific check, with its project-configured interval; reuse it, stay quiet without change, and disable it when no result is pending. Do not turn that policy into monitoring for other participants.
 
 ## Bind the Authorized Task
 
@@ -45,6 +51,8 @@ Use `bridge_record_validation` to associate actual checks and findings with the 
 ## Wait and Resume
 
 **Within the current turn:** when the caller needs the next delivery, `waitForDelivery` on supported dispatch or validation calls combines sending and delivery waiting in one operation. `bridge_send_message` and `bridge_record_validation` can use this mode; `bridge_wait_for_delivery` supports waiting on existing work. Follow the actual schemas and yield to the host when supported. Do not issue a duplicate request or add another polling loop while the integrated wait is pending.
+
+Ending the lead's turn after a completed handoff does not allow it to abandon an integrated delivery wait before the call returns. On return, inspect only the increment and receipt, then perform necessary acceptance or repair work for that revision.
 
 Configure `settleMs` and `timeoutMs` for the channel and client deadline. The bridge profile defaults of 2,500 ms and 600,000 ms are configurable examples, not universal timing requirements. A settling window coalesces adjacent events; it cannot prove artifact completeness. If a client times out earlier, retain the task, session, revision, and cursor and perform bounded reconciliation of the original work. Timeout alone proves neither failure nor completion.
 

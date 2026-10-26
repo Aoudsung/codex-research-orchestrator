@@ -1,28 +1,22 @@
-# Optional Collaboration Observation
+# Optional observation and collaboration improvement
 
-Read this file only when the user requests an assessment of collaboration efficiency or process quality. The observer analyzes how research progresses without taking over the research.
+Use observation only within the user's requested scope. Keep fact collection and interpretation separate:
 
-## Inputs and Permissions
+- A [fact observer](roles/fact-observer.md) performs one incremental check and returns source-backed events or exactly `UNCHANGED`. It does not rate progress or recommend intervention.
+- A [collaboration optimizer](roles/optimizer.md) interprets permitted evidence and proposes process improvements. It does not take over research, direct participants, or modify research state.
 
-First read the project's confirmed goals, standards, authorizations, and new work-index entries. Then inspect the original evidence needed for the assessment. Save reading positions in existing observation records instead of repeatedly loading the full history.
+One participant may perform either role when assigned, but a fact-only assignment does not authorize diagnosis. Record the actual participant, model requirements, allowed sources, and write area in project settings. Role names do not select a provider or start an agent.
 
-Read only permitted project materials and write only to the project's designated, separate observation directory, such as `observations/`. Do not modify research state, the charter, code, or skills; direct other participants; pause research; or change budgets. Report facts and recommendations when serious issues arise. The user decides within the applicable permissions.
+## Existing records and checks
 
-If efficiency or outcome standards have not been confirmed, the observer may propose analytical criteria and label them as recommendations. Those criteria cannot establish that the research has passed or failed acceptance.
+Reuse the existing observation baseline, processed positions, and event records. Keep one observer instance; if its assigned check is active, wait for it rather than starting another. Read only new material and the necessary original passages. Record source time separately from the actual observation time and distinguish a source claim of completion from an observed completion record.
 
-## Assessing Progress
+Keep observation output in the project's designated observation area. The lead remains responsible for research state and acceptance. Do not create a second research ledger or turn observation criteria into acceptance requirements. Missing measurements are unknown, not zero effects or proof of wasted work.
 
-First check whether difficulty, action, evidence, and a change in judgment form a connected account:
+Repeated checks require existing monitoring authorization. Use its configured schedule and channel; a single assessment request does not create a schedule. Stay quiet without meaningful change. External waiting and continuation are maintained in [MCP collaboration](mcp-collaboration.md#wait-and-resume).
 
-- Which unknown did a round resolve, candidate did it rule out, or condition did it clarify?
-- Is repeated discussion restating known information or addressing different remaining questions?
-- Were external opinions checked and turned into decisions? Do implementation receipts correspond to the current version?
-- Is there a specific reason and cost for waiting, repeated execution, or repeated reading?
+## Recommendations
 
-The absence of experiments or code changes, the rejection of a candidate, or compliance with a pause does not by itself mean work is unproductive. Agreement among multiple participants does not by itself establish research progress either.
+An optimizer connects the difficulty, action, evidence, and change in judgment. It distinguishes knowledge gained, original construction, implementation, and measured research outcomes. It should cite specific evidence for a bottleneck, explain a useful change to existing work, and state what observed effect would support that change.
 
-## Suggested Deliverables
-
-For each recommendation, provide the specific observation and evidence location, its consequences, the smallest process change, the expected observable effect, and how to reverse it if it fails. Do not propose optimizations that conflict with the confirmed research object or authorization.
-
-Distinguish the states “proposed,” “accepted by the user,” “implemented,” and “effect observed.” User agreement does not mean a change has been implemented. After a change occurs, evidence is still needed to assess its effect. Observation metrics explain collaboration; they are not targets for log counts or complete tables.
+Keep proposed, accepted, implemented, and observed effects distinct. User agreement is not evidence of implementation or improved research quality. Suggestions and observation metrics do not override the user's goal, confirmed criteria, permissions, or budget.

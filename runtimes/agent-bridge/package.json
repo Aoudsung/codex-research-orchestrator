@@ -1,6 +1,6 @@
 {
   "name": "@aoudsung/research-agent-bridge",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "description": "Optional shared MCP collaboration runtime for Codex, Claude Code and Antigravity",
   "type": "module",

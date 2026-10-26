@@ -43,6 +43,8 @@ Use explicit required records when a counterexample, disputed source, or accepta
 | `analysis` | Explicitly allowed primary sources and direct evidence, plus live controls | Withhold prior decompositions, candidate choices, and evaluations |
 | `review` | Analysis material plus the complete designated proposal | Withhold prior reviews and the answer the lead expects |
 
+Choose the profile by the assignment, not the provider or role name. Independent construction by a researcher or brainstormer uses `analysis`; independent proposal assessment uses `review`. Joint discussion uses selected authorized current materials and may use `resume` when its full admitted scope is appropriate. A fact observer reads only the allowed new source ranges; a general lead packet can contain interpretations that are outside its fact-only task. These roles add no context profiles or memory kinds.
+
 For independent work, the lead first curates an allowlist. Filtering happens before retrieval and ranking. The packet uses neutral material labels; private source mappings and omission details stay in a separate lead manifest. The participant should receive the packet in a context without inherited evaluations, not the memory database, manifest, or unrestricted project history.
 
 Classification does not remove opinions already present inside a source file. Inspect the allowed files and controls for such content before calling the work independent. The tool can restrict the packet it builds, but cannot restrict the agent's wider filesystem access or erase an inherited conversation.

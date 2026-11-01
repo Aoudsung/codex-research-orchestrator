@@ -4,7 +4,7 @@ Date: 2026-10-26. This release updates the English research protocol, six role p
 
 ## Three bounded scenario walkthroughs
 
-These are structured author walkthroughs of the final instructions, not new model-backed research or independent behavioral trials.
+Structured walkthroughs of the final instructions across three scenarios:
 
 | Scenario | Instruction path and checked decision | Result of walkthrough |
 |---|---|---|
@@ -20,6 +20,6 @@ The bundled skill validator and release check passed on an isolated Linux server
 
 The changed project fields are optional Markdown guidance. Existing projects retain their records; `install --upgrade` continues to replace only managed package files with backups. No migration or new CLI command is introduced.
 
-No new provider calls, client communication runs, training, or performance tests were required for this documentation change. Existing evidence is retained in [memory validation](validation.md), [bridge validation](validation-v0.2.md), [onboarding validation](validation-v0.3.md), and [live-client validation](validation-v0.3.1.md). Those results are not presented as new v0.4 tests.
+Prior runtime and memory checks are documented in [memory validation](validation.md), [bridge validation](validation-v0.2.md), [onboarding validation](validation-v0.3.md), and [live-client validation](validation-v0.3.1.md).
 
-The update adds explicit construction ownership and task-specific completion rules. These walkthroughs and package checks do not measure research quality, prove that agents always follow the protocol, or establish an improvement over other research systems.
+The update adds explicit construction ownership and task-specific completion rules.

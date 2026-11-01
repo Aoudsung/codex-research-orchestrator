@@ -27,9 +27,10 @@ The server listens on loopback only. The browser URL grants access to that serve
 
 ## Read the workspace
 
-- **Overview:** the original question, source availability, recent work, and changes worth inspecting.
+- **Overview (Attention-First):** answers three immediate questions at the top of the workspace: (1) *Needs human attention* (`Quiet by default` when clear; actionable cards for `humanAction` questions, permission deltas, 3-failure delivery circuit breakers, L2 stall notices, `observe`-mode `would_dispatch` proposals, and preserved `Default updated` template notices), (2) *System health & slot load* (`HealthBoard` component badges, durable `Effects` queue depth, and `+1` human-priority slot availability), and (3) the verbatim research question, source availability, and recent scientific progress.
+- **Router mode control (`Off | Observe | Auto`):** switch the deterministic Research Router mode directly from the top bar. `Observe` records shadow `would_dispatch` proposals without spending external model quota until explicitly approved (**Approve dispatch**).
 - **Collaboration map:** participants and recorded message relationships. Select a participant or task to inspect its actual work and handoffs.
-- **Tasks:** filter and inspect tasks through a board or list. Open the brief, messages, artifacts, validation records, and continuation details.
+- **Tasks:** filter and inspect tasks through a board or list. Open the brief, messages, artifacts, validation records, isolation profile (`shared`, `blind_analysis`, `blind_review`), and continuation details.
 - **Evidence:** inspect research-memory records, recorded claim states, source locations, and explicit dependencies. Bridge artifacts and research claims remain distinct.
 - **Activity:** follow recorded messages, artifacts, and validation events, then open their original contents.
 
@@ -53,7 +54,7 @@ Send or reply to a message from the task inspector. A saved message has a receip
 
 You can still inspect records, create tasks, save messages, and receive results during a pause. Pending automatic follow-up is retained. **Resume** permits it to continue using the existing route and session bindings; it does not enable routes that were independently disabled. The application explains this effect before resuming.
 
-This control applies to the selected project's bridge. It does not override the user's research constraints, stop unrelated processes, or control work outside this bridge.
+This control applies to the selected project's bridge.
 
 After upgrading the runtime, reopen connected MCP clients before relying on the pause control so every connection uses the current execution-admission rules.
 
@@ -63,10 +64,10 @@ After upgrading the runtime, reopen connected MCP clients before relying on the 
 |---|---|
 | Last recorded activity | A saved timestamp, not an online heartbeat |
 | Requested model / reported model | The required or requested identity versus available runtime evidence |
-| Task recorded complete | The task's stored state; not independent scientific acceptance |
+| Task recorded complete | The task's stored state in the bridge |
 | Validation passed | A validator's recorded result and summary; inspect its evidence and scope |
 | Host accepted a turn | A bound host receipt; inspect later processing separately |
-| Current memory record | Stored source/dependency state; not proof that its claim is true |
+| Current memory record | Stored source and dependency freshness state |
 
 The interface does not infer role assignments from provider brands, connect records by similar titles, or turn the protocol's evidence distinctions into a mandatory sequence of gates.
 

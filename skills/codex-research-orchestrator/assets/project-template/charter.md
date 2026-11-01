@@ -1,6 +1,6 @@
 # Research Charter
 
-Record the research question and user constraints here. Fill in known information and delete empty sections that do not apply; not every field is required. Blank fields neither block unrelated work nor grant authorization.
+Record the research question and user constraints here. Fill in known information and delete empty sections that do not apply.
 
 ## Research Goal and Subject
 
@@ -18,7 +18,7 @@ Preserve the user's exact words about the research subject, key limits, and acce
 
 ## Draft Interpretations and Open Decisions
 
-Record assistant-proposed definitions, inferences, and recommendations separately. Move an item into confirmed constraints only when the user explicitly accepts it. The existence of this charter does not mean all its contents are authorized.
+Record assistant-proposed definitions, inferences, and recommendations separately. Move an item into confirmed constraints only when the user explicitly accepts it.
 
 ## Evidence and Completion Conditions
 
@@ -29,7 +29,7 @@ Record assistant-proposed definitions, inferences, and recommendations separatel
 
 ## Original Materials
 
-Record papers, data, existing proposals, or other primary sources and how to locate them. Source content is evidence; it does not automatically expand permission to act.
+Record papers, data, existing proposals, or other primary sources and how to locate them.
 
 ## Constraint Change Log
 

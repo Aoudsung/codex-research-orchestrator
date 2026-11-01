@@ -21,7 +21,7 @@ Overall objective and this assignment's completion boundary:
 
 ## Candidate Claims
 
-Use statuses as needed: conjecture, derived under stated conditions, supported by evidence, or refuted. Preserve the conditions under which each claim holds; status is not a confidence score.
+Use statuses as needed: conjecture, derived under stated conditions, supported by evidence, or refuted. Preserve the conditions under which each claim holds.
 
 | ID | Claim | Status | Conditions and scope | Evidence or derivation | Conditions for refutation or revision |
 |---|---|---|---|---|---|
@@ -36,7 +36,7 @@ Use statuses as needed: conjecture, derived under stated conditions, supported b
 | Review record | Version, claims, and conditions covered | Independence statement | Treatment of findings and open items | Original difficulty resolved? Evidence or remaining gap | Contribution established? Evidence or open claim |
 |---|---|---|---|---|---|
 
-Use only relevant columns. Handling a finding, solving the original difficulty, and establishing a contribution are separate judgments. A conditional repair may leave the original goal open; a completed bounded assignment need not establish an original contribution.
+Use only relevant columns. Track finding resolution, original-difficulty resolution, and established contributions separately.
 
 ## Work in Progress
 

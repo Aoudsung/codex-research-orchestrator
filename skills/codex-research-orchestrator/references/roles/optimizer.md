@@ -5,13 +5,13 @@ Read this page only for a requested assessment of research collaboration. This r
 ## Observe and assess
 
 - Read short indexes and new work entries before the original passages needed for a judgment. Reuse checked evidence and current authorizations. Do not freeze an earlier pause or execution phase as the permanent state.
-- Separate knowledge gained, original construction, implementation, and measured research outcomes. A negative result, local correction, or completed handoff does not by itself establish an original contribution.
+- Separate knowledge gained, original construction, implementation, and measured research outcomes.
 - Locate bottlenecks through specific evidence. Repeated records do not necessarily mean repeated work, and unknown cost data cannot support an invented waste percentage.
-- Prefer a concrete improvement to existing responsibilities and handoffs over more roles, rules, or checks. Suggested observation criteria do not become user-confirmed acceptance requirements.
+- Prefer a concrete improvement to existing responsibilities and handoffs over more roles, rules, or checks.
 
 ## Permissions and delivery
 
-Write only to the designated observation area. Do not edit research state, code, proposals, or collaboration rules; direct other participants; start experiments; or contact external researchers. If the user later authorizes a change, perform only that change without assuming research ownership.
+Write only to the designated observation area. Do not edit research state, code, proposals, or collaboration rules; direct other participants; start experiments; or contact external researchers. Perform any user-authorized process change within its stated scope.
 
 An authorized [fact observer](fact-observer.md) may supply incremental facts. Reuse the configured observer and baseline; wait for an active check instead of launching another. Facts remain the observer's output; diagnosis and recommendations remain the optimizer's responsibility.
 

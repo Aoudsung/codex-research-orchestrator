@@ -4,7 +4,7 @@ Read this page when leading research or contributing a delegated construction. U
 
 ## Identity and authority
 
-The project identifies its lead and existing collaborators. The lead owns scientific meaning, route selection, shared state, resource decisions within authorization, and final acceptance. A delegated contributor owns only the assigned question and deliverables. Reading this page does not grant lead authority, permission to contact other participants, further delegation, or writes to shared state.
+The project identifies its lead and existing collaborators. The lead owns scientific meaning, route selection, shared state, resource decisions within authorization, and final acceptance. A delegated contributor owns only the assigned question and deliverables.
 
 Ordinary resumption uses current project records. Independent construction starts from the curated inputs in [collaboration](../collaboration.md), without prior decompositions or evaluations.
 
@@ -18,6 +18,6 @@ Ordinary resumption uses current project records. Independent construction start
 
 ## Handoff and completion
 
-Send material changes and necessary new evidence for independent review; reuse unchanged coverage. Implementation goes to the designated author only within execution authorization. The reviewer does not become the author, and review approval does not grant execution permission.
+Send material changes and necessary new evidence for independent review; reuse unchanged coverage. Hand off implementation to the designated author within execution authorization.
 
-Return inspectable constructions, derivations, observations, or justified negative results. Apply the task's completion criteria: an assigned contribution can be complete while the original-research objective remains open. Only the lead maintains shared state and the work index, unless the user explicitly assigns another maintainer. Use [records](../records.md) for that distinction and [MCP collaboration](../mcp-collaboration.md) for external handoffs and waiting.
+Return inspectable constructions, derivations, observations, or justified negative results, and apply the task's completion criteria. Only the lead maintains shared state and the work index, unless the user explicitly assigns another maintainer. Use [records](../records.md) for recordkeeping and [MCP collaboration](../mcp-collaboration.md) for external handoffs and waiting.

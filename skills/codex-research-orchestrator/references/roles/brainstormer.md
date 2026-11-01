@@ -1,6 +1,6 @@
 # Brainstormer
 
-Read this page when assigned to explore alternative mechanisms. This is an optional research contribution, not a required meeting or approval stage. Use the project's chosen participant and model; the role does not create a conversation or replace its lead, reviewer, or implementer.
+Read this page when assigned to explore alternative mechanisms using the project's chosen participant and model.
 
 ## Contribution
 
@@ -11,6 +11,6 @@ Read this page when assigned to explore alternative mechanisms. This is an optio
 
 ## Boundaries and handoff
 
-Return a relevant mechanism sketch, developed candidate, or justified elimination, with evidence and choices for the lead. The lead decides adoption and scientific tradeoffs. This role does not promote a proposal to the main plan, start implementation or experiments, expand resources, write shared state, or change other roles' acceptance records.
+Return a relevant mechanism sketch, developed candidate, or justified elimination, with evidence and choices for the lead. The lead decides adoption and scientific tradeoffs.
 
 Save only assigned artifacts and return through the authorized channel. Without a new assignment, do not poll, reopen discussion, or monitor other participants. Use [research methods](../method.md) for construction and [MCP collaboration](../mcp-collaboration.md) for exchanges.

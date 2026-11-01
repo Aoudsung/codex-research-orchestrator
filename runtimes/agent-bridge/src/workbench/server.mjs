@@ -4,13 +4,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ProjectReader, BRIDGE_FILE, safePath, fail, normalizeTask, normalizeMessage } from './reader.mjs';
+import { ProjectReader, BRIDGE_FILE, safePath, fail, normalizeTask, normalizeMessage, normalizeDecision } from './reader.mjs';
 import { DemoReader } from './demo.mjs';
 import { callBridgeTool } from './mcp-client.mjs';
 import { resolveBinary } from '../core/process-runner.mjs';
 
 const AGENTS = ['codex', 'claude-code', 'antigravity'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const ROUTER_MODES = ['off', 'observe', 'auto'];
+const ISOLATION_PROFILES = ['shared', 'blind_analysis', 'blind_review'];
 const now = () => new Date().toISOString();
 const publicDir = fileURLToPath(new URL('./public/', import.meta.url));
 const STATIC = { '/': ['index.html','text/html'], '/index.html': ['index.html','text/html'], '/app.js': ['app.js','text/javascript'], '/styles.css': ['styles.css','text/css'] };
@@ -48,11 +50,12 @@ function summarizeOperation(op) {
 }
 function operationError(error) { return { code: error.code || 'INTERNAL_ERROR', message: error.message, ...(error.details ? { details: error.details } : {}) }; }
 
-export async function createWorkbench({ project, port = 0, demo = false, fixture, toolClient = callBridgeTool } = {}) {
+export async function createWorkbench({ project, bridgeDb, port = 0, demo = false, fixture, toolClient = callBridgeTool } = {}) {
   if (!project) throw fail('PROJECT_REQUIRED', 'Select a project explicitly');
   project = demo ? path.resolve(project) : fs.realpathSync(project);
   if (!demo && !fs.statSync(project).isDirectory()) throw fail('INVALID_PROJECT', 'Project must be a directory');
-  const reader = demo ? new DemoReader(fixture) : new ProjectReader(project);
+  const resolvedBridgeDb = !demo && bridgeDb ? path.resolve(bridgeDb) : null;
+  const reader = demo ? new DemoReader(fixture) : new ProjectReader(project, { bridgeDb: resolvedBridgeDb });
   const token = crypto.randomBytes(32).toString('base64url');
   const operations = new Map();
   const inFlight = new Set();
@@ -66,7 +69,7 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
     }
     return roots;
   }
-  function writerPath() { return safePath(project, BRIDGE_FILE); }
+  function writerPath() { return resolvedBridgeDb || safePath(project, BRIDGE_FILE); }
   function requireScope(task) {
     if (!task.cwd || fs.realpathSync(task.cwd) !== project) throw fail('TASK_SCOPE_MISMATCH', 'Task cwd does not match the selected project', 409);
     for (const roots of [task.permissions.readRoots || [], task.permissions.writeRoots || []]) {
@@ -76,27 +79,33 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
   }
   const providerCall = (provider, tool, args, timeoutMs, caller = 'codex') => toolClient({ project, dbPath: writerPath(), provider, caller, tool, args, timeoutMs });
   async function createTask(body) {
-    validateObject(body, ['title','prompt','assignedTo','fromAgent','role','priority','requiredModel','requiredConversationId','readRoots','writeRoots']);
+    validateObject(body, ['title','prompt','assignedTo','fromAgent','role','priority','requiredModel','requiredConversationId','readRoots','writeRoots','isolationProfile']);
     const title = string(body, 'title', true, 200), prompt = string(body, 'prompt', true, 64000);
     const assignedTo = agent(body.assignedTo), fromAgent = agent(body.fromAgent || 'codex');
     const requiredModel = string(body, 'requiredModel', false, 200), requiredConversationId = string(body, 'requiredConversationId', false, 300), role = string(body, 'role', false, 100);
     const priority = body.priority || 'normal';
     if (!['low','normal','high','urgent'].includes(priority)) throw fail('INVALID_PRIORITY', 'Unknown priority');
+    const isolationProfile = body.isolationProfile || 'shared';
+    if (!ISOLATION_PROFILES.includes(isolationProfile)) throw fail('INVALID_ISOLATION_PROFILE', 'Unknown isolationProfile');
     const readRoots = scopedRoots(body.readRoots, ['.']), writeRoots = scopedRoots(body.writeRoots, []);
     if (demo) {
-      const task = { id: crypto.randomUUID(), title, prompt, promptPreview: prompt.slice(0,600), fromAgent, assignedTo, role: role || null, priority, status: 'pending', phase: 'ready', phaseLabel: 'Ready', createdAt: now(), updatedAt: now(), completedAt: null, requiredModel: requiredModel || null, actualModel: null, modelSource: null, requiredConversationId: requiredConversationId || null, boundConversationId: null, deliveryVersion: 0, readRoots, writeRoots, resultPreview: null, errorPreview: null };
+      const task = { id: crypto.randomUUID(), title, prompt, promptPreview: prompt.slice(0,600), fromAgent, assignedTo, role: role || null, priority, isolationProfile, status: 'pending', phase: 'ready', phaseLabel: 'Ready', createdAt: now(), updatedAt: now(), completedAt: null, requiredModel: requiredModel || null, actualModel: null, modelSource: null, requiredConversationId: requiredConversationId || null, boundConversationId: null, deliveryVersion: 0, readRoots, writeRoots, resultPreview: null, errorPreview: null };
       reader.data.tasks.push(task);
       return { task: reader.task(task.id).task, preflight: { ok: true, simulated: true, authorityGranted: false, permissionNote: 'Demo only; no provider or filesystem permission was checked' }, simulated: true };
     }
-    const result = await providerCall(assignedTo, 'bridge_create_task', { title, prompt, assignedTo, fromAgent, priority, requiredModel, requiredConversationId, readRoots, writeRoots, cwd: project,
-      deliveryMode: writeRoots.length ? (assignedTo === 'antigravity' ? 'mcp_structured_patch' : 'direct') : 'read_only', metadata: { role: role || null, origin: 'workbench_user', userInitiated: true } });
+    const callArgs = { title, prompt, assignedTo, fromAgent, priority, requiredModel, requiredConversationId, readRoots, writeRoots, cwd: project,
+      deliveryMode: writeRoots.length ? (assignedTo === 'antigravity' ? 'mcp_structured_patch' : 'direct') : 'read_only',
+      ...(body.isolationProfile ? { isolationProfile } : {}),
+      metadata: { role: role || null, origin: 'workbench_user', userInitiated: true, ...(body.isolationProfile ? { isolationProfile } : {}) } };
+    const result = await providerCall(assignedTo, 'bridge_create_task', callArgs);
     if (!result.task) throw fail(result.errorCode || 'CREATE_FAILED', result.error || 'Task creation failed', 502, result);
     return { task: normalizeTask(result.task), preflight: result.preflight };
   }
   async function message(body) {
-    validateObject(body, ['taskId','fromAgent','toAgent','replyTo','subject','content']);
+    validateObject(body, ['taskId','fromAgent','toAgent','replyTo','subject','content','resolveHandback']);
     const taskId = string(body,'taskId',true,300), fromAgent = agent(body.fromAgent), content = string(body,'content',true,64000);
     const toAgent = body.toAgent === undefined ? undefined : agent(body.toAgent), replyTo = string(body,'replyTo',false,300), subject = string(body,'subject',false,300);
+    if (body.resolveHandback !== undefined && typeof body.resolveHandback !== 'boolean') throw fail('INVALID_FIELD', 'resolveHandback must be a boolean');
     if (!toAgent && !replyTo) throw fail('RECIPIENT_REQUIRED', 'toAgent or replyTo is required');
     if (demo) {
       reader.rawTask(taskId);
@@ -106,8 +115,9 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
       if (parent && recipient !== parent.fromAgent) throw fail('REPLY_BINDING_MISMATCH','Reply recipient mismatch');
       if (recipient === fromAgent) throw fail('SELF_SEND', 'Sender and recipient must differ');
       const seq = Math.max(0,...reader.records('activity').map(e => e.seq)) + 1;
-      const msg = { id: crypto.randomUUID(), seq, taskId, threadId: parent?.threadId || `demo-${taskId}`, fromAgent, toAgent: recipient, subject: subject || '', content, preview: content.slice(0,600), charLength: Array.from(content).length, replyTo: replyTo || null, status: 'unread', createdAt: now(), readAt: null, processedAt: null, wakeupStatus: 'pending', origin: 'workbench_user' };
+      const msg = { id: crypto.randomUUID(), seq, taskId, threadId: parent?.threadId || `demo-${taskId}`, fromAgent, toAgent: recipient, subject: subject || '', content, preview: content.slice(0,600), charLength: Array.from(content).length, replyTo: replyTo || null, status: 'unread', createdAt: now(), readAt: null, processedAt: null, consumedAt: null, wakeupStatus: 'pending', origin: 'workbench_user' };
       reader.data.messages.push(msg);
+      if (body.resolveHandback) reader.resolveTaskAttention(taskId);
       return { receipt: { messageId: msg.id, seq, actualFromAgent: fromAgent, actualToAgent: recipient, threadId: msg.threadId, taskId, replyTo: msg.replyTo, simulated: true }, message: reader.list('messages', new URLSearchParams({ taskId })).items.find(m => m.id === msg.id), simulated: true };
     }
     requireScope(reader.rawTask(taskId));
@@ -115,7 +125,8 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
       const parent = db.prepare('SELECT task_id FROM messages WHERE id=?').get(replyTo);
       if (!parent || parent.task_id !== taskId) throw fail('REPLY_BINDING_MISMATCH','Reply must belong to the selected task');
     });
-    const result = await providerCall('codex', 'bridge_send_message', { taskId, fromAgent, toAgent, replyTo, subject, content, metadata: { origin: 'workbench_user', userInitiated: true } });
+    const metadata = { origin: 'workbench_user', userInitiated: true, ...(body.resolveHandback ? { resolveHandback: true } : {}) };
+    const result = await providerCall('codex', 'bridge_send_message', { taskId, fromAgent, toAgent, replyTo, subject, content, metadata });
     if (result.ok === false) throw fail(result.errorCode || 'MESSAGE_FAILED', result.error || 'Message could not be saved', 409, result);
     return { receipt: result.receipt, message: normalizeMessage(result.message || result.sentMessage) };
   }
@@ -168,6 +179,48 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
     try { return { ...db.setControlState({ paused: body.paused, reason }), activeOperations: inFlight.size }; }
     finally { db.db.close(); }
   }
+  async function setRouterMode(body) {
+    validateObject(body, ['mode','reason']);
+    if (!ROUTER_MODES.includes(body.mode)) throw fail('INVALID_ROUTER_MODE', "mode must be 'off', 'observe', or 'auto'");
+    const reason = string(body, 'reason', false, 1000) || null;
+    if (demo) return { ...reader.setRouterMode(body.mode, reason), activeOperations: inFlight.size, simulated: true };
+    let controlsText = null;
+    try {
+      const { resolveProjectControlsPath } = await import('../runtime/router-service.mjs');
+      const controlsFile = resolveProjectControlsPath(project);
+      if (controlsFile && fs.existsSync(controlsFile) && fs.statSync(controlsFile).isFile()) {
+        controlsText = fs.readFileSync(controlsFile, 'utf8');
+      }
+    } catch { /* controls.md is optional */ }
+    const { BridgeDatabase } = await import('../core/bridge-db.mjs');
+    const db = new BridgeDatabase(writerPath());
+    try {
+      const policyUpdate = db.setRouterMode({ mode: body.mode, reason, controlsText });
+      return { ...db.getControlState(), policyUpdate, activeOperations: inFlight.size };
+    } finally { db.db.close(); }
+  }
+  async function retryDelivery(taskId, body) {
+    validateObject(body, ['reason']);
+    if (demo) return reader.retryDelivery(taskId);
+    requireScope(reader.rawTask(taskId));
+    const { BridgeDatabase } = await import('../core/bridge-db.mjs');
+    const db = new BridgeDatabase(writerPath());
+    try { return db.retryTaskDelivery({ taskId, userInitiated: true }); }
+    finally { db.db.close(); }
+  }
+  async function approveDecision(decisionId, body) {
+    validateObject(body, ['reason']);
+    if (demo) return reader.approveDecision(decisionId);
+    const { BridgeDatabase } = await import('../core/bridge-db.mjs');
+    const db = new BridgeDatabase(writerPath());
+    try {
+      const existing = db.store.getDecision(decisionId);
+      if (!existing) throw fail('NOT_FOUND', 'Decision not found', 404);
+      if (existing.target_task_id) requireScope(reader.rawTask(existing.target_task_id));
+      const res = db.approveRouterDecision({ decisionId, actor: 'workbench_user' });
+      return { ok: true, alreadyProcessed: Boolean(res.alreadyProcessed), decision: normalizeDecision(res.decision), task: res.task ? normalizeTask(res.task) : null };
+    } finally { db.db.close(); }
+  }
   const server = http.createServer(async (req, res) => {
     try {
       if (req.headers.host !== new URL(origin).host) throw fail('INVALID_HOST','Unexpected Host header',403);
@@ -185,7 +238,7 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
       if (req.method === 'GET') {
         let value;
         if (url.pathname === '/api/snapshot') { value = reader.snapshot(); value.operations = [...operations.values()].reverse().map(summarizeOperation); value.control.activeOperations = inFlight.size; }
-        else if (url.pathname === '/api/capabilities') value = { providers: AGENTS.map(id => ({ id, executableAvailable: demo ? false : Boolean(resolveBinary({codex:'codex','claude-code':'claude',antigravity:'agy'}[id],{codex:'CODEX_BIN','claude-code':'CLAUDE_BIN',antigravity:'AGY_BIN'}[id])), authentication: 'not-verified' })), controlsAvailable: true, dispatchAvailable: true, limits: { pageDefault:30, pageMaximum:100, sourceMaximum:64000, bodyBytes:BODY_LIMIT, timeoutSeconds:600 }, ...(demo ? { simulated:true } : {}) };
+        else if (url.pathname === '/api/capabilities') value = { providers: AGENTS.map(id => ({ id, executableAvailable: demo ? false : Boolean(resolveBinary({codex:'codex','claude-code':'claude',antigravity:'agy'}[id],{codex:'CODEX_BIN','claude-code':'CLAUDE_BIN',antigravity:'AGY_BIN'}[id])), authentication: 'not-verified' })), controlsAvailable: true, routerModesAvailable: ROUTER_MODES, dispatchAvailable: true, limits: { pageDefault:30, pageMaximum:100, sourceMaximum:64000, bodyBytes:BODY_LIMIT, timeoutSeconds:600 }, ...(demo ? { simulated:true } : {}) };
         else if (url.pathname === '/api/source') value = reader.source(url.searchParams);
         else if (/^\/api\/operations\/[^/]+$/.test(url.pathname)) { value = operations.get(decodeURIComponent(url.pathname.split('/').at(-1))); if (!value) throw fail('NOT_FOUND','Operation not found',404); }
         else if (/^\/api\/tasks\/[^/]+$/.test(url.pathname)) { const id = decodeURIComponent(url.pathname.split('/').at(-1)); value = reader.task(id); const operation = [...operations.values()].reverse().find(o => o.taskId === id); value.operation = operation ? summarizeOperation(operation) : null; }
@@ -200,7 +253,10 @@ export async function createWorkbench({ project, port = 0, demo = false, fixture
       if (url.pathname === '/api/tasks') send(res,201,await createTask(body));
       else if (url.pathname === '/api/messages') send(res,201,await message(body));
       else if (url.pathname === '/api/control') send(res,200,await control(body));
+      else if (url.pathname === '/api/router-mode') send(res,200,await setRouterMode(body));
       else if (/^\/api\/tasks\/[^/]+\/dispatch$/.test(url.pathname)) send(res,202,dispatch(decodeURIComponent(url.pathname.split('/')[3]),body));
+      else if (/^\/api\/tasks\/[^/]+\/retry-delivery$/.test(url.pathname)) send(res,200,await retryDelivery(decodeURIComponent(url.pathname.split('/')[3]),body));
+      else if (/^\/api\/decisions\/[^/]+\/approve$/.test(url.pathname)) send(res,200,await approveDecision(decodeURIComponent(url.pathname.split('/')[3]),body));
       else throw fail('NOT_FOUND','Endpoint not found',404);
     } catch (error) { if (!res.headersSent) send(res,error.status || 500,{ error: operationError(error) }); else res.destroy(); }
   });
@@ -216,6 +272,7 @@ async function main() {
   const args = process.argv.slice(2), options = { port:8765 };
   for (let i=0;i<args.length;i++) {
     if (args[i] === '--project') options.project = args[++i];
+    else if (args[i] === '--bridge-db') options.bridgeDb = args[++i];
     else if (args[i] === '--port') { options.port = Number(args[++i]); if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535) throw new Error('Invalid port'); }
     else if (args[i] === '--demo') options.demo = true;
     else if (args[i] === '--open') options.open = true;

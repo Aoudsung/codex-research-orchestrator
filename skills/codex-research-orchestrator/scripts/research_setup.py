@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import difflib
+import hashlib
 import importlib.util
 import json
 import os
@@ -14,6 +16,8 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
+from datetime import datetime, timezone
 
 if sys.version_info < (3, 11):
     message = {"error": "Python 3.11 or newer is required.", "changed": [],
@@ -28,9 +32,20 @@ NAME = "codex-research-orchestrator"
 SKILL_PATH = Path(".agents/skills") / NAME
 RUNTIME_PATH = Path(".research-orchestrator/runtime/agent-bridge")
 RECEIPT_PATH = Path(".research-orchestrator/install.json")
+BASELINES_PATH = Path(".research-orchestrator/baselines")
+TEMPLATE_UPDATES_PATH = Path(".research-orchestrator/template-updates.json")
 RECORDS = ("controls.md", "charter.md", "project.md", "state.md")
 AGENTS = {"codex": ("codex", "CODEX_BIN"), "claude-code": ("claude", "CLAUDE_BIN"),
           "antigravity": ("agy", "AGY_BIN")}
+DRIVER_TO_AGENT = {
+    "codex": "codex",
+    "codex_ipc": "codex",
+    "codex_exec": "codex",
+    "claude-code": "claude-code",
+    "claude_exec": "claude-code",
+    "antigravity": "antigravity",
+    "antigravity_exec": "antigravity",
+}
 BEGIN = "# BEGIN codex-research-orchestrator"
 END = "# END codex-research-orchestrator"
 SKILL_ITEMS = {"SKILL.md", "LICENSE", "README.md", "scripts", "assets", "references", "agents"}
@@ -53,6 +68,14 @@ def json_text(value):
 
 def read_json(path):
     return json.loads(read_text(path))
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def sha256_text(text: str) -> str:
+    return sha256_bytes(text.encode("utf-8"))
 
 
 def safe_path(project, relative):
@@ -154,6 +177,97 @@ def validate_workbench(runtime):
 def same_tree(root, files):
     return root.is_dir() and all_entries(root) == set(files) and all(
         (root / name).read_bytes() == path.read_bytes() for name, path in files.items())
+
+
+def same_bytes_tree(root, files_bytes):
+    return root.is_dir() and all_entries(root) == set(files_bytes) and all(
+        (root / name).read_bytes() == content for name, content in files_bytes.items())
+
+
+def skill_template_bases(skill):
+    """Collect builtInBase templates mapped to their workspace-relative customizable paths."""
+    bases = {}
+    tpl_dir = skill / "assets/project-template"
+    if tpl_dir.is_dir():
+        for rel, path in inventory(tpl_dir).items():
+            text = read_text(path)
+            bases[rel] = {
+                "kind": "project-template",
+                "source": f"assets/project-template/{rel}",
+                "text": text,
+                "sha256": sha256_text(text),
+            }
+    roles_dir = skill / "references/roles"
+    if roles_dir.is_dir():
+        for rel, path in inventory(roles_dir).items():
+            target_rel = f".agents/roles/{rel}"
+            text = read_text(path)
+            bases[target_rel] = {
+                "kind": "role-template",
+                "source": f"references/roles/{rel}",
+                "text": text,
+                "sha256": sha256_text(text),
+            }
+    return bases
+
+
+def skill_protocol_references(skill):
+    refs = {}
+    refs_dir = skill / "references"
+    if refs_dir.is_dir():
+        for rel, path in inventory(refs_dir).items():
+            if rel.startswith("roles/"):
+                continue
+            refs[rel] = {"sha256": sha256_bytes(path.read_bytes())}
+    return refs
+
+
+def read_baselines(project):
+    if not project.exists() or not project.is_dir():
+        return None, {}
+    base_dir = safe_path(project, BASELINES_PATH)
+    manifest_file = base_dir / "manifest.json"
+    if not manifest_file.is_file():
+        return None, {}
+    try:
+        manifest = read_json(manifest_file)
+        if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), dict):
+            return None, {}
+        texts = {}
+        for rel in manifest["files"]:
+            stored = safe_path(project, BASELINES_PATH / "files" / rel)
+            if stored.is_file():
+                texts[rel] = read_text(stored)
+        return manifest, texts
+    except (ValueError, OSError):
+        return None, {}
+
+
+def read_template_updates(project):
+    if not project.exists() or not project.is_dir():
+        return {}
+    updates_file = safe_path(project, TEMPLATE_UPDATES_PATH)
+    if not updates_file.is_file():
+        return {}
+    try:
+        data = read_json(updates_file)
+        updates = data.get("updates", {}) if isinstance(data, dict) else {}
+        return dict(updates) if isinstance(updates, dict) else {}
+    except (ValueError, OSError):
+        return {}
+
+
+def build_baseline_tree(skill_ver, files_meta, texts_by_rel, protocol_refs):
+    manifest = {
+        "name": NAME,
+        "version": skill_ver,
+        "files": dict(sorted(files_meta.items())),
+        "protocol_references": dict(sorted(protocol_refs.items())),
+    }
+    tree = {"manifest.json": json_text(manifest).encode("utf-8")}
+    for rel, text in sorted(texts_by_rel.items()):
+        tree[f"files/{rel}"] = text.encode("utf-8")
+    return tree
 
 
 def staging(project):
@@ -277,15 +391,83 @@ def install(args, project):
             if dest.exists() and not args.upgrade:
                 raise SetupError("A different installation exists; rerun install with --upgrade to back it up")
             changed_components.append(relative)
+
+    skill_ver = version(skill)
+    new_bases = skill_template_bases(skill)
+    new_refs = skill_protocol_references(skill)
+    old_manifest, old_texts = read_baselines(project)
+    existing_updates = read_template_updates(project)
+    pending_updates = dict(existing_updates)
+    auto_upgraded_templates = {}
+
+    if args.upgrade and old_texts:
+        for rel, info in sorted(new_bases.items()):
+            old_text = old_texts.get(rel)
+            new_text = info["text"]
+            target_file = safe_path(project, rel) if project.exists() else None
+            if old_text is not None and old_text != new_text and target_file is not None and target_file.is_file():
+                current_text = read_text(target_file)
+                if current_text == old_text:
+                    auto_upgraded_templates[Path(rel)] = new_text
+                    pending_updates.pop(rel, None)
+                elif current_text != new_text:
+                    diff_lines = list(difflib.unified_diff(
+                        old_text.splitlines(keepends=True),
+                        new_text.splitlines(keepends=True),
+                        fromfile=f"a/builtInBase/{rel}",
+                        tofile=f"b/builtInBase/{rel}",
+                    ))
+                    pending_updates[rel] = {
+                        "status": "default-updated",
+                        "kind": info["kind"],
+                        "version": skill_ver,
+                        "old_base_sha256": sha256_text(old_text),
+                        "new_base_sha256": info["sha256"],
+                        "current_sha256": sha256_text(current_text),
+                        "diff": "".join(diff_lines),
+                    }
+                else:
+                    pending_updates.pop(rel, None)
+
+    merged_files_meta = {}
+    merged_texts = {}
+    if old_manifest and isinstance(old_manifest.get("files"), dict):
+        for rel, meta in old_manifest["files"].items():
+            if rel not in new_bases and rel in old_texts:
+                merged_files_meta[rel] = meta
+                merged_texts[rel] = old_texts[rel]
+    for rel, info in new_bases.items():
+        entry = {"kind": info["kind"], "source": info["source"], "sha256": info["sha256"]}
+        if old_manifest and isinstance(old_manifest.get("files", {}).get(rel), dict):
+            prev_entry = old_manifest["files"][rel]
+            if "workspace_sha256" in prev_entry:
+                entry["workspace_sha256"] = prev_entry["workspace_sha256"]
+        merged_files_meta[rel] = entry
+        merged_texts[rel] = info["text"]
+
+    desired_baseline_tree = build_baseline_tree(skill_ver, merged_files_meta, merged_texts, new_refs)
+    baselines_dest = safe_path(project, BASELINES_PATH) if project.exists() else (project / BASELINES_PATH)
+    baselines_changed = not (project.exists() and same_bytes_tree(baselines_dest, desired_baseline_tree))
+
+    updates_file = safe_path(project, TEMPLATE_UPDATES_PATH) if project.exists() else (project / TEMPLATE_UPDATES_PATH)
+    desired_updates_body = None
+    updates_changed = False
+    if pending_updates:
+        desired_updates_body = json_text({"version": skill_ver, "updates": dict(sorted(pending_updates.items()))})
+        updates_changed = not (project.exists() and updates_file.is_file() and read_text(updates_file) == desired_updates_body)
+    elif existing_updates and project.exists() and updates_file.is_file():
+        desired_updates_body = json_text({"version": skill_ver, "updates": {}})
+        updates_changed = read_text(updates_file) != desired_updates_body
+
     installed_components = dict(previous)
     for relative, (_, kind, _) in components.items():
         installed_components[str(relative)] = {"kind": kind, "files": sorted(files_by_component[relative])}
-    new_receipt = {"name": NAME, "version": version(skill), "components": installed_components}
+    new_receipt = {"name": NAME, "version": skill_ver, "components": installed_components}
     body = json_text(new_receipt)
     receipt_changed = not receipt_file.is_file() or read_text(receipt_file) != body
     changed = [str(path) for path in changed_components]
     saved = None
-    if changed or receipt_changed:
+    if changed or receipt_changed or baselines_changed or auto_upgraded_templates or updates_changed:
         project.mkdir(parents=True, exist_ok=True)
         with staging(project) as temporary:
             stage = Path(temporary)
@@ -299,6 +481,28 @@ def install(args, project):
                     shutil.copy2(source, target)
                 validate_component(incoming, components[relative][1])
                 prepared[relative] = incoming
+            for index, (tpl_rel, tpl_body) in enumerate(auto_upgraded_templates.items()):
+                incoming = stage / f"tpl-{index}"
+                incoming.write_text(tpl_body, encoding="utf-8", newline="")
+                existing_tpl = safe_path(project, tpl_rel)
+                if existing_tpl.is_file():
+                    shutil.copymode(existing_tpl, incoming)
+                prepared[tpl_rel] = incoming
+                changed.append(str(tpl_rel))
+            if baselines_changed:
+                incoming_base = stage / "baselines"
+                incoming_base.mkdir()
+                for name, raw_bytes in desired_baseline_tree.items():
+                    target = incoming_base / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(raw_bytes)
+                prepared[BASELINES_PATH] = incoming_base
+                changed.append(str(BASELINES_PATH))
+            if updates_changed and desired_updates_body is not None:
+                incoming_updates = stage / "template-updates.json"
+                incoming_updates.write_text(desired_updates_body, encoding="utf-8", newline="")
+                prepared[TEMPLATE_UPDATES_PATH] = incoming_updates
+                changed.append(str(TEMPLATE_UPDATES_PATH))
             if receipt_changed or changed_components:
                 incoming = stage / "receipt.json"
                 incoming.write_text(body, encoding="utf-8")
@@ -306,12 +510,15 @@ def install(args, project):
                 changed.append(str(RECEIPT_PATH))
             saved = replace_components(project, prepared, stage, prepared)
     return result("install", changed, cli_command(project, "init", "--question", "Your research question"),
-                  version=version(skill), mode="full-bundle" if RUNTIME_PATH in components else "skill-only",
+                  version=skill_ver, mode="full-bundle" if RUNTIME_PATH in components else "skill-only",
                   skill=str(project / SKILL_PATH), runtime=str(project / RUNTIME_PATH) if (project / RUNTIME_PATH).is_dir() else None,
-                  backup=saved, note="Runtime files do not start a service. Basic research needs no Node or providers.")
+                  backup=saved, template_updates=sorted(pending_updates.keys()),
+                  note="Runtime files do not start a service. Basic research needs no Node or providers.")
 
 
 def memory_status(project):
+    if not project.exists() or not project.is_dir():
+        return {"status": "missing", "path": str(project / ".research-memory/memory.sqlite3")}
     database = safe_path(project, ".research-memory/memory.sqlite3")
     if not database.is_file():
         return {"status": "missing", "path": str(database)}
@@ -320,7 +527,10 @@ def memory_status(project):
             config = dict(db.execute("SELECT key, value FROM config"))
             controls = json.loads(config.get("controls", "[]"))
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            good = (config.get("version") == "1" and config.get("project") == str(project)
+            recorded_project = config.get("project")
+            same_project = (recorded_project == str(project) or
+                            (bool(recorded_project) and Path(recorded_project).resolve() == project.resolve()))
+            good = (config.get("version") == "1" and same_project
                     and bool(controls) and {"records", "dependencies", "memory_fts"} <= tables
                     and all(safe_path(project, name).is_file() for name in controls))
         return {"status": "ready" if good else "needs-attention", "path": str(database), "controls": controls}
@@ -490,6 +700,8 @@ def connection_paths(client):
 
 
 def connection_state(project, client):
+    if not project.exists() or not project.is_dir():
+        return {"client": client, "generated": {}, "applied": {}}
     path = safe_path(project, connection_paths(client)[1])
     if not path.exists():
         return {"client": client, "generated": {}, "applied": {}}
@@ -610,7 +822,7 @@ def config_status(project, client, state, peers):
 def doctor(args, project):
     checks = {"python": {"status": "ready" if sys.version_info >= (3, 11) else "too-old", "version": sys.version.split()[0]},
               "fts5": {"status": fts_status()}}
-    skill = safe_path(project, SKILL_PATH)
+    skill = safe_path(project, SKILL_PATH) if project.exists() else (project / SKILL_PATH)
     if skill.is_dir():
         try:
             validate_component(skill, "skill")
@@ -622,7 +834,7 @@ def doctor(args, project):
             checks["skill"] = {"status": "needs-attention", "path": str(skill), "detail": str(error)}
     else:
         checks["skill"] = {"status": "source-only", "version": version(source_skill()), "path": str(source_skill())}
-    runtime, location = runtime_at(project)
+    runtime, location = runtime_at(project) if project.exists() else (bundled_runtime(source_skill()), "bundle" if bundled_runtime(source_skill()) else "missing")
     checks["runtime"] = {"status": location, "path": str(runtime) if runtime else None}
     if runtime:
         try:
@@ -630,8 +842,18 @@ def doctor(args, project):
             checks["runtime"]["version"] = read_json(runtime / "package.json").get("version")
         except (ValueError, OSError) as error:
             checks["runtime"].update(status="needs-attention", detail=str(error))
-    checks["records"] = {name: "present" if safe_path(project, name).is_file() else "missing" for name in RECORDS}
+    checks["records"] = {name: "present" if project.exists() and safe_path(project, name).is_file() else "missing" for name in RECORDS}
     checks["memory"] = memory_status(project)
+    if project.exists() and project.is_dir():
+        pending_updates = read_template_updates(project)
+        if pending_updates:
+            checks["templates"] = {
+                "status": "default-updated",
+                "pending_updates": sorted(pending_updates.keys()),
+                "path": str(safe_path(project, TEMPLATE_UPDATES_PATH)),
+            }
+        elif safe_path(project, BASELINES_PATH / "manifest.json").is_file():
+            checks["templates"] = {"status": "tracked", "pending_updates": []}
     state = connection_state(project, args.client)
     peers = selected_peers(args.peers, args.client) if args.peers else state.get("peers", [])
     bridge_requested = bool(peers or args.node or state["generated"])
@@ -672,6 +894,600 @@ def doctor(args, project):
                   note="Optional bridge or Node absence does not block basic research. No persistent state was created.")
 
 
+def discover_project_mcp_hints(project):
+    """Read-only inspection of project MCP config files for bridge DB, Node, runtime, and provider binaries."""
+    hints = {"bridge_db": None, "node": None, "runtime": None, "provider_bins": {}}
+    if not project.exists() or not project.is_dir():
+        return hints
+    candidates = (
+        ("codex", project / ".codex/config.toml"),
+        ("claude-code", project / ".mcp.json"),
+        ("antigravity", project / ".agents/mcp_config.json"),
+    )
+    for kind, cfg_path in candidates:
+        if cfg_path.is_symlink() or not cfg_path.is_file():
+            continue
+        try:
+            data = tomllib.loads(read_text(cfg_path)) if kind == "codex" else read_json(cfg_path)
+            servers = data.get("mcp_servers" if kind == "codex" else "mcpServers", {})
+            if not isinstance(servers, dict):
+                continue
+            for entry in servers.values():
+                if not isinstance(entry, dict):
+                    continue
+                cmd = entry.get("command")
+                args_list = entry.get("args") if isinstance(entry.get("args"), list) else []
+                env = entry.get("env") if isinstance(entry.get("env"), dict) else {}
+                if not hints["bridge_db"] and isinstance(env.get("AGENT_BRIDGE_DB"), str):
+                    hints["bridge_db"] = Path(env["AGENT_BRIDGE_DB"])
+                if not hints["node"] and isinstance(cmd, str) and any(
+                        isinstance(a, str) and a.endswith("-mcp.mjs") for a in args_list):
+                    hints["node"] = cmd
+                for arg in args_list:
+                    if isinstance(arg, str) and arg.endswith("-mcp.mjs") and "/src/servers/" in arg.replace("\\", "/"):
+                        candidate_rt = Path(arg).resolve().parents[2]
+                        if not hints["runtime"] and (candidate_rt / "package.json").is_file():
+                            hints["runtime"] = candidate_rt
+                for agent, (_, env_var) in AGENTS.items():
+                    if agent not in hints["provider_bins"] and isinstance(env.get(env_var), str):
+                        hints["provider_bins"][agent] = env[env_var]
+        except (ValueError, OSError):
+            continue
+    return hints
+
+
+def discover_bridge_db(project, explicit=None, hints=None):
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    env_db = os.environ.get("AGENT_BRIDGE_DB")
+    if env_db:
+        return Path(env_db).expanduser().resolve()
+    if project.exists() and project.is_dir():
+        local_default = project / ".agent-bridge/bridge.sqlite"
+        if local_default.is_file():
+            return local_default.resolve()
+        env_subdir = project / "environment/bridge/bridge.sqlite"
+        if env_subdir.is_file():
+            return env_subdir.resolve()
+        hints = hints or discover_project_mcp_hints(project)
+        if hints.get("bridge_db"):
+            return Path(hints["bridge_db"]).expanduser().resolve()
+    return (project / ".agent-bridge/bridge.sqlite").resolve()
+
+
+def pid_alive(pid) -> bool:
+    try:
+        num = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if num <= 0:
+        return False
+    try:
+        os.kill(num, 0)
+        return True
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def inspect_bridge_readonly(db_path: Path):
+    """Strictly read-only inspection of bridge.sqlite and wakeup-daemon lock/stop markers."""
+    lock_path = db_path.parent / "wakeup-daemon.json"
+    stop_path = db_path.parent / "wakeup-daemon.stopped"
+    daemon = {"status": "stopped", "pid": None, "alive": False, "lock_path": str(lock_path),
+              "manual_stop": stop_path.is_file(), "heartbeat_at": None, "heartbeat_age_sec": None}
+    faults = []
+
+    if lock_path.is_file():
+        try:
+            lock_data = read_json(lock_path)
+            pid = lock_data.get("pid")
+            alive = pid_alive(pid)
+            hb = lock_data.get("heartbeatAt")
+            hb_age = None
+            if isinstance(hb, str) and hb:
+                try:
+                    dt = datetime.fromisoformat(hb.replace("Z", "+00:00"))
+                    hb_age = max(0.0, (datetime.now(timezone.utc) - dt).total_seconds())
+                except ValueError:
+                    hb_age = None
+            daemon.update(pid=pid, alive=alive, heartbeat_at=hb,
+                          heartbeat_age_sec=round(hb_age, 2) if hb_age is not None else None,
+                          status="running" if alive else "stale-lock")
+            if not alive:
+                faults.append({"code": "stale_daemon_lock", "detail": f"Daemon lock {lock_path} points to dead PID {pid}."})
+            elif hb_age is not None and hb_age > 120:
+                daemon["status"] = "heartbeat-stale"
+                faults.append({"code": "daemon_heartbeat_stale", "detail": f"Daemon PID {pid} heartbeat is {int(hb_age)}s old (>120s)."})
+        except (ValueError, OSError) as err:
+            daemon["status"] = "corrupt-lock"
+            faults.append({"code": "corrupt_daemon_lock", "detail": str(err)})
+    elif stop_path.is_file():
+        daemon["status"] = "manually-stopped"
+
+    summary = {
+        "status": "missing" if not db_path.is_file() else "ready",
+        "path": str(db_path),
+        "daemon": daemon,
+        "router_mode": None,
+        "paused": None,
+        "active_tasks": 0,
+        "enabled_routes": [],
+        "orphaned_routes": [],
+        "health_components": [],
+        "effects_depth": 0,
+        "pending_proposals": 0,
+        "faults": faults,
+    }
+    if not db_path.is_file():
+        return summary
+
+    try:
+        with sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True) as db:
+            tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if "bridge_control" in tables:
+                cols = {r[1] for r in db.execute("PRAGMA table_info(bridge_control)")}
+                row = db.execute("SELECT * FROM bridge_control WHERE id=1").fetchone()
+                if row:
+                    col_names = [d[0] for d in db.execute("SELECT * FROM bridge_control WHERE id=1").description]
+                    ctrl = dict(zip(col_names, row))
+                    summary["paused"] = bool(ctrl.get("paused"))
+                    summary["router_mode"] = ctrl.get("router_mode", "observe") if "router_mode" in cols else "observe"
+            if "tasks" in tables:
+                summary["active_tasks"] = db.execute(
+                    "SELECT COUNT(*) FROM tasks WHERE status IN ('pending', 'in_progress')"
+                ).fetchone()[0]
+            if "wakeup_routes" in tables:
+                route_cols = [r[1] for r in db.execute("PRAGMA table_info(wakeup_routes)")]
+                for row in db.execute("SELECT * FROM wakeup_routes"):
+                    r = dict(zip(route_cols, row))
+                    if r.get("enabled") and r.get("driver") != "manual":
+                        summary["enabled_routes"].append({
+                            "task_id": r.get("task_id"),
+                            "to_agent": r.get("to_agent"),
+                            "driver": r.get("driver"),
+                            "consecutive_failures": int(r.get("consecutive_failures") or 0),
+                        })
+                    if int(r.get("in_flight") or 0) == 1:
+                        wpid = r.get("worker_pid")
+                        if wpid is not None and not pid_alive(wpid):
+                            summary["orphaned_routes"].append({"task_id": r.get("task_id"), "worker_pid": wpid})
+                            faults.append({
+                                "code": "orphaned_inflight_route",
+                                "detail": f"Route for task {r.get('task_id')} has in_flight=1 with dead worker PID {wpid}.",
+                            })
+            if "bridge_health" in tables:
+                h_cols = [r[1] for r in db.execute("PRAGMA table_info(bridge_health)")]
+                for row in db.execute("SELECT * FROM bridge_health ORDER BY component ASC"):
+                    h = dict(zip(h_cols, row))
+                    summary["health_components"].append(h)
+                    st = h.get("state") or h.get("status")
+                    if st == "error":
+                        faults.append({
+                            "code": "component_health_error",
+                            "detail": f"Component '{h.get('component')}' reported error: {h.get('detail') or 'unknown'}",
+                        })
+            if "bridge_effects" in tables:
+                summary["effects_depth"] = db.execute("SELECT COUNT(*) FROM bridge_effects").fetchone()[0]
+            if "router_decisions" in tables:
+                summary["pending_proposals"] = db.execute(
+                    "SELECT COUNT(*) FROM router_decisions WHERE outcome = 'would_dispatch'"
+                ).fetchone()[0]
+    except sqlite3.Error as err:
+        summary["status"] = "needs-attention"
+        faults.append({"code": "bridge_sqlite_error", "detail": str(err)})
+
+    if faults and summary["status"] == "ready":
+        summary["status"] = "degraded"
+    return summary
+
+
+def git_status():
+    executable = shutil.which("git")
+    if not executable:
+        return {"status": "missing", "path": None}
+    try:
+        completed = subprocess.run([executable, "--version"], capture_output=True, text=True, timeout=5, check=False)
+        if completed.returncode == 0:
+            return {"status": "ready", "path": str(Path(executable).resolve()), "version": completed.stdout.strip()}
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return {"status": "invalid", "path": executable}
+
+
+def baselines(args, project):
+    """Inspect, seed, or acknowledge 3-way builtInBase template baselines."""
+    skill = safe_path(project, SKILL_PATH) if project.exists() and (project / SKILL_PATH).is_dir() else source_skill()
+    validate_component(skill, "skill")
+    skill_ver = version(skill)
+
+    if getattr(args, "ack_all", False) or getattr(args, "ack", None):
+        if not project.exists() or not project.is_dir():
+            raise SetupError("Choose an existing project directory to acknowledge template updates")
+        pending = read_template_updates(project)
+        changed = []
+        if getattr(args, "ack_all", False):
+            removed = sorted(pending.keys())
+            pending.clear()
+        else:
+            target_key = Path(args.ack).as_posix()
+            removed = [target_key] if target_key in pending else []
+            pending.pop(target_key, None)
+        updates_file = safe_path(project, TEMPLATE_UPDATES_PATH)
+        if removed and updates_file.is_file():
+            body = json_text({"version": skill_ver, "updates": dict(sorted(pending.items()))})
+            written, _ = write_files(project, {TEMPLATE_UPDATES_PATH: body})
+            changed.extend(written)
+        return result("baselines", changed, resume_action(project),
+                      status="acknowledged", acknowledged=removed,
+                      pending_updates=sorted(pending.keys()))
+
+    if getattr(args, "seed", False):
+        if not project.exists() or not project.is_dir():
+            raise SetupError("Choose an existing project directory to seed baselines")
+        builtin_bases = skill_template_bases(skill)
+        protocol_refs = skill_protocol_references(skill)
+        old_manifest, old_texts = read_baselines(project)
+        files_meta = {}
+        texts_by_rel = {}
+        if old_manifest and isinstance(old_manifest.get("files"), dict):
+            for rel, meta in old_manifest["files"].items():
+                if rel in old_texts:
+                    files_meta[rel] = dict(meta)
+                    texts_by_rel[rel] = old_texts[rel]
+
+        # 1. Always store builtInBase for skill-managed template targets so future 3-way merges never overwrite customizations
+        for rel, info in builtin_bases.items():
+            entry = {"kind": info["kind"], "source": info["source"], "sha256": info["sha256"]}
+            live = safe_path(project, rel)
+            if live.is_file():
+                ws_sha = sha256_text(read_text(live))
+                entry["workspace_sha256"] = ws_sha
+                entry["customized"] = ws_sha != info["sha256"]
+            files_meta[rel] = entry
+            texts_by_rel[rel] = info["text"]
+
+        # 2. Non-destructively snapshot bespoke project customizations (AGENTS.md, controls.md, custom roles, custom dialogue refs)
+        bespoke_candidates = ["AGENTS.md", "controls.md"]
+        roles_dir = safe_path(project, ".agents/roles")
+        if roles_dir.is_dir():
+            for path in sorted(roles_dir.glob("*.md")):
+                if path.is_file() and not path.is_symlink():
+                    bespoke_candidates.append(path.relative_to(project).as_posix())
+        dialogue_dir = safe_path(project, ".agents/skills/research-dialogue")
+        if dialogue_dir.is_dir():
+            for path in sorted(dialogue_dir.rglob("*.md")):
+                if path.is_file() and not path.is_symlink():
+                    bespoke_candidates.append(path.relative_to(project).as_posix())
+
+        for rel in bespoke_candidates:
+            if rel in builtin_bases:
+                continue
+            live = safe_path(project, rel)
+            if live.is_file():
+                text = read_text(live)
+                digest = sha256_text(text)
+                files_meta[rel] = {
+                    "kind": "project-custom",
+                    "source": "workspace-seed",
+                    "sha256": digest,
+                    "workspace_sha256": digest,
+                    "customized": True,
+                }
+                texts_by_rel[rel] = text
+
+        desired_tree = build_baseline_tree(skill_ver, files_meta, texts_by_rel, protocol_refs)
+        dest = safe_path(project, BASELINES_PATH)
+        changed = []
+        if not same_bytes_tree(dest, desired_tree):
+            with staging(project) as temporary:
+                stage = Path(temporary)
+                incoming = stage / "baselines"
+                incoming.mkdir()
+                for name, raw_bytes in desired_tree.items():
+                    target = incoming / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(raw_bytes)
+                replace_components(project, {BASELINES_PATH: incoming}, stage, ())
+                changed.append(str(BASELINES_PATH))
+        return result("baselines", changed, resume_action(project),
+                      status="seeded", version=skill_ver,
+                      tracked_files=sorted(files_meta.keys()),
+                      customized_files=sorted(k for k, v in files_meta.items() if v.get("customized")),
+                      pending_updates=sorted(read_template_updates(project).keys()),
+                      note="Non-destructive baseline snapshot completed; zero workspace files were modified.")
+
+    manifest, _ = read_baselines(project)
+    pending = read_template_updates(project)
+    tracked = sorted(manifest.get("files", {}).keys()) if manifest else []
+    customized = sorted(k for k, v in (manifest.get("files", {}) if manifest else {}).items() if v.get("customized"))
+    status = "default-updated" if pending else ("tracked" if manifest else "missing")
+    return result("baselines", [], resume_action(project) if manifest else cli_command(project, "baselines", "--seed"),
+                  status=status, version=manifest.get("version") if manifest else None,
+                  tracked_files=tracked, customized_files=customized,
+                  pending_updates=sorted(pending.keys()),
+                  note="Read-only baseline inspection.")
+
+
+def probe(args, project):
+    """Single-shot read-only environment & workspace probe for SETUP.md guided onboarding."""
+    hints = discover_project_mcp_hints(project)
+    node_info = node_status(getattr(args, "node", None))
+    if node_info["status"] == "missing" and not getattr(args, "node", None) and hints.get("node"):
+        node_info = node_status(hints["node"])
+
+    providers = {}
+    for agent, (binary, _) in AGENTS.items():
+        found = shutil.which(binary)
+        source = "PATH" if found else None
+        if not found and hints["provider_bins"].get(agent):
+            candidate = shutil.which(hints["provider_bins"][agent])
+            if candidate:
+                found = candidate
+                source = "project-mcp-config"
+        providers[agent] = {
+            "executable": str(Path(found).resolve()) if found else None,
+            "source": source,
+            "authentication": "not-verified",
+        }
+
+    exists = project.exists() and project.is_dir()
+    records = {name: ("present" if exists and safe_path(project, name).is_file() else "missing") for name in RECORDS}
+    agents_md = bool(exists and safe_path(project, "AGENTS.md").is_file())
+    role_cards = []
+    if exists and safe_path(project, ".agents/roles").is_dir():
+        role_cards = sorted(
+            p.relative_to(project).as_posix()
+            for p in safe_path(project, ".agents/roles").glob("*.md")
+            if p.is_file() and not p.is_symlink()
+        )
+    mem = memory_status(project)
+    bridge_db = discover_bridge_db(project, hints=hints)
+    bridge = inspect_bridge_readonly(bridge_db)
+    manifest, _ = read_baselines(project)
+    pending_updates = read_template_updates(project)
+    initialized = bool(
+        any(v == "present" for v in records.values())
+        or mem["status"] != "missing"
+        or bridge["status"] != "missing"
+        or agents_md
+    )
+
+    workspace = {
+        "exists": exists,
+        "initialized": initialized,
+        "records": records,
+        "agents_md": agents_md,
+        "role_cards": role_cards,
+        "memory": mem,
+        "bridge": bridge,
+        "baselines": {
+            "status": "default-updated" if pending_updates else ("tracked" if manifest else "missing"),
+            "version": manifest.get("version") if manifest else None,
+            "tracked_count": len(manifest.get("files", {})) if manifest else 0,
+            "pending_updates": sorted(pending_updates.keys()),
+        },
+    }
+    action = resume_action(project) if initialized else cli_command(project, "install")
+    return result("probe", [], action,
+                  python={"status": "ready", "version": sys.version.split()[0], "executable": sys.executable},
+                  fts5={"status": fts_status()},
+                  git=git_status(),
+                  node=node_info,
+                  providers=providers,
+                  workspace=workspace,
+                  note="Read-only environment probe; zero files or databases were created or modified.")
+
+
+def is_workspace_initialized(project: Path, bridge_db: Path) -> bool:
+    if bridge_db.is_file():
+        return True
+    if not project.exists() or not project.is_dir():
+        return False
+    return bool(
+        any(safe_path(project, name).is_file() for name in RECORDS)
+        or safe_path(project, ".research-memory").exists()
+        or safe_path(project, ".agent-bridge").exists()
+        or safe_path(project, "environment/bridge").exists()
+        or safe_path(project, "AGENTS.md").is_file()
+        or safe_path(project, ".codex/config.toml").is_file()
+        or safe_path(project, ".mcp.json").is_file()
+    )
+
+
+def watchdog(args, project):
+    """External watchdog CLI implementing the 4-level exit code contract (0/1/2/3)."""
+    action = getattr(args, "action", "status") or "status"
+    hints = discover_project_mcp_hints(project)
+    db_path = discover_bridge_db(project, getattr(args, "bridge_db", None), hints=hints)
+
+    # Exit 3: Project not initialized
+    if not is_workspace_initialized(project, db_path):
+        out = result(
+            "watchdog", [], cli_command(project, "init", "--question", "Your research question"),
+            action=action, status="uninitialized", exit_code=3,
+            errors=[{"code": "project_uninitialized", "detail": f"Workspace {project} has not been initialized."}],
+        )
+        return 3, out
+
+    # Resolve runtime & Node >= 24 (Exit 2 on missing/invalid config or runtime)
+    runtime, location = runtime_at(project) if project.exists() else (None, "missing")
+    if runtime is None and hints.get("runtime"):
+        runtime, location = hints["runtime"], "configured"
+    config_errors = []
+    if runtime is None:
+        config_errors.append({"code": "runtime_missing", "detail": "Bridge runtime is missing; install from the complete bundle."})
+    else:
+        try:
+            validate_component(runtime, "runtime")
+        except (ValueError, OSError) as err:
+            config_errors.append({"code": "runtime_invalid", "detail": str(err)})
+
+    node_info = node_status(getattr(args, "node", None))
+    if node_info["status"] == "missing" and not getattr(args, "node", None) and hints.get("node"):
+        node_info = node_status(hints["node"])
+    if node_info["status"] != "ready":
+        config_errors.append({
+            "code": "node_unavailable",
+            "detail": f"Node >= 24 is required for agent-bridge watchdog (found status={node_info['status']}).",
+        })
+
+    requested_peers = []
+    if getattr(args, "peers", None):
+        requested_peers = list(dict.fromkeys(
+            part for value in args.peers for part in re.split(r"[,\s]+", value) if part
+        ))
+        for peer in requested_peers:
+            if peer not in AGENTS:
+                config_errors.append({"code": "invalid_peer", "detail": f"Unknown peer '{peer}'."})
+
+    snap = inspect_bridge_readonly(db_path)
+
+    # Check provider binaries for explicitly requested --peers or enabled automatic wakeup routes
+    required_agents = set(p for p in requested_peers if p in AGENTS)
+    for route in snap["enabled_routes"]:
+        mapped = DRIVER_TO_AGENT.get(str(route.get("driver") or ""))
+        if mapped:
+            required_agents.add(mapped)
+    for agent in sorted(required_agents):
+        binary, _ = AGENTS[agent]
+        found = shutil.which(binary) or (shutil.which(hints["provider_bins"][agent]) if hints["provider_bins"].get(agent) else None)
+        if not found:
+            config_errors.append({
+                "code": "provider_cli_missing",
+                "detail": f"Required provider CLI '{binary}' for '{agent}' was not found on PATH or project MCP config.",
+            })
+
+    if config_errors:
+        out = result(
+            "watchdog", [], "Install/configure Node >= 24 and required provider CLIs before retrying watchdog.",
+            action=action, status="configuration-error", exit_code=2,
+            runtime_source=location, node=node_info, bridge=snap, errors=config_errors,
+        )
+        return 2, out
+
+    lock_path = db_path.parent / "wakeup-daemon.json"
+    stop_path = db_path.parent / "wakeup-daemon.stopped"
+    respect_stop = bool(getattr(args, "respect_stop", False))
+
+    if action == "status":
+        # Strictly read-only!
+        if snap["faults"]:
+            out = result(
+                "watchdog", [], cli_command(project, "watchdog", "restart", "--respect-stop"),
+                action=action, status="unhealthy", exit_code=1,
+                runtime_source=location, node=node_info, bridge=snap, errors=snap["faults"],
+            )
+            return 1, out
+        daemon_state = "respecting-manual-stop" if (respect_stop and stop_path.is_file()) else snap["daemon"]["status"]
+        out = result(
+            "watchdog", [], resume_action(project),
+            action=action, status="healthy", daemon_status=daemon_state, exit_code=0,
+            runtime_source=location, node=node_info, bridge=snap, errors=[],
+        )
+        return 0, out
+
+    node_bin = node_info["path"]
+    daemon_mod = (runtime / "src/runtime/superagent-daemon.mjs").resolve().as_uri()
+    bridge_mod = (runtime / "src/core/bridge-db.mjs").resolve().as_uri()
+    watchdog_mod = (runtime / "src/runtime/watchdog-service.mjs").resolve().as_uri()
+    health_mod = (runtime / "src/runtime/health-board.mjs").resolve().as_uri()
+
+    if action == "stop":
+        js = (
+            f'import {{ stopResidentSuperagentDaemon }} from {json.dumps(daemon_mod)};'
+            f'stopResidentSuperagentDaemon(process.argv[1], {{ markManualStop: true }});'
+        )
+        completed = subprocess.run([node_bin, "--input-type=module", "-e", js, str(db_path)],
+                                   capture_output=True, text=True, timeout=15, check=False)
+        if completed.returncode != 0:
+            out = result("watchdog", [], "Inspect daemon permissions and retry stop.",
+                         action=action, status="unhealthy", exit_code=1,
+                         errors=[{"code": "stop_failed", "detail": completed.stderr.strip() or "stop script failed"}])
+            return 1, out
+        post = inspect_bridge_readonly(db_path)
+        out = result("watchdog", [str(stop_path)], resume_action(project),
+                     action=action, status="stopped", exit_code=0,
+                     runtime_source=location, node=node_info, bridge=post, errors=[])
+        return 0, out
+
+    # action in {"start", "restart"}
+    if respect_stop and stop_path.is_file():
+        out = result("watchdog", [], cli_command(project, "watchdog", "start"),
+                     action=action, status="respecting-manual-stop", exit_code=0,
+                     runtime_source=location, node=node_info, bridge=snap, errors=[],
+                     note="Manual stop marker is present; skipped daemon startup because --respect-stop was set.")
+        return 0, out
+
+    js = f"""
+import fs from "node:fs";
+import {{ ensureResidentSuperagentDaemon, stopResidentSuperagentDaemon }} from {json.dumps(daemon_mod)};
+import {{ BridgeDatabase }} from {json.dumps(bridge_mod)};
+import {{ HealthBoard }} from {json.dumps(health_mod)};
+import {{ WatchdogService }} from {json.dumps(watchdog_mod)};
+
+const dbPath = process.argv[1];
+const action = process.argv[2];
+const respectStop = process.argv[3] === "1";
+
+if (action === "restart") {{
+  stopResidentSuperagentDaemon(dbPath, {{ markManualStop: false }});
+}}
+if (fs.existsSync(dbPath)) {{
+  const bridgeDb = new BridgeDatabase(dbPath);
+  const healthBoard = new HealthBoard({{ repos: bridgeDb.store, pid: process.pid }});
+  const wd = new WatchdogService({{ engine: bridgeDb.engine, healthBoard, dbPath }});
+  wd.runSweep();
+}}
+const res = ensureResidentSuperagentDaemon(dbPath, {{
+  clearStopMarker: !respectStop,
+  respectStop,
+}});
+console.log(JSON.stringify(res || {{ spawned: false }}));
+"""
+    child_env = dict(os.environ)
+    child_env.pop("BRIDGE_DISABLE_WAKEUP_DAEMON", None)
+    child_env.pop("BRIDGE_WAKEUP_DAEMON_PROCESS", None)
+    for agent, (_, env_var) in AGENTS.items():
+        if env_var not in child_env and hints["provider_bins"].get(agent):
+            child_env[env_var] = hints["provider_bins"][agent]
+
+    completed = subprocess.run(
+        [node_bin, "--input-type=module", "-e", js, str(db_path), action, "1" if respect_stop else "0"],
+        capture_output=True, text=True, timeout=20, env=child_env, check=False,
+    )
+    if completed.returncode != 0:
+        out = result("watchdog", [], "Inspect bridge logs and retry watchdog restart.",
+                     action=action, status="unhealthy", exit_code=1,
+                     errors=[{"code": "daemon_spawn_failed", "detail": completed.stderr.strip() or completed.stdout.strip()}])
+        return 1, out
+
+    # Wait briefly for spawned resident daemon to write wakeup-daemon.json lock
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if lock_path.is_file():
+            try:
+                if pid_alive(read_json(lock_path).get("pid")):
+                    break
+            except (ValueError, OSError):
+                pass
+        time.sleep(0.08)
+
+    post = inspect_bridge_readonly(db_path)
+    if not post["daemon"]["alive"] or post["faults"]:
+        errs = post["faults"] or [{"code": "daemon_not_alive", "detail": "Resident daemon did not stay alive after start."}]
+        out = result("watchdog", [], "Inspect bridge database permissions and daemon logs.",
+                     action=action, status="unhealthy", exit_code=1,
+                     runtime_source=location, node=node_info, bridge=post, errors=errs)
+        return 1, out
+
+    out = result("watchdog", [str(lock_path)], resume_action(project),
+                 action=action, status="healthy", daemon_status="running", exit_code=0,
+                 runtime_source=location, node=node_info, bridge=post, errors=[])
+    return 0, out
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise SetupError(message)
@@ -689,17 +1505,28 @@ def workbench(args, project):
         raise SetupError("Workbench needs the complete bundle's runtime; install it in this project first")
     validate_component(runtime, "runtime")
     validate_workbench(runtime)
-    node = node_status(args.node)
+    hints = discover_project_mcp_hints(project)
+    node = node_status(args.node or hints["node"])
     if node["status"] != "ready":
         raise SetupError("Workbench needs Node >=24; install it or pass --node /absolute/path/to/node")
     command = [node["path"], str(runtime / "src/workbench/server.mjs"),
                "--project", str(project), "--port", str(args.port)]
+    if not args.demo:
+        explicit_db = getattr(args, "bridge_db", None)
+        resolved_db = discover_bridge_db(project, explicit=explicit_db, hints=hints)
+        default_local_db = (project / ".agent-bridge/bridge.sqlite").resolve()
+        if explicit_db or (resolved_db != default_local_db and resolved_db.exists()):
+            command.extend(["--bridge-db", str(resolved_db)])
     if args.demo:
         command.append("--demo")
     if args.open:
         command.append("--open")
+    child_env = dict(os.environ)
+    for agent_id, (_, env_var) in AGENTS.items():
+        if env_var not in child_env and hints["provider_bins"].get(agent_id):
+            child_env[env_var] = hints["provider_bins"][agent_id]
     try:
-        return subprocess.run(command, cwd=project, check=False).returncode
+        return subprocess.run(command, cwd=project, env=child_env, check=False).returncode
     except KeyboardInterrupt:
         return 130
 
@@ -713,6 +1540,9 @@ def parser():
                               ("init", "Create records and memory, or resume an existing workspace"),
                               ("connect", "Prepare project MCP configuration; apply only when requested"),
                               ("doctor", "Inspect readiness without modifying project state"),
+                              ("probe", "Read-only environment and workspace probe for guided setup"),
+                              ("baselines", "Inspect, seed, or acknowledge 3-way builtInBase template baselines"),
+                              ("watchdog", "Inspect or heal the resident superagent watchdog daemon (exit codes 0/1/2/3)"),
                               ("workbench", "Open the local collaboration workbench or a fictional demo")):
         command = commands.add_parser(name, help=description, description=description)
         command.add_argument("--project", default=argparse.SUPPRESS, help="Project directory (default: current directory)")
@@ -729,12 +1559,46 @@ def parser():
             command.add_argument("--node", help="Node >=24 executable path or command")
         if name == "connect":
             command.add_argument("--apply", action="store_true", help="Register project config for Codex, Claude Code or Antigravity CLI/IDE")
+        if name == "probe":
+            command.add_argument("--node", help="Node >=24 executable path or command")
+        if name == "baselines":
+            command.add_argument("--seed", action="store_true", help="Non-destructively snapshot builtInBase and custom workspace baselines")
+            command.add_argument("--ack", help="Acknowledge a reviewed path in template-updates.json")
+            command.add_argument("--ack-all", action="store_true", help="Acknowledge all reviewed template updates")
+        if name == "watchdog":
+            command.add_argument("action", nargs="?", choices=("status", "start", "stop", "restart"), default="status",
+                                 help="Watchdog action (status is strictly read-only)")
+            command.add_argument("--node", help="Node >=24 executable path or command")
+            command.add_argument("--bridge-db", help="Explicit path to bridge.sqlite")
+            command.add_argument("--peers", nargs="+", help="Explicit peer CLIs required to be present")
+            command.add_argument("--respect-stop", action="store_true", help="Do not start daemon when manual .stopped marker exists")
         if name == "workbench":
             command.add_argument("--node", help="Node >=24 executable path or command")
+            command.add_argument("--bridge-db", help="Explicit path to bridge.sqlite")
             command.add_argument("--port", type=int, default=8765, help="Loopback HTTP port; 0 selects an available port")
             command.add_argument("--demo", action="store_true", help="Use fictional in-memory data; never contact providers")
             command.add_argument("--open", action="store_true", help="Open the browser after the server starts")
     return root
+
+
+def emit_output(command_name, output, structured):
+    if structured:
+        print(json_text(output), end="")
+        return
+    print(f"{command_name}: " + ("changed " + ", ".join(output["changed"]) if output["changed"] else "no files changed"))
+    for key in ("mode", "status", "daemon_status", "exit_code", "generated", "applied", "backup", "basic_research_ready", "note"):
+        if key in output and output[key] is not None:
+            print(f"{key}: {output[key]}")
+    if "checks" in output:
+        for name, value in output["checks"].items():
+            print(name + ": " + json.dumps(value, ensure_ascii=False))
+    if "providers" in output:
+        print("providers: " + json.dumps(output["providers"], ensure_ascii=False))
+    if "errors" in output and output["errors"]:
+        print("errors: " + json.dumps(output["errors"], ensure_ascii=False))
+    if "host_connectivity" in output:
+        print("Authentication: not verified. Live host connection: not verified.")
+    print("Next action: " + output["next_action"])
 
 
 def main(argv=None):
@@ -751,22 +1615,20 @@ def main(argv=None):
             raise SetupError("--project must be a directory")
         if args.command == "workbench":
             return workbench(args, project)
-        output = {"install": install, "init": init, "connect": connect, "doctor": doctor}[args.command](args, project)
-        if structured:
-            print(json_text(output), end="")
-        else:
-            print(f"{args.command}: " + ("changed " + ", ".join(output["changed"]) if output["changed"] else "no files changed"))
-            for key in ("mode", "status", "generated", "applied", "backup", "basic_research_ready", "note"):
-                if key in output and output[key] is not None:
-                    print(f"{key}: {output[key]}")
-            if "checks" in output:
-                for name, value in output["checks"].items():
-                    print(name + ": " + json.dumps(value, ensure_ascii=False))
-            if "providers" in output:
-                print("providers: " + json.dumps(output["providers"], ensure_ascii=False))
-            if "host_connectivity" in output:
-                print("Authentication: not verified. Live host connection: not verified.")
-            print("Next action: " + output["next_action"])
+        if args.command == "watchdog":
+            code, output = watchdog(args, project)
+            emit_output("watchdog", output, structured)
+            return code
+        handlers = {
+            "install": install,
+            "init": init,
+            "connect": connect,
+            "doctor": doctor,
+            "probe": probe,
+            "baselines": baselines,
+        }
+        output = handlers[args.command](args, project)
+        emit_output(args.command, output, structured)
         return 0
     except (ValueError, OSError, sqlite3.Error) as error:
         output = {"error": str(error), "changed": [], "next_action": "Resolve the reported issue, then rerun the same command."}

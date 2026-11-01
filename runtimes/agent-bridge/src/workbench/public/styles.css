@@ -3102,3 +3102,177 @@ dialog::backdrop {
     font-size: 9px;
   }
 }
+
+/* v1.0.0 Attention-First Overview, Router Mode & Health Strip */
+.router-mode-field select {
+  height: 35px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  max-width: 152px;
+}
+
+.attention-quiet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 18px;
+  margin-bottom: 20px;
+}
+
+.attention-quiet-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.attention-quiet-copy strong {
+  color: var(--ink);
+}
+
+.attention-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  flex: none;
+}
+
+.attention-panel {
+  background: var(--white);
+  border: 1px solid #d7e1ef;
+  border-left: 3px solid var(--amber);
+  border-radius: 8px;
+  padding: 18px 20px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow);
+}
+
+.attention-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.attention-header p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.health-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.health-strip.compact {
+  margin-bottom: 10px;
+}
+
+.health-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--paper);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.health-pill.teal {
+  background: var(--teal-soft);
+  color: var(--teal);
+  border-color: #cce8e5;
+}
+
+.health-pill.amber {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: #ecd9ba;
+}
+
+.health-pill.rose {
+  background: var(--rose-soft);
+  color: var(--rose);
+  border-color: #efd5d9;
+}
+
+.attention-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.attention-card {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 14px 16px;
+  background: #fafcfe;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attention-card.error {
+  border-color: #efd5d9;
+  background: #fffafb;
+}
+
+.attention-card.warning {
+  border-color: #ecd9ba;
+  background: #fffdf9;
+}
+
+.attention-card-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.attention-card-top time {
+  margin-left: auto;
+}
+
+.attention-reason {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.attention-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.attention-card p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.attention-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+}

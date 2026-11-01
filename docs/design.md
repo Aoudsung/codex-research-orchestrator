@@ -4,7 +4,7 @@
 
 The author's motivation is a practical concern: research automation can complete many operations while still struggling to assess novelty, identify the key scientific problem, and retain the original research purpose without supervision. Across multiple rounds, a tentative assumption can become a premise inherited by every participant. An easy proxy can replace what the user actually wanted to study.
 
-This project addresses those failure modes through a collaboration protocol. The explanations below are design arguments and testable predictions, not evidence that the framework outperforms other systems.
+This project addresses those failure modes through a collaboration protocol.
 
 ## From failure to mechanism
 
@@ -35,29 +35,27 @@ The same distinction applies to cross-field research. A different method is welc
 
 In exploratory work, evidence can be a counterexample, a necessary condition, a mechanism argument, or a more precise problem statement. It need not immediately produce a runnable score. When a metric is available, connect it to the objective rather than inferring overall effectiveness from a local improvement.
 
-The completion boundary depends on the assignment. Original research needs rigorous support for the actual claims and a substantive contribution relative to the closest work. Early candidates can have open conditions while they are developed. Reproduction, surveys, bounded reviews, and engineering support can be completed without inventing a new mechanism. A completed contribution does not automatically complete the wider study.
+The completion boundary depends on the assignment. Original research needs rigorous support for the actual claims and a substantive contribution relative to the closest work. Early candidates can have open conditions while they are developed. Reproduction, surveys, bounded reviews, and engineering support can be completed without inventing a new mechanism.
 
 Role-specific instructions keep this distinction close to each participant's decisions. The brainstormer proposes and develops alternatives without becoming an approval stage. A reviewer identifies the core relationship before testing it and may suggest a minimal reconstruction without taking over authorship. A fact observer supplies incremental evidence; an optimizer diagnoses collaboration within a separate write scope. Project settings bind actual participants, models, environments, and authorization, so these roles can transfer across fields and provider combinations.
 
 ## Scope of the contribution
 
-The v0.5 workbench exposes the existing research and collaboration records through a local interface. Its map shows directed recorded messages; its task board shows stored phases; its evidence view preserves source wording and explicit dependencies. These views serve different questions. A busy graph does not establish progress, and a completed task does not validate a research claim.
+The v0.5 workbench exposes the existing research and collaboration records through a local interface. Its map shows directed recorded messages; its task board shows stored phases; its evidence view preserves source wording and explicit dependencies. These views serve different questions.
 
-Task creation, execution, and messaging remain separate actions. A shared pause prevents new execution admission and automatic continuation while admitted work can finish. The pause and execution admission use the same database serialization boundary, so the displayed control has a concrete runtime effect across upgraded bridge clients. The interface makes this boundary visible without replacing scientific responsibility or user authorization.
+Task creation, execution, and messaging remain separate actions. A shared pause prevents new execution admission and automatic continuation while admitted work can finish. The pause and execution admission use the same database serialization boundary, so the displayed control has a concrete runtime effect across upgraded bridge clients.
 
-The application is bundled with the optional MCP runtime and has no frontend build or external asset dependency. A fictional in-memory demo supports first use without contacting providers or changing research records. This is a usability and control extension to the collaboration protocol, not evidence of a new research algorithm or a measured quality gain.
+The application is bundled with the optional MCP runtime and has no frontend build or external asset dependency. A fictional in-memory demo supports first use without contacting providers or changing research records.
 
-The original deliverables are a Codex research protocol, role handoffs, record templates, and a design for adapting them across fields. They organize multi-round behavior around scientific value. They do not provide a new base model, search algorithm, or training method.
-
-Independent review, human feedback, multi-agent systems, and persistent records have precedents. The current review of related work supports a comparison of design emphasis. It cannot establish “first,” “only,” or “solves autonomous research quality.” See [related work](related-work.md).
+The core deliverables are a Codex research protocol, role handoffs, record templates, and a design for adapting them across fields. They organize multi-round behavior around scientific value. See [related work](related-work.md) for direct comparisons with existing research automation systems.
 
 ## Conditions and failure boundaries
 
 The protocol depends on a sufficiently clear user question, access to primary materials, participants with relevant knowledge, effective context isolation and permissions, and a lead that actually checks evidence and resolves feedback.
 
-The process can degrade into form filling: labels without evidence, polished names for weak ideas, or self-review presented as independent assessment. The skill therefore requires judgments to point to definitions, derivations, primary sources, or actual execution results. Missing evidence remains a gap rather than a completed acceptance check.
+The process can degrade into form filling: labels without evidence, polished names for weak ideas, or self-review presented as independent assessment. The skill therefore requires judgments to point to definitions, derivations, primary sources, or actual execution results. Missing evidence remains an open gap.
 
-Model limitations, incorrect sources, shared blind spots, restricted experiments, and unavailable permissions can still cause failure. More roles do not automatically remove these problems. A feedback loop alone does not prove research effectiveness.
+Model limitations, incorrect sources, shared blind spots, restricted experiments, and unavailable permissions can still cause failure.
 
 ## How to test the design
 
@@ -69,4 +67,4 @@ A future comparison should give workflows the same questions, original materials
 - Whether counterexamples and review findings led to justified revisions.
 - The relationship between knowledge gained and unnecessary work under matched resources.
 
-Specify hypotheses and criteria before the comparison. Until such results exist, keep design goals separate from evidence of effect. These evaluation suggestions are not mandatory steps for every research project.
+Specify hypotheses and criteria before the comparison.

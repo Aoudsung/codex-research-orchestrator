@@ -17,7 +17,7 @@ Codex can run the installed helper and handle the paths and configuration. The s
 - Node.js 24 or later, including its built-in SQLite module, for the bridge.
 - The relevant provider CLI when you want to start or resume that provider through the bridge. Messaging and synthetic transport tests do not require provider accounts.
 
-There are no npm dependencies to install. The helper chooses a project-local database at `.agent-bridge/bridge.sqlite`, outside the runtime package. All adapters generated for this project use that same database. Provider authentication stays in each provider's supported local configuration. Finding a CLI does not establish that it is logged in. The optional Antigravity SDK route requires its own SDK installation; the CLI and message bridge do not require that route.
+There are no npm dependencies to install. The helper chooses a project-local database at `.agent-bridge/bridge.sqlite`, outside the runtime package. All adapters generated for this project use that same database. Provider authentication stays in each provider's supported local configuration. The optional Antigravity SDK route requires its own SDK installation; the CLI and message bridge do not require that route.
 
 ## Choose connections
 
@@ -66,13 +66,13 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py \
 
 If `node` is absent from `PATH`, or points to an older version, add `--node /path/to/node` with your Node.js 24+ executable. The helper resolves and stores the absolute path. Use `--project /path/to/project` and the full helper path when running from another directory.
 
-Connection setup writes configuration only. It does not launch providers or models, create the bridge database, establish login, or enable a wakeup service. Generated paths are specific to this machine; keep host configuration, databases, WAL files, logs, and credentials out of public exports.
+Connection setup writes configuration files only. Generated paths are specific to this machine; keep host configuration, databases, WAL files, logs, and credentials out of public exports.
 
 ## Load and check the connection
 
 Reopen the chosen client in the project. Complete the host's project trust or MCP approval steps and reload if required. Codex loads project `.codex/config.toml` only for trusted projects. Claude Code may require approval for project `.mcp.json` servers.
 
-Inspect the host's MCP server status and the tools actually exposed in the current session. In Claude Code, `/mcp` shows the server status. A saved configuration or a successful setup receipt is not proof that the host connected. Do not start provider work just to test setup unless that execution is authorized.
+Inspect the host's MCP server status and the tools actually exposed in the current session. In Claude Code, `/mcp` shows the server status.
 
 Once the provider is available, you can request a small first exchange:
 
@@ -97,13 +97,13 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py \
 |---|---|
 | Missing bridge runtime | Install the full bundle in the same project. Use `--upgrade` if the installer reports a differing managed installation. Native research can continue without it. |
 | Missing or old Node.js | Install Node.js 24+ or pass `--node /path/to/node`; rerun the same command. |
-| Missing provider CLI | Install the selected provider's CLI before using its execution tools. Shared messaging does not require it. CLI presence still does not verify login. |
-| Provider is not authenticated | Use that provider's supported local login process; setup and `doctor` do not verify authentication. |
+| Missing provider CLI | Install the selected provider's CLI before using its execution tools. Shared messaging does not require it. |
+| Provider is not authenticated | Use that provider's supported local login process. |
 | Configuration collision or edited managed entry | Inspect the named entry and reconcile it with the intended connection. Preserve unrelated settings, then rerun; the helper will not silently replace the conflict. |
 | Export exists but host tools are missing | Apply the supported project configuration. Then complete host trust/approval, reopen or reload, and inspect MCP status again. |
 | Headless call reports success but no reply arrives | Inspect tool-denial records and the message ledger. Grant only the required tools, including `bridge_reply_message` if used. A zero exit code can include a denied tool action. |
 
-Add `--json` for structured diagnosis. `doctor` reports filesystem and executable checks; it does not establish provider login or host connectivity. Missing optional Node.js does not block research without the bridge.
+Add `--json` for structured diagnosis. `doctor` checks local files and executables. Missing optional Node.js does not block research without the bridge.
 
 ## Start a collaboration
 
@@ -116,21 +116,21 @@ Ask the coordinating agent to:
 5. Return structured artifacts and a final receipt. Associate verification and repair feedback with that artifact revision.
 6. Accept only the completed scope supported by evidence, then close the task and its temporary lease.
 
-Participants may initiate authorized exchanges themselves. The user defines the task's scope and resource limits; a message or permission record cannot expand them.
+Participants may initiate exchanges within the task's scope and resource limits.
 
 In a delegated implementation workflow, the external author performs analysis, editing, self-checks, and repair. Codex reads compact receipts, applies or examines the relevant artifact, performs required validation, and makes the final acceptance decision. It need not repeat every investigation performed by the author.
 
 ## Choose the right continuation mode
 
-**Within the current turn:** `bridge_send_message` and `bridge_record_validation` can wait for subsequent delivery updates. Use the returned cursor and receipt. The configured quiet window groups nearby messages; it cannot prove that an entire patch set has arrived.
+**Within the current turn:** `bridge_send_message` and `bridge_record_validation` can wait for subsequent delivery updates. Use the returned cursor and receipt. The configured quiet window groups nearby messages.
 
 **Across turns:** configure a host route explicitly if the client supports it. Confirm actual acceptance by the bound host and target turn before relying on idle-chat continuation. Inbox events, waiter callbacks, and forwarding-process success are distinct from target-chat execution.
 
 When a channel cannot push a result, use only the scoped scheduled check the user authorized. Do not create polling loops for all agents. A timeout preserves the original task; reconcile its status before deciding whether further action is needed.
 
-Generated configurations set an 11-minute tool timeout (`tool_timeout_sec = 660` for Codex, `timeout = 660000` milliseconds for Claude Code, and `timeoutSeconds = 660` for Antigravity), to accommodate the bridge's default 10-minute delivery wait. These defaults do not guarantee the same support across every host version or operation.
+Generated configurations set an 11-minute tool timeout (`tool_timeout_sec = 660` for Codex, `timeout = 660000` milliseconds for Claude Code, and `timeoutSeconds = 660` for Antigravity), to accommodate the bridge's default 10-minute delivery wait.
 
-The bridge's actual wait and coalescing values must fit the host and MCP client's supported deadlines. Keep the delivery wait below those limits. A server timeout longer than the client permits does not extend the client limit.
+The bridge's actual wait and coalescing values must fit the host and MCP client's supported deadlines. Keep the delivery wait below those limits.
 
 Before unattended use, grant the selected message tools through the host's supported permission controls. Include reading, sending, and replying; connection setup alone grants none of them. In Codex, `approval_policy = "never"` rejects a tool that still requires approval. In Antigravity headless mode, a denied tool can appear in `denied_actions` even with `status: "SUCCESS"`. Use the configured host adapter and verify a real continuation receipt and reply. The [live-client check](validation-v0.3.1.md) documents the tested surfaces and route.
 
@@ -138,17 +138,17 @@ For small checks, select a low-cost model and pass `effort: "low"` to `claude_ex
 
 ## Model and conversation evidence
 
-Keep the requested model separate from runtime-reported identity. A CLI flag shows what was requested, not independent confirmation of what ran. Known mismatches must fail. When a required identity cannot be established, keep that limitation visible rather than switching providers or treating a request as verification.
+Keep the requested model separate from runtime-reported identity. Known mismatches must fail. When a required identity cannot be established, keep that limitation visible rather than switching providers.
 
 When runtime-reported model identity is required, set `metadata.requireVerifiedModel: true` on the task. The bridge distinguishes requested identity from runtime evidence. The Antigravity SDK path does not provide the same runtime identity evidence and cannot resume an explicitly bound conversation; it reports those limitations. `backend: "auto"` selects the CLI path and does not silently switch to a different provider or the SDK.
 
-Continue the bound session through revisions. Reusing a task ID is not an instruction to silently replace its original scope or conversation. Check the task overview before resumption.
+Continue the bound session through revisions and check the task overview before resumption.
 
 ## Artifacts and completion
 
 Use structured patch tools for patches and the message tools for questions, explanations, and compact receipts. Preserve patch originals; do not reconstruct them from shortened logs. Validate dependencies and replacements before applying a patch set.
 
-Do not equate a CLI exit code of zero, a new inbox message, or a quiet sender with a complete delivery. A complete delivery names the artifact revision and the material it contains. Validation and review state what was checked and on which revision. They do not by themselves establish scientific benefit.
+A complete delivery names the artifact revision and the material it contains. Validation and review state what was checked and on which revision.
 
 For a patch delivery, attach a final manifest to the completion message, for example:
 
@@ -164,6 +164,6 @@ For a patch delivery, attach a final manifest to the completion message, for exa
 
 Pass this object as message `metadata`. Delivery waits report `updatesReceived`, `artifactDeliveryComplete`, and host `delivered` separately. A complete artifact set can be available before a later-turn host wakeup is confirmed. Fetch exact message text and patch content through the explicit read operations; ordinary wait replies contain compact summaries.
 
-Preflight supports `deliveryMode` values `direct`, `read_only`, and `mcp_structured_patch`. Structured-patch mode requires explicit allowed target paths but does not require the author to write those files locally. Direct execution must meet its actual tool and path requirements; declaring patch delivery does not authorize a direct write.
+Preflight supports `deliveryMode` values `direct`, `read_only`, and `mcp_structured_patch`. Structured-patch mode requires explicit allowed target paths without requiring the author to write those files locally. Direct execution must meet its actual tool and path requirements.
 
 See [MCP collaboration rules](../skills/codex-research-orchestrator/references/mcp-collaboration.md) for the operating protocol, [runtime documentation](../runtimes/agent-bridge/README.md) for commands, and [validation notes](validation-v0.2.md) for the tested scope.

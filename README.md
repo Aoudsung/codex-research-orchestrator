@@ -80,7 +80,7 @@ This requires **Node.js 24+**. The helper discovers real paths, generates a shar
 
 Claude Code project configuration and Antigravity CLI/IDE workspace configuration are also supported. Antigravity uses `.agents/mcp_config.json`; its export remains available for other supported settings interfaces. Select only the peers you intend to use.
 
-Provider execution requires the selected CLI and its normal login. A generated config is not proof of a live connection or model access. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
+Provider execution requires the selected CLI and its normal login. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
 
 ## Check setup or upgrade
 
@@ -120,15 +120,17 @@ The framework is designed to:
 - **Maintain continuity of purpose:** preserve the original question and user constraints while allowing methods and hypotheses to be revised.
 - **Stay aligned with the user:** keep confirmed requirements, draft interpretations, permissions, and resources distinct.
 
-Its contribution is a practical collaboration protocol for Codex, source-backed research memory, and optional cross-agent coordination. The [design rationale](docs/design.md) explains the mechanisms and their limits; [related work](docs/related-work.md) gives direct comparisons with existing automation projects. Multi-agent work, review, and memory have precedents. This project does not claim to have invented them or to guarantee valuable research.
+Its contribution is a practical collaboration protocol for Codex, source-backed research memory, and optional cross-agent coordination. The [design rationale](docs/design.md) explains the mechanisms; [related work](docs/related-work.md) gives direct comparisons with existing automation projects.
 
 ## How the parts fit
 
-Version 0.5 adds the local collaboration workbench and a shared execution pause. It makes the existing reciprocal collaboration between Codex, Claude Code, and Antigravity visible and actionable: trace messages, inspect their sources, give scoped assignments, and control when new work may begin. The workbench does not infer scientific success from activity or replace the research records.
+Version 1.0 separates pure zero-I/O coordination rules from a durable SQLite effects queue, adds a deterministic Research Router (`off | observe | auto`) with thread subscriptions and out-of-scope `bridge_handback`, introduces a Dual-Layer Watchdog (`HealthBoard`, `+1` human-priority slot, two-phase `consumed_at` recovery, and `.optimizer/watchdog-events.jsonl` anti-spin probes), upgrades the workbench to an Attention-First overview, and protects customized project templates via `builtInBase` 3-way baselines.
+
+Version 0.5 adds the local collaboration workbench and a shared execution pause. It makes the existing reciprocal collaboration between Codex, Claude Code, and Antigravity visible and actionable: trace messages, inspect their sources, give scoped assignments, and control when new work may begin.
 
 Version 0.4 adds role-specific instructions for researchers, optional brainstormers, reviewers, implementers, collaboration optimizers, and fact observers. Only the assigned role is loaded. When direction is unclear, short independent constructions precede comparison; a main author then develops the supported direction while others supply complementary evidence.
 
-Original research must combine rigorous support with a substantive contribution. A counterexample calls for a concrete reconstruction within the original object; a ruled-out route becomes evidence for a different approach. Reproduction, surveys, and bounded contributions retain their own completion criteria. Fact collection reports changes; process diagnosis remains with the optimizer. These are protocol changes, not measured claims of higher research quality.
+Original research must combine rigorous support with a substantive contribution. A counterexample calls for a concrete reconstruction within the original object; a ruled-out route becomes evidence for a different approach. Reproduction, surveys, and bounded contributions retain their own completion criteria. Fact collection reports changes; process diagnosis remains with the optimizer.
 
 | Part | Responsibility |
 |---|---|
@@ -141,7 +143,7 @@ Original research must combine rigorous support with a substantive contribution.
 
 The lead retains scientific decisions and final acceptance. External authors can perform analysis, implementation, self-checks, and repairs without the lead repeating their whole workflow. Independent reviewers receive curated materials, not an unrestricted shared inbox.
 
-Memory and coordination state remain separate. A delivered patch or successful process does not by itself establish a scientific result. A host route must be verified before relying on idle-chat wakeup.
+Memory and coordination state remain separate. Verify the host route before relying on idle-chat wakeup.
 
 ## Further reading
 
@@ -159,6 +161,6 @@ Public content is in English. The framework can support different research field
 
 ## Author and license
 
-Created and maintained by [Aoudsung](https://github.com/Aoudsung). An independent community project with no OpenAI affiliation or endorsement.
+Created and maintained by [Aoudsung](https://github.com/Aoudsung).
 
 Copyright © 2026 Aoudsung. Released under the [MIT License](LICENSE).

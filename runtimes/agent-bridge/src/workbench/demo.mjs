@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { fail, numberParam, pageOptions, pageResult, PREVIEW } from './reader.mjs';
+import { computeAttentionItems, fail, normalizeDecision, numberParam, pageOptions, pageResult, PREVIEW, summarizeHealth } from './reader.mjs';
 
 export class DemoReader {
   constructor(fixture = new URL('./public/demo-data.json', import.meta.url)) {
@@ -7,7 +7,16 @@ export class DemoReader {
     for (const key of ['tasks', 'messages', 'patches', 'validations', 'evidence', 'documents', 'routes']) {
       if (!Array.isArray(this.data[key])) throw new Error(`Invalid demo fixture: ${key} must be an array`);
     }
-    this.control = { paused: false, changedAt: null, reason: null, activeOperations: 0 };
+    this.data.decisions = Array.isArray(this.data.decisions) ? this.data.decisions : [];
+    this.data.health = Array.isArray(this.data.health) ? this.data.health : [];
+    this.control = {
+      paused: false,
+      changedAt: null,
+      reason: null,
+      routerMode: this.data.routerMode || 'observe',
+      controlVersion: this.data.controlVersion || 'ctrl_demo060',
+      activeOperations: 0,
+    };
   }
   records(resource) {
     if (resource === 'activity') return ['messages', 'patches', 'validations'].flatMap(key => this.data[key].map(r => ({
@@ -52,6 +61,48 @@ export class DemoReader {
     const characters = Array.from(text);
     return { text: characters.slice(offset, offset + limit).join(''), offset, totalLength: characters.length, hasMore: offset + limit < characters.length, sourceLabel: `Demo ${kind}:${id}${kind === 'task' ? `:${field}` : ''}` };
   }
+  setRouterMode(mode, reason = null) {
+    const changedAt = new Date().toISOString();
+    this.control = { ...this.control, routerMode: mode, reason, changedAt };
+    return { ...this.control };
+  }
+  retryDelivery(taskId) {
+    const task = this.rawTask(taskId);
+    const now = new Date().toISOString();
+    const route = this.data.routes.find(r => r.taskId === taskId);
+    if (route) { route.consecutiveFailures = 0; route.lastError = null; route.lastDispatchAt = now; }
+    if (task.metadata?.lastDeliveryError) delete task.metadata.lastDeliveryError;
+    task.updatedAt = now;
+    return { ok: true, taskId, resetFailures: true, enqueued: true, priority: 'human_priority', simulated: true };
+  }
+  approveDecision(decisionId) {
+    const dec = this.data.decisions.find(d => d.id === decisionId);
+    if (!dec) throw fail('NOT_FOUND', 'Decision not found', 404);
+    const now = new Date().toISOString();
+    if (dec.outcome === 'would_dispatch') {
+      dec.outcome = 'dispatched';
+      dec.detail = `[Approved in demo at ${now}] ${dec.detail || ''}`.trim();
+      const targetId = dec.targetTaskId || dec.target_task_id;
+      const task = targetId ? this.data.tasks.find(t => t.id === targetId) : null;
+      if (task && ['pending', 'completed'].includes(task.status)) {
+        task.status = 'in_progress';
+        task.phase = 'in_progress';
+        task.phaseLabel = 'In Progress';
+        task.updatedAt = now;
+      }
+    }
+    return { ok: true, decision: normalizeDecision(dec), simulated: true };
+  }
+  resolveTaskAttention(taskId) {
+    const task = this.data.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const now = new Date().toISOString();
+    for (const key of ['handback', 'humanAction', 'stallAlert']) {
+      if (task[key] && !task[key].resolvedAt) task[key] = { ...task[key], resolvedAt: now };
+      if (task.metadata?.[key] && !task.metadata[key].resolvedAt) task.metadata[key] = { ...task.metadata[key], resolvedAt: now };
+    }
+    task.updatedAt = now;
+  }
   snapshot() {
     const tasks = this.data.tasks, messages = this.data.messages;
     const ids = [...new Set([...tasks.flatMap(t => [t.fromAgent, t.assignedTo]), ...messages.flatMap(m => [m.fromAgent, m.toAgent])])].filter(Boolean);
@@ -62,7 +113,27 @@ export class DemoReader {
     const exchanges = [];
     for (const m of messages) { let edge = exchanges.find(e => e.from === m.fromAgent && e.to === m.toAgent); if (!edge) exchanges.push(edge = { from: m.fromAgent, to: m.toAgent, count: 0, lastAt: null }); edge.count++; if (!edge.lastAt || edge.lastAt < m.createdAt) edge.lastAt = m.createdAt; }
     const recentTasks = this.list('tasks').items, recentActivity = this.list('activity').items, recentEvidence = this.list('evidence').items;
-    return { schemaVersion: 1, mode: 'demo', observedAt: new Date().toISOString(), project: this.data.project,
-      sources: Object.fromEntries(['bridge','memory','records'].map(k => [k, { status: 'ready', path: null, detail: 'Fictional in-memory demo fixture' }])), control: { ...this.control }, totals: { tasks: tasks.length, messages: messages.length, patches: this.data.patches.length, validations: this.data.validations.length, memoryRecords: this.data.evidence.length }, participants, exchanges, recentTasks, recentActivity, recentEvidence, operations: [], documents: this.data.documents.map(({ text, ...d }) => d), truncated: { tasks: tasks.length - recentTasks.length, activity: this.records('activity').length - recentActivity.length, evidence: this.data.evidence.length - recentEvidence.length } };
+    const decisions = this.data.decisions.map(normalizeDecision);
+    const attention = computeAttentionItems({
+      tasks,
+      routesByTaskId: new Map(this.data.routes.map(r => [r.taskId || r.task_id, r])),
+      pendingDecisions: decisions.filter(d => d.outcome === 'would_dispatch'),
+      queuedEffects: [],
+    });
+    const health = summarizeHealth(this.data.health);
+    return {
+      schemaVersion: 1, mode: 'demo', observedAt: new Date().toISOString(), project: this.data.project,
+      sources: Object.fromEntries(['bridge','memory','records'].map(k => [k, { status: 'ready', path: null, detail: 'Fictional in-memory demo fixture' }])),
+      control: { ...this.control },
+      attention,
+      health,
+      router: { mode: this.control.routerMode, controlVersion: this.control.controlVersion, decisions, subscriptionsCount: Number(this.data.subscriptionsCount || 0) },
+      effects: { queueDepth: 0, humanPriorityDepth: 0 },
+      slots: { maxWorkers: 4, humanReservedSlots: 1, inFlightRoutes: 0 },
+      totals: { tasks: tasks.length, messages: messages.length, patches: this.data.patches.length, validations: this.data.validations.length, memoryRecords: this.data.evidence.length },
+      participants, exchanges, recentTasks, recentActivity, recentEvidence, operations: [],
+      documents: this.data.documents.map(({ text, ...d }) => d),
+      truncated: { tasks: tasks.length - recentTasks.length, activity: this.records('activity').length - recentActivity.length, evidence: this.data.evidence.length - recentEvidence.length },
+    };
   }
 }

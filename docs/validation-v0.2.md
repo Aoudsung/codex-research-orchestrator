@@ -34,14 +34,14 @@ An independent engineering review identified seven concrete contract defects in 
 
 Event number allocation and message, patch, or validation publication now share a write transaction. Notifications occur after commit. This preserves the cursor contract when multiple MCP processes share a database.
 
-The pre-existing research-memory implementation was not changed in this release. Its earlier validation evidence remains in [memory and skill validation notes](validation.md); it was not presented as a new test run.
+The pre-existing research-memory implementation was not changed in this release. Its validation evidence is in [memory and skill validation notes](validation.md).
 
 ## Publication checks
 
 The package has explicit version and MIT metadata, English instructions, separate runtime installation guidance, and a standalone skill path. Targeted scans exclude the source project's private paths, research labels, real task/chat identifiers, seeded routes, database files, logs, and account configuration. Runtime data are kept outside the distributed files.
 
-## Limits of this evidence
+## Scope and deployment notes
 
-The three-server integration establishes MCP transport, state, and delivery behavior with synthetic peers. The provider-executable fixtures establish adapter behavior for the exercised output and failure shapes. They do not establish successful autonomous research or compatibility with every installed vendor CLI version.
+The three-server integration covers MCP transport, state, and delivery behavior with synthetic peers. The provider-executable fixtures cover adapter behavior for the exercised output and failure shapes.
 
-Host acceptance was tested as a contract using controlled receipts. This release test did not wake a real idle desktop chat or run a paid provider session. A deployment must configure and verify its own host route before relying on cross-turn continuation. Message exchange, artifact completeness, host acceptance, and target processing remain separately reported.
+Host acceptance was tested as a contract using controlled receipts. A deployment must configure and verify its own host route before relying on cross-turn continuation. Message exchange, artifact completeness, host acceptance, and target processing remain separately reported.

@@ -4,7 +4,7 @@ Read this file when first using the skill or switching clients. It maps research
 
 ## Entry Point and Project
 
-Start through `$codex-research-orchestrator` or the skill picker. Follow the current `AGENTS.md`, tool instructions, and actual permissions; this skill cannot extend them. Reuse the workspace and existing research entry points. Store research state in the project directory; the installed skill directory holds only general rules.
+Start through `$codex-research-orchestrator` or the skill picker. Follow the current `AGENTS.md`, tool instructions, and actual permissions. Reuse the workspace and existing research entry points. Store research state in the project directory; the installed skill directory holds only general rules.
 
 Discover existing tools and project configuration first, then read only enough material to determine the next action. Use file search to locate original sources, and filter large logs before reading them. Available file access, network access, and execution depend on the capabilities exposed in the current Codex session.
 
@@ -14,12 +14,12 @@ Discover existing tools and project configuration first, then read only enough m
 |---|---|---|
 | Lead research and orchestration | The current conversation owns goals, semantics, scheduling, and acceptance | Continue with one agent |
 | Parallel investigation and independent reasoning | Use available subagent tools; for independent work, avoid inheriting evaluations and restrict the input materials | Perform the necessary analysis yourself and label it a self-check; any independent-review requirement remains unmet |
-| Persistent collaborators | When authorized by the user, use tools for reading, messaging, and waiting on conversations; reuse project bindings | Produce a complete handoff package without claiming it was sent |
+| Persistent collaborators | When authorized by the user, use tools for reading, messaging, and waiting on conversations; reuse project bindings | Produce a complete unsent handoff package |
 | Code changes and validation | Use workspace file tools, a terminal, relevant tests, and the environment actually authorized | Deliver the design or code and identify validation that has not run |
 | Long experiments | Retain job or terminal session IDs, use completion notifications or wait interfaces, and read key output | Save resumption steps and avoid starting duplicate runs |
 | External research collaboration | Prefer connectors or MCP; use a browser when needed and available | Continue independent local work and identify the missing external input |
 | Reciprocal agent work | Discover the optional bridge adapters or native messaging tools, then exchange scoped requests, evidence, revisions, and results | Retain explicit handoff artifacts and identify which exchanges were not sent |
-| Work across sessions | Use the automation features currently provided by Codex when the user requests them | Leave a checkpoint without promising background progress |
+| Work across sessions | Use the automation features currently provided by Codex when the user requests them | Save a checkpoint for manual resumption |
 
 Tool names vary across clients. Discover the current tools and follow their instructions. Do not guess interfaces from this document or bypass missing capabilities through private databases or credential access.
 
@@ -45,10 +45,8 @@ For sustained research, Codex can invoke the bundled `scripts/research_memory.py
 
 Distinguish progress within the current turn from scheduling work across sessions. Codex can continue the former within the task's scope; the latter requires a user request and host scheduling support. Record pauses, budgets, and restrictions on external sharing in resumable records, rather than relying on vague promises in conversation context.
 
-An integrated delivery wait keeps dispatch and waiting in the current operation; it does not establish later host wakeup. Cross-turn continuation requires a configured receiver, host acceptance, and evidence that the intended target turn processed the event. Use events on capable channels. For a channel without push, use only its authorized scoped schedule. A successful CLI or inbox write is not proof of a resumed chat. If independent actors own all pending work, the lead may end its turn while retaining the checkpoint and acceptance responsibility.
-
-This skill provides agent working rules and inspectable records. It is not an operating-system sandbox or an enforced budget accounting service. Codex and the execution environment control actual permissions.
+An integrated delivery wait keeps dispatch and waiting in the current operation. Cross-turn continuation requires a configured receiver, host acceptance, and evidence that the intended target turn processed the event. Use events on capable channels. For a channel without push, use only its authorized scoped schedule. If independent actors own all pending work, the lead may end its turn while retaining the checkpoint and acceptance responsibility.
 
 ## Official Interface References
 
-See [Build skills](https://learn.chatgpt.com/docs/build-skills) for installation and skill discovery, and [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents) for subagents and custom roles. Client capabilities depend on the runtime. This is an independent community project, unaffiliated with and not endorsed by OpenAI.
+See [Build skills](https://learn.chatgpt.com/docs/build-skills) for installation and skill discovery, and [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents) for subagents and custom roles. Client capabilities depend on the runtime.

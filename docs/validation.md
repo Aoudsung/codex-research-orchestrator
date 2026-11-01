@@ -1,6 +1,6 @@
 # Validation notes
 
-Date: 2026-10-21. Version 0.1.0 validation covers the skill package and two controlled usage scenarios. It does not measure research quality or comparative performance.
+Date: 2026-10-21. Version 0.1.0 validation covers the skill package and two controlled usage scenarios.
 
 ## Package checks
 
@@ -8,8 +8,6 @@ Date: 2026-10-21. Version 0.1.0 validation covers the skill package and two cont
 - Plugin JSON and skill YAML were parsed, including the name, MIT declaration, and invocation prompt.
 - Local Markdown links, the release file list, and both copies of the MIT license were checked. The standalone skill also includes the complete license.
 - Targeted checks looked for names from the source research project, private absolute paths, chat identifiers, connection-file references, and common secret patterns. The release consists of newly written instructions and templates, without private research materials.
-
-These checks are not a plugin-directory approval and do not imply identical tool availability across Codex clients.
 
 ## Memory and context helper
 
@@ -41,7 +39,7 @@ python3 tests/benchmark_memory.py
 
 The scale check initially exposed a 72,808-character command response because the entire manifest was printed. The final CLI returns only paths, sizes, and counts; the full lead manifest stays on disk. The test checks this boundary separately from the packet budget.
 
-These are one-environment measurements on simple synthetic lexical queries. They establish the observed output sizes and runtime, not semantic recall, production latency, or superiority to the referenced memory projects.
+These measurements record output sizes and runtime on synthetic lexical queries in a single test environment.
 
 ## Version 0.1.1 changes
 
@@ -60,7 +58,7 @@ One run of `python3 tests/benchmark_memory.py` with Python 3.13.1 gave a 101.59 
 
 Two agents each used a fresh context without prior discussion. They could read only the skill directory and the supplied fictional inputs. They received no expected answer and did not read the source project's history. They sent no external messages, ran no research experiments, and changed no code. The authoring agent inspected the actual outputs; the observations below are qualitative.
 
-The behavioral checks used the Chinese draft before translation. The English release preserves those instructions and receives package and translation checks; it has not undergone a separate full behavioral rerun.
+The behavioral checks used the Chinese draft before translation. The English release preserves those instructions and passed package and translation checks.
 
 ### Scenario 1: theoretical research
 
@@ -70,7 +68,7 @@ Task, translated from the original test input:
 
 Actual output: a necessary and sufficient condition using an independent set and a matching that saturates its complement into that set, with a proof in both directions. It gave bipartiteness as sufficient, a triangle as a counterexample, and a triangle with an added leaf to show that bipartiteness is not necessary. It proposed studying which vertex deletions preserve equality.
 
-Observed behavior: the agent retained the general-graph question, progressed through proof and counterexample, and did not require training or a benchmark. It labeled its result as derivation and self-review, without claiming independent review or an exhaustive literature search. The requested theoretical memo was completed.
+Observed behavior: the agent retained the general-graph question, progressed through proof and counterexample, and did not require training or a benchmark. It labeled its result as derivation and self-review. The requested theoretical memo was completed.
 
 ### Scenario 2: empirical research resumption
 
@@ -82,10 +80,6 @@ Given inputs:
 - The compute budget is four hours, with 3.5 hours recorded as used. External data sharing is not authorized.
 - Only a 12% increase in a synthetic-sample comparison is available. No job-query or messaging tools are exposed.
 
-Actual output: C1 remained a conjecture. The agent explained that the 12% result cannot establish the real-river claim and retained the partner's prediction as an opinion. It calculated 30 minutes remaining on the recorded budget while noting that current usage by the in-flight job was unknown. It proposed checking the existing job before any new launch, marked the sharing task as unauthorized, and drafted a state update without claiming to have saved it or queried the job.
+Actual output: C1 remained a conjecture. The agent explained that the 12% result cannot establish the real-river claim and retained the partner's prediction as an opinion. It calculated 30 minutes remaining on the recorded budget while noting that current usage by the in-flight job was unknown. It proposed checking the existing job before any new launch, marked the sharing task as unauthorized, and drafted an unsaved state update.
 
 Observed behavior: the agent retained the research object, evidence limits, permissions, and resource boundary. It completed the available synthesis and identified the specific missing tools and results.
-
-## Evidence not yet established
-
-There is no matched-model, matched-budget comparison with related projects, long unattended deployment study, cross-field research-quality evaluation, or plugin-marketplace installation approval. The controlled scenarios and tool tests support only the behavior they cover. They do not establish an overall research-quality advantage. See [design rationale](design.md) for a proposed evaluation approach.

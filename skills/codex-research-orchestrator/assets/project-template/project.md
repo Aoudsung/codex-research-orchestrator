@@ -1,6 +1,6 @@
 # Project Configuration
 
-Record only the settings useful to this project; omit irrelevant sections. Do not copy private identifiers from other projects. Record existing explicit authorization directly; mark material unknowns as "not recorded" without expanding permission or asking again about actions already authorized. An incomplete form does not block clear, authorized work.
+Record only the settings useful to this project; omit irrelevant sections. Do not copy private identifiers from other projects. Record existing explicit authorization directly and mark material unknowns as "not recorded".
 
 ## Entry Points and Current Task
 
@@ -55,7 +55,7 @@ Use only when an external runtime or persistent channel is involved. Discover th
 - Capability evidence: message receipt, host acceptance, and actual target-turn processing, recorded separately:
 - Delivery wait, settling window, and client deadline, if configured:
 
-Required/requested model settings are not runtime identity verification. Reuse bindings through revisions; a changed scope needs an explicit supported amendment. Keep execution cursors, permission leases, and detailed artifact history in the runtime. Reference them from research checkpoints as needed.
+Record required/requested model settings separately from runtime-reported model identity. Reuse bindings through revisions; a changed scope needs an explicit supported amendment. Keep execution cursors, permission leases, and detailed artifact history in the runtime, and reference them from research checkpoints as needed.
 
 ## Authorization
 
@@ -77,8 +77,6 @@ Required/requested model settings are not runtime identity verification. Reuse b
 - Source of usage totals and method for estimating the next batch:
 - Actual resources and stop conditions to check before execution:
 
-An unknown budget does not mean unlimited resources. Research that needs no execution can continue. Access to an environment does not authorize every operation.
-
 ## Continued Work
 
 - Authorized scope: this deliverable / ongoing research / specified batch (follow the user's instructions).
@@ -88,7 +86,7 @@ An unknown budget does not mean unlimited resources. Research that needs no exec
 - Notifications: use events where supported; report material progress, failures, or decisions needed from the user, following their instructions.
 - Optional checks for a channel without push: user authorization, specific channel/task, existing schedule binding, interval, and condition for disabling it:
 
-An in-turn delivery wait does not establish later wakeup. Confirm a host route with actual target-turn evidence before claiming it works. Without a supported route or authorized schedule, leave a checkpoint and identify how the result can be collected. The lead may end its turn when independent actors own pending work and no lead action remains.
+Verify a cross-turn host wakeup route with actual target-turn evidence before relying on it. Without a supported route or authorized schedule, leave a checkpoint and identify how the result can be collected. The lead may end its turn when independent actors own pending work and no lead action remains.
 
 ## Memory and Task Context (when needed)
 
@@ -108,7 +106,7 @@ Use the memory guide only when persistent retrieval helps. Keep control files cu
 - Who decides on recommendations and who implements them:
 - Existing fact-observer binding, baseline, processed positions, and event-record locations:
 - Allowed event categories and distinction between source time and observation time:
-- Existing monitoring authorization and schedule, if any; a single check creates neither:
+- Existing monitoring authorization and schedule, if any:
 
 Keep one observer instance. No new facts returns `UNCHANGED` internally. In the observation workflow, the optimizer interprets process bottlenecks and the fact observer does not; the lead retains research decisions. Existing projects keep their records and formats; use these optional fields when relevant rather than recreating the project.
 

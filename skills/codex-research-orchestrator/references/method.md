@@ -6,7 +6,7 @@ Read this file when proposing an approach, analyzing its effectiveness, or desig
 
 First define what the study seeks to explain or change, its target quantity, applicable conditions, available information, and resources. Mechanistic research must connect input information, feedback, the update or action mechanism, system behavior, and the target outcome. Descriptive or explanatory research must connect sources, measurement or interpretation, evidence, and claims. Do not present an association as a mechanistic conclusion without the conditions needed for causal identification.
 
-State the assumptions each inference depends on and whether the current proposal satisfies them. Address contradictions in definitions, non-identifiability, missing information, implementation deviations, and counterexamples that can be found before an experiment. Reasoning alone cannot establish empirical effect sizes or external validity. Identify the specific quantity that still needs observation instead of ending the analysis with “no experiments have been run.”
+State the assumptions each inference depends on and whether the current proposal satisfies them. Address contradictions in definitions, non-identifiability, missing information, implementation deviations, and counterexamples that can be found before an experiment. Identify the specific quantity that still needs observation instead of ending the analysis with “no experiments have been run.”
 
 Use this form for key claims:
 
@@ -35,23 +35,23 @@ For each borrowed idea, answer:
 - Which relationship, operation, or feedback does it change, and what outcome should change as a result?
 - What counterexample would make the transfer fail? Should the idea be retained, adapted, or abandoned?
 
-Explain how the components work together through their core relationships. A responsibility table can reveal gaps and redundancy; it cannot prove that a framework is unified or novel. Reading another field is not a reason to add another module.
+Explain how the components work together through their core relationships. Use a responsibility table to check for gaps and redundancy, and add cross-field modules only when they change a core relationship.
 
-The task determines the contribution standard. Reproduction, falsification, measurement, theoretical explanation, data resources, and methodological innovation can all be valid goals. When novelty matters, assess the substantive difference from the closest work, the properties that follow from it, and the significance of the contribution separately. Do not make “disruptive innovation” a default requirement for every project.
+The task determines the contribution standard. Reproduction, falsification, measurement, theoretical explanation, data resources, and methodological innovation can all be valid goals. When novelty matters, assess the substantive difference from the closest work, the properties that follow from it, and the significance of the contribution separately.
 
 ## Construction and completion in original research
 
-Apply this section when the user's task is original research. Reproduction, surveys, bounded reviews, and engineering support retain their own completion criteria. A contributor may complete its assignment while the overall original-research objective remains unfinished.
+Apply this section when the user's task is original research. Reproduction, surveys, bounded reviews, and engineering support retain their own completion criteria.
 
 Early candidates need a reasoned causal account, identifiable assumptions, and a way to investigate their strongest counterexamples. Do not require a finished proof, final novelty judgment, and complete experiment budget for every short idea. Before adopting a main proposal as complete, require both rigorous support appropriate to its actual claims and a substantive contribution relative to the closest work.
 
-When an idea has a flaw, locate the smallest failing condition and attempt a constructive repair of its core relationship within the original object. Derive how the revision addresses the counterexample and what assumptions or costs it adds. Relevant corrections may change an estimator, representation, feedback signal, stopping rule, or certificate; choose them because they address the failure, not because they sound sophisticated. Merely naming an error term or an unavailable assumption is not a solution.
+When an idea has a flaw, locate the smallest failing condition and attempt a constructive repair of its core relationship within the original object. Derive how the revision addresses the counterexample and what assumptions or costs it adds. Relevant corrections may change an estimator, representation, feedback signal, stopping rule, or certificate; choose them because they address the failure. Merely naming an error term or an unavailable assumption is not a solution.
 
 If the route is ruled out, preserve the negative evidence and reconstruct the approach. Do not present a known baseline as completion of an unmet originality objective. If repairs accumulate without explaining why the parts belong together, reconsider the underlying representation or feedback relationship. Conversely, novelty does not justify retaining a disproved claim.
 
 When novelty is weak, investigate the problem's distinctive structure, the information available to the method, and its closest predecessors. Seek a concrete mechanism difference and a nontrivial consequence supported by derivation or suitable observation. A new name, a collection of useful parts, or the fact that a general framework can express the method does not settle that assessment.
 
-A diagnosis of remaining bias, incomplete convergence, or weak novelty should lead to the next specific construction while work is authorized and resources remain. Respect pauses, round limits, and real resource boundaries. At those boundaries report the unfinished objective; do not promise a positive solution or call the study complete because a discussion ended.
+A diagnosis of remaining bias, incomplete convergence, or weak novelty should lead to the next specific construction while work is authorized and resources remain. Respect pauses, round limits, and real resource boundaries. At those boundaries report the unfinished objective and concrete next step.
 
 ## Derivations and Counterexamples
 
@@ -72,7 +72,7 @@ Specify key metrics, data splits or material selection, and necessary randomness
 
 Start with the smallest check that can distinguish the current explanations. Expand only when results, changes, or new evidence justify it. Experiments test existing predictions, quantify effects, or examine explicit hypotheses; they cannot replace logical analysis that should come first.
 
-If execution authorization, conditions on material use, or real boundaries such as requirements for research involving human participants are unmet, continue permitted design and source work. Proposing a study does not authorize its execution.
+When execution prerequisites or human-participant approvals are pending, continue design and source work.
 
 ## Writing
 

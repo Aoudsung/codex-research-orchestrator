@@ -1,5 +1,7 @@
 # Research memory and task context
 
+Database-first projects use the five `research_*` tools or `research_memory.py --project ROOT api OP` with JSON on stdin. New bodies live in SQLite; origin paths describe provenance and do not require new documents. Only live user controls remain authoritative files. The older file-snapshot workflow below applies to existing file-backed records; do not create duplicate Markdown for direct database records. See `docs/memory-tool.md` for the direct-record contract. New working state and logs are generated views; imported originals remain historical until a researcher records a scoped judgment.
+
 Read this file when a project has enough history that repeated file reading or manual context selection becomes costly. The bundled `scripts/research_memory.py` provides local memory and task-context assembly. It requires Python 3.10 or later with SQLite FTS5; it makes no network or model calls.
 
 ## Three layers
@@ -8,9 +10,9 @@ Read this file when a project has enough history that repeated file reading or m
 2. **Working context:** the current question, necessary materials, and the next decision. Assemble this for each task rather than replaying the full chat or reusing an old packet.
 3. **Persistent research records:** source-backed evidence, claims, decisions, evaluations, proposals, and checkpoints. Search their short indexes, then read selected original material.
 
-The existing charter, project settings, state, and original sources remain authoritative. The database stores typed records and exact source snapshots for retrieval and version checking. It is not a second charter or an automatic truth service.
+The existing charter, project settings, state, and original sources remain authoritative. The database stores typed records and exact source snapshots for retrieval and version checking.
 
-An optional collaboration bridge has a separate execution source of truth: task/session/model bindings, message cursors, permission leases, artifact deliveries, and validation status. Keep scientific requirements, claims, decisions, and accepted evidence in research files and memory. Transport success cannot turn a collaborator's evaluation into a fact or override current user instructions.
+An optional collaboration bridge has a separate execution source of truth: task/session/model bindings, message cursors, permission leases, artifact deliveries, and validation status. Keep scientific requirements, claims, decisions, and accepted evidence in research files and memory.
 
 ## What to remember
 
@@ -27,13 +29,13 @@ Use the existing `checkpoint` kind for a task reference, delivery revision, acce
 
 Do not infer that a repeated statement is a fact. Do not turn a collaborator's confidence into evidence. A title or summary is a retrieval aid; inspect the source before relying on the claim.
 
-Confirmed user constraints remain in the live control files. Only update those constraints on the user's instruction. Registering a file or labeling a record cannot authenticate the user's permission.
+Confirmed user constraints remain in the live control files. Only update those constraints on the user's instruction.
 
 ## Retrieve progressively
 
-First search for a bounded set of short entries, then read only selected records and their necessary evidence. Use the current scientific question, important terms, and alternate wording to construct queries. The built-in index uses lexical full-text search, not embeddings or semantic reasoning. No hit means no lexical match in the permitted records, not proof that relevant evidence is absent.
+First search for a bounded set of short entries, then read only selected records and their necessary evidence. Use the current scientific question, important terms, and alternate wording to construct queries. The built-in index uses lexical full-text search across permitted records.
 
-Use explicit required records when a counterexample, disputed source, or acceptance condition must be considered even if its query score is low. A ranking cannot determine whether the evidence set is scientifically complete. Read scope and source state before treating a result as usable.
+Use explicit required records when a counterexample, disputed source, or acceptance condition must be considered even if its query score is low. Read scope and source state before treating a result as usable.
 
 ## Build context for the recipient
 
@@ -47,9 +49,9 @@ Choose the profile by the assignment, not the provider or role name. Independent
 
 For independent work, the lead first curates an allowlist. Filtering happens before retrieval and ranking. The packet uses neutral material labels; private source mappings and omission details stay in a separate lead manifest. The participant should receive the packet in a context without inherited evaluations, not the memory database, manifest, or unrestricted project history.
 
-Classification does not remove opinions already present inside a source file. Inspect the allowed files and controls for such content before calling the work independent. The tool can restrict the packet it builds, but cannot restrict the agent's wider filesystem access or erase an inherited conversation.
+Inspect allowed source files and controls for embedded opinions before assigning independent work.
 
-Keep storage and access separate. If identical content is stored once and referenced from several places, who may read it is still an explicit per-recipient list. A shared copy, an "already seen" marker, or a global position in the history does not grant a participant access to anything.
+Keep storage and access separate: even when identical content is stored once and referenced from several places, access is determined by each recipient's explicit allowlist.
 
 ## Budget and completeness
 
@@ -64,23 +66,21 @@ Fill the packet in tiers:
 2. **Fill:** optional records enter whole, in permitted retrieval order. With `--fill-recent`, admitted records without a lexical match then fill the remaining budget, newest first. Without it, a query word that does not occur leaves those records out even when budget remains.
 3. **Index:** a closing section counts every admitted record that is not in the packet and indexes as many as still fit. The order is query matches over budget, then invalid records, then the rest, newest first. A `resume` index shows record IDs and titles; an independent index shows only neutral labels, sizes, reasons, and a short scope. The count is always present, so omitted material is never silently absent.
 
-The lead manifest records every selection and omission and which omissions were indexed. A packet is a dated snapshot: rebuild it after new instructions, changed evidence, or a new proposal version. Unchanging text comes first and the assembly time last. A model provider can reuse a cached prefix only when the leading tokens match exactly, the same model and settings are used, and the cache entry still exists. The tool does not measure cache reuse.
+The lead manifest records every selection and omission and which omissions were indexed. A packet is a dated snapshot: rebuild it after new instructions, changed evidence, or a new proposal version. Unchanging text comes first and the assembly time last. A model provider can reuse a cached prefix only when the leading tokens match exactly, the same model and settings are used, and the cache entry still exists.
 
 ## Updates and invalidation
 
 The helper compares selected source text with the saved snapshot and checks declared dependencies. An edited or missing source makes the affected material unusable as current; dependent records require review. Explicit supersession or withdrawal also invalidates registered downstream conclusions. The prior record remains available as history.
 
-Record validity and scientific status are different. `needs_review` does not mean a theorem is false or an experiment has refuted a hypothesis. A later entry does not automatically replace an earlier one. The lead determines whether a new result supports, limits, conflicts with, or refutes a claim, then records that judgment and its evidence.
-
-The tool cannot detect unregistered dependencies or changes to an online source that has not been updated locally. Preserve source versions and refresh external evidence deliberately. It does not resolve scientific contradictions with a recency rule or an LLM guess.
+Record validity tracks source and dependency freshness separately from scientific status. When a record enters `needs_review` or a new entry arrives, the lead evaluates whether the new result supports, limits, conflicts with, or refutes the claim, and records that judgment with its evidence. Register explicit dependencies, preserve source versions, and refresh external evidence deliberately.
 
 ## Resumption and compaction
 
 Before a handoff or context compaction, update the existing state with the next action, pending feedback, source pointers, running-job identifiers, and latest permissions. Store a checkpoint if it will aid retrieval.
 
-For incremental collaboration, retain a reference to the processed cursor and current artifact revision rather than replaying every message. A source read-set can help reuse unchanged context but grants no access and establishes no independence. Build a fresh recipient-specific packet when the question, evidence, or revision changes; independent participants must not receive the execution inbox or prior evaluations as general continuation context.
+For incremental collaboration, retain a reference to the processed cursor and current artifact revision rather than replaying every message. A source read-set tracks unchanged file ranges for context reuse. Build a fresh recipient-specific packet when the question, evidence, or revision changes; independent participants must not receive the execution inbox or prior evaluations as general continuation context.
 
-On resumption, read live controls first, check active jobs through the actual environment, and assemble a fresh working context. A checkpoint or cached packet cannot authorize a new run or override a pause received later. Independent tasks start from curated materials and must not load the general resumption context.
+On resumption, read live controls first, check active jobs through the actual environment, and assemble a fresh working context. Independent tasks start from curated materials and must not load the general resumption context.
 
 For CLI usage and concrete examples, see `scripts/research_memory.py --help` and the repository's memory-tool guide. The public design references are in `docs/memory-foundations.md`; they are background, not files a standalone skill needs at runtime.
 
@@ -96,4 +96,4 @@ python3 /path/to/skill/scripts/research_memory.py --project research/topic conte
 
 The record JSON contains `kind`, `title`, `summary`, `source`, and `scope`, with optional `claim_status`, `depends_on`, `supersedes`, and `reason`. Both JSON input and source paths are relative to the project. The project and its control/source files must already exist. Use returned IDs. Repeat `--allow` or give a quoted comma/space-separated list. For a review, use `--profile review` and a complete allowlisted `proposal` record as `--target`.
 
-The context command returns a compact receipt; the packet and a separate `.manifest.json` are written in the project. Read only the packet into the participant's context. Run `check` to inspect source drift or `withdraw ID --reason TEXT` to record a justified withdrawal. Do not use either operation to decide scientific truth automatically.
+The context command returns a compact receipt; the packet and a separate `.manifest.json` are written in the project. Read only the packet into the participant's context. Run `check` to inspect source drift or `withdraw ID --reason TEXT` to record a justified withdrawal.

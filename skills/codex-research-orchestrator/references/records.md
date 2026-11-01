@@ -1,6 +1,6 @@
 # Persistent Records and Resumption
 
-Read this file when creating records or submitting work with substantive results. Reuse an existing project format first. The fields below are a minimum guide, not a requirement to fill every table for a simple task.
+Read this file when creating records or submitting work with substantive results. Reuse an existing project format first and include the fields relevant to the task.
 
 ## Keep Information in Its Proper Place
 
@@ -55,15 +55,15 @@ Key values, units, and evidence locations:
 Deviations from the proposal, checks not run, or specific blockers:
 ```
 
-If no code version exists, use an explicit proposal version and material locations; additional file hashes are not required. A `complete` receipt means only that the assigned work is complete, not that the research claim holds.
+If no code version exists, use an explicit proposal version and material locations.
 
-For artifact-based work, include the delivery revision, declared artifact list and final receipt, applied or superseded patch IDs, and relevant validation/review coverage when they affect the next action. Point to raw artifacts rather than pasting full logs. An inbox message, a quiet settling window, or return code zero does not establish that every declared artifact arrived. Label an incomplete set partial.
+For artifact-based work, include the delivery revision, declared artifact list and final receipt, applied or superseded patch IDs, and relevant validation/review coverage when they affect the next action. Point to raw artifacts rather than pasting full logs, and label an incomplete set partial.
 
-Record only relevant distinctions: received, delivered, applied, validated, reviewed, and accepted have different evidence. They are not mandatory stages for all work. Lead acceptance names its scope, artifact revision, key evidence, and actual open findings; implementation acceptance alone does not confirm research benefit.
+Record the relevant stages (received, delivered, applied, validated, reviewed, accepted) with their evidence. Lead acceptance names its scope, artifact revision, key evidence, and open findings.
 
 ## Work Index
 
-Enable JSONL when needed for collaboration across rounds, incremental observation, or resumption across conversations. The lead researcher appends entries serially after saving results; participants submit receipts only. Use separate sequences for work IDs and discussion rounds. A “handed off” field does not authorize messaging.
+Enable JSONL when needed for collaboration across rounds, incremental observation, or resumption across conversations. The lead researcher appends entries serially after saving results; participants submit receipts only. Use separate sequences for work IDs and discussion rounds.
 
 One fictional entry:
 
@@ -75,13 +75,13 @@ If resources were consumed, add actual units and supporting evidence. Do not rec
 
 Each entry records what changed, with pointers to evidence. Do not copy the full state, or the full list of materials available at that point, into every entry. Repeated whole copies make the index grow with the square of the history.
 
-An accepted review finding is not evidence that the original problem is solved. If a repair only adds a restriction, keep the broader difficulty open. An original contribution requires its own mechanism difference and supporting result; neither a corrected local statement nor a finished handoff establishes it automatically. Preserve useful negative results and local corrections as knowledge without relabeling them as the requested innovation.
+If a repair only adds a restriction, keep the broader difficulty open until the original objective is met, and preserve negative results and local corrections as evidence.
 
 Observation records stay in their designated area. The fact observer maintains only its authorized baseline and events; the optimizer records interpretations and proposals. Their outputs do not directly rewrite research state or acceptance decisions.
 
 ## Resumption Checkpoint
 
-For growing histories, use [research memory](memory.md) to index source-backed records and their dependencies. Search summaries first, then read selected full sources. Update the underlying records before indexing them; the database does not become the authority for user constraints. Keep old versions and explicitly record supersession, withdrawal, and conclusions that need review.
+For growing histories, use [research memory](memory.md) to index source-backed records and their dependencies. Search summaries first, then read selected full sources. Update the underlying records before indexing them. Keep old versions and explicitly record supersession, withdrawal, and conclusions that need review.
 
 Record the location and necessary verbatim text of current authoritative constraints, draft status, current design and claims, key evidence, pending feedback, authorization and budget, pause status, active conversation or job IDs, and the next action.
 
@@ -89,7 +89,7 @@ For ongoing bridge work, optionally reference the task, participant, required mo
 
 For ordinary resumption, use the checkpoint to return to authoritative sources; do not treat a summary as a new constraint. First check active work and collect available results, then decide whether to start the next action. For independent judgment, use an isolated input package instead of reading overall state that contains other evaluations.
 
-The lead may close its current turn after independent actors own pending work and no lead action remains. The checkpoint must preserve final acceptance responsibility and the bound next action; a handoff is not acceptance or proof of a working cross-turn wakeup route.
+The lead may close its current turn after independent actors own pending work and no lead action remains. The checkpoint must preserve final acceptance responsibility and the bound next action.
 
 ## User Briefing
 

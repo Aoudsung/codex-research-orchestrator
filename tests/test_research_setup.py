@@ -505,6 +505,126 @@ class SetupTests(unittest.TestCase):
         self.assertIn("install", completed.stdout)
         self.assertIn("doctor", completed.stdout)
 
+    def test_v060_builtin_base_three_way_template_upgrade_and_ack(self):
+        self.install()
+        # Copy two role templates into project: keep reviewer.md at old_base, customize researcher.md
+        roles_dir = self.project / ".agents/roles"
+        roles_dir.mkdir(parents=True, exist_ok=True)
+        reviewer_src = self.skill / "references/roles/reviewer.md"
+        researcher_src = self.skill / "references/roles/researcher.md"
+        (roles_dir / "reviewer.md").write_text(reviewer_src.read_text())
+        custom_researcher = researcher_src.read_text() + "\n## Custom Project Rule\nNever drop domain constraints.\n"
+        (roles_dir / "researcher.md").write_text(custom_researcher)
+
+        # Upstream updates BOTH built-in role templates in the next release
+        new_reviewer_base = reviewer_src.read_text() + "\n## Upstream v1.0.1 Reviewer Default\n"
+        new_researcher_base = researcher_src.read_text() + "\n## Upstream v1.0.1 Researcher Default\n"
+        reviewer_src.write_text(new_reviewer_base)
+        researcher_src.write_text(new_researcher_base)
+
+        upgraded = self.install("--upgrade")
+        # 1) Unmodified reviewer.md (current == old_base) auto-upgraded seamlessly to new_base
+        self.assertEqual((roles_dir / "reviewer.md").read_text(), new_reviewer_base)
+        # 2) Customized researcher.md (current != old_base) preserved byte-for-byte untouched!
+        self.assertEqual((roles_dir / "researcher.md").read_text(), custom_researcher)
+        self.assertEqual(upgraded["template_updates"], [".agents/roles/researcher.md"])
+
+        updates_doc = json.loads((self.project / setup.TEMPLATE_UPDATES_PATH).read_text())
+        self.assertIn(".agents/roles/researcher.md", updates_doc["updates"])
+        self.assertIn("+## Upstream v1.0.1 Researcher Default", updates_doc["updates"][".agents/roles/researcher.md"]["diff"])
+
+        # Doctor reports default-updated read-only
+        doc = self.run_cli("doctor")
+        self.assertEqual(doc["checks"]["templates"]["status"], "default-updated")
+        self.assertEqual(doc["checks"]["templates"]["pending_updates"], [".agents/roles/researcher.md"])
+
+        # Acknowledge clears pending template update without modifying user's customized file
+        ack = self.run_cli("baselines", "--ack-all")
+        self.assertEqual(ack["acknowledged"], [".agents/roles/researcher.md"])
+        self.assertEqual(ack["pending_updates"], [])
+        self.assertEqual((roles_dir / "researcher.md").read_text(), custom_researcher)
+
+    def test_v060_baselines_seed_is_nondestructive_for_existing_customized_workspace(self):
+        (self.project / "AGENTS.md").write_text("# Bespoke Research Workspace Constitution\n")
+        roles_dir = self.project / ".agents/roles"
+        roles_dir.mkdir(parents=True, exist_ok=True)
+        (roles_dir / "reviewer.md").write_text("# Bespoke Reviewer B Instructions\n")
+        (roles_dir / "critic.md").write_text("# Bespoke Critic Role\n")
+
+        live_before = {
+            "AGENTS.md": (self.project / "AGENTS.md").read_bytes(),
+            ".agents/roles/reviewer.md": (roles_dir / "reviewer.md").read_bytes(),
+            ".agents/roles/critic.md": (roles_dir / "critic.md").read_bytes(),
+        }
+
+        seeded = self.run_cli("baselines", "--seed")
+        self.assertEqual(seeded["status"], "seeded")
+        self.assertIn("AGENTS.md", seeded["customized_files"])
+        self.assertIn(".agents/roles/reviewer.md", seeded["customized_files"])
+        self.assertIn(".agents/roles/critic.md", seeded["customized_files"])
+        for rel, raw in live_before.items():
+            self.assertEqual((self.project / rel).read_bytes(), raw)
+
+        # Even if upstream updates reviewer.md later and user installs --upgrade, bespoke reviewer.md is never overwritten
+        self.install()
+        (self.skill / "references/roles/reviewer.md").write_text("# Upstream Changed Reviewer\n")
+        self.install("--upgrade")
+        for rel, raw in live_before.items():
+            self.assertEqual((self.project / rel).read_bytes(), raw)
+
+    def test_v060_probe_is_strictly_read_only(self):
+        self.initialize()
+        before = self.snapshot()
+        probed = self.run_cli("probe", "--node", str(self.node))
+        self.assertEqual(probed["python"]["status"], "ready")
+        self.assertEqual(probed["fts5"]["status"], "ready")
+        self.assertEqual(probed["node"]["status"], "ready")
+        self.assertTrue(probed["workspace"]["initialized"])
+        self.assertEqual(probed["workspace"]["memory"]["status"], "ready")
+        self.assertEqual(before, self.snapshot())
+
+        nonexistent = self.root / "uncreated-probe-dir"
+        probed_empty = self.run_cli("probe", "--node", str(self.node), project=nonexistent)
+        self.assertFalse(nonexistent.exists())
+        self.assertFalse(probed_empty["workspace"]["initialized"])
+
+    def test_v060_watchdog_four_level_exit_codes_and_respect_stop(self):
+        # Exit 3: uninitialized workspace (even if skill bundle is installed without init)
+        uninit = self.root / "uninit-watchdog"
+        uninit.mkdir()
+        out3 = self.run_cli("watchdog", "status", "--node", str(self.node), code=3, project=uninit)
+        self.assertEqual(out3["exit_code"], 3)
+
+        # Initialize workspace -> Exit 0 when healthy/idle
+        self.initialize()
+        out0 = self.run_cli("watchdog", "status", "--node", str(self.node), code=0)
+        self.assertEqual(out0["exit_code"], 0)
+        self.assertEqual(out0["status"], "healthy")
+
+        # Exit 2: Node < 24 or missing required peer CLI
+        old_node = self.executable("old-node", "printf 'v22.2.0\\n'\n")
+        out2_node = self.run_cli("watchdog", "status", "--node", str(old_node), code=2)
+        self.assertEqual(out2_node["exit_code"], 2)
+        with mock.patch.object(setup.shutil, "which", side_effect=lambda v: str(self.node) if v in ("node", str(self.node)) else None):
+            out2_peer = self.run_cli("watchdog", "status", "--node", str(self.node), "--peers", "antigravity", code=2)
+            self.assertEqual(out2_peer["exit_code"], 2)
+
+        # Exit 1: stale wakeup-daemon.json lock pointing to dead PID (and status remains read-only)
+        bridge_dir = self.project / ".agent-bridge"
+        bridge_dir.mkdir(parents=True, exist_ok=True)
+        lock_file = bridge_dir / "wakeup-daemon.json"
+        lock_file.write_text(json.dumps({"pid": 99999991, "heartbeatAt": "2026-11-01T00:00:00Z"}))
+        before_status = self.snapshot()
+        out1 = self.run_cli("watchdog", "status", "--node", str(self.node), code=1)
+        self.assertEqual(out1["exit_code"], 1)
+        self.assertEqual(before_status, self.snapshot())
+
+        # Manual .stopped marker + --respect-stop exits 0 without starting daemon
+        lock_file.unlink()
+        (bridge_dir / "wakeup-daemon.stopped").write_text('{"stoppedAt":"2026-11-01T00:00:00Z"}')
+        out_respect = self.run_cli("watchdog", "restart", "--respect-stop", "--node", str(self.node), code=0)
+        self.assertEqual(out_respect["status"], "respecting-manual-stop")
+
 
 if __name__ == "__main__":
     unittest.main()

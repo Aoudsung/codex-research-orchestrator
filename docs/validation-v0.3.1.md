@@ -38,14 +38,12 @@ All test routes were disabled afterward, and the dedicated wakeup process and Co
 - **Effort selection:** Claude execution/resumption and Antigravity CLI execution now expose the supported effort option.
 - **Permission setup:** the initial Codex call was rejected by `approval_policy = "never"`; a Claude reply used a valid reply tool omitted from the test allowlist. Only the authorized test tools were granted, and the failed exchange was retried. Setup guidance now distinguishes configuration, tool permission, delivery, and processing.
 
-Antigravity global MCP definitions could not be reliably disabled by same-name workspace entries. The test used an OS sandbox to prevent loading the existing research bridge and to deny writes to the research directories. Its bounded headless invocations used explicit per-run permission approval. This isolation harness is specific to the test environment; the installer does not change global policies or apply a blanket permission bypass.
+Antigravity global MCP definitions could not be reliably disabled by same-name workspace entries. The test used an OS sandbox to prevent loading the existing research bridge and to deny writes to the research directories. Its bounded headless invocations used explicit per-run permission approval. This isolation harness is specific to the test environment.
 
 ## Targeted regression checks
 
 After the corrections, all **27 onboarding tests** and the bridge regression suite passed on the isolated Linux validation server. New provider fixtures reproduce the observed nested Antigravity events, Claude model usage records, low-effort flags, and zero-exit tool-denial cases. The live sessions established the behavior above; these fixture checks protect the corresponding parser and configuration fixes.
 
-## Limits
+## Host adapter notes
 
-This verifies real model-backed client sessions and event-triggered continuation through an explicitly configured host adapter. It does not verify native idle-window activation in the Codex Desktop or Antigravity graphical applications, nor automatic wakeup without a host adapter. The test-specific adapter is not installed by the skill. The current generic `cli_resume` wakeup driver is Codex-specific; Claude and Antigravity deployments need a compatible host route such as `custom_command`.
-
-The test used short messages. It was not a stress test, a long-running unattended research evaluation, or a scientific-quality benchmark. Testing stopped after the six directions and relevant regression checks passed.
+This test verifies real model-backed client sessions and event-triggered continuation through an explicitly configured host adapter. The test-specific adapter is not installed by the skill. The generic `cli_resume` wakeup driver is Codex-specific; Claude and Antigravity deployments require a compatible host route such as `custom_command`.

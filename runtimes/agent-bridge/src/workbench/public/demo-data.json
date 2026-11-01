@@ -215,6 +215,14 @@
         "charter.md"
       ],
       "writeRoots": [],
+      "handback": {
+        "reasonCode": "permission_delta",
+        "summary": "Fictional escalation: field calibration log path is outside declared readRoots (['charter.md']). Human permission delta or confirmation that no external dataset is attached is required before continuing.",
+        "createdAt": "2026-10-26T07:02:00Z"
+      },
+      "humanAction": {
+        "question": "Keep readRoots restricted to charter.md and record provenance as missing, or authorize an additional synthetic directory?"
+      },
       "resultPreview": null,
       "errorPreview": "Preflight is pending. The imported fictional record has no confirmed model binding; readiness remains unknown."
     },
@@ -862,6 +870,51 @@
       "lastDeliveryAt": null,
       "receipt": null,
       "lastError": null
+    }
+  ],
+  "routerMode": "observe",
+  "controlVersion": "ctrl_demo060",
+  "subscriptionsCount": 3,
+  "health": [
+    {
+      "component": "daemon",
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastOkAt": "2026-10-26T07:50:00Z"
+    },
+    {
+      "component": "delivery",
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastOkAt": "2026-10-26T07:35:00Z"
+    },
+    {
+      "component": "router",
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastOkAt": "2026-10-26T07:50:00Z"
+    },
+    {
+      "component": "watchdog",
+      "status": "healthy",
+      "consecutiveFailures": 0,
+      "lastOkAt": "2026-10-26T07:50:00Z"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "dec-501",
+      "seq": 22,
+      "threadId": "thread-plan",
+      "triggerMessageId": "message-210",
+      "mode": "observe",
+      "outcome": "would_dispatch",
+      "targetTaskId": "task-106",
+      "targetAgent": "antigravity",
+      "reasonCode": "SHADOW_OBSERVE_PROPOSAL",
+      "detail": "FICTIONAL SHADOW PROPOSAL. Message message-210 targets ready planning task task-106 under routerMode='observe'. Approve dispatch to promote to human-priority execution.",
+      "controlVersion": "ctrl_demo060",
+      "createdAt": "2026-10-26T06:51:00Z"
     }
   ]
 }

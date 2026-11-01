@@ -15,7 +15,7 @@ import { DemoReader } from '../src/workbench/demo.mjs';
 import { callBridgeTool } from '../src/workbench/mcp-client.mjs';
 
 function workspace(t) {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(),'workbench-test-'));
+  const project = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'workbench-test-')));
   t.after(() => fs.rmSync(project,{recursive:true,force:true}));
   return project;
 }
@@ -283,4 +283,64 @@ test('source ranges use Unicode code points across SQLite, documents, and demo',
       assert.equal(pages.map(page=>page.text).join(''),text);
     }
   }
+});
+
+test('v1.0.0 attention queue, router-mode, retry-delivery, decision approval, and handback resolution work in live and demo modes',async t=>{
+  const project=workspace(t),db=bridge(project,t);
+  const t1=task(db,project,{title:'Escalated task'});
+  db.configureWakeupRoute({taskId:t1.id,toAgent:'claude-code',targetSessionId:'sess-1',driver:'manual',cwd:project});
+  // Trip delivery circuit breaker (3 consecutive failures)
+  db.store.putRoute({...db.getWakeupRoute(t1.id),consecutive_failures:3,last_error:'Simulated 3-strike timeout'});
+  // Record a permission_delta handback on a second task
+  const t2=task(db,project,{title:'Handback task'});
+  db.handback({taskId:t2.id,fromAgent:'claude-code',reasonCode:'permission_delta',summary:'Need read access to external calibration archive',humanAction:{question:'Authorize archive read root?'}});
+  // Record a shadow would_dispatch decision on a third task
+  const t3=task(db,project,{title:'Shadow task'});
+  const dec=db.store.putDecision({id:'dec-test-1',thread_id:`task-${t3.id}`,mode:'observe',outcome:'would_dispatch',target_task_id:t3.id,target_agent:'claude-code',reason_code:'SHADOW_OBSERVE_PROPOSAL',detail:'Shadow proposal',control_version:db.getControlState().controlVersion,created_at:new Date().toISOString()});
+
+  const app=await appFor(t,{project});
+  const before=fileState(project);
+  const snap1=await request(app,'/api/snapshot');
+  assert.equal(snap1.status,200);
+  assert.equal(snap1.body.router.mode,'observe');
+  assert.ok(Array.isArray(snap1.body.attention));
+  assert.deepEqual(snap1.body.attention.map(a=>a.stage).slice(0,3),['person/delivery_failed','person/permission_delta','observe/would_dispatch']);
+  assertSameFiles(project,before);
+
+  // Router mode validation & update
+  assert.equal((await request(app,'/api/router-mode',{method:'POST',body:{mode:'invalid'}})).status,400);
+  const modeRes=await request(app,'/api/router-mode',{method:'POST',body:{mode:'auto',reason:'Enable auto fan-out'}});
+  assert.equal(modeRes.status,200);
+  assert.equal(modeRes.body.routerMode,'auto');
+
+  // Retry delivery resets circuit breaker
+  const retryRes=await request(app,`/api/tasks/${t1.id}/retry-delivery`,{method:'POST',body:{}});
+  assert.equal(retryRes.status,200);
+  assert.equal(db.getWakeupRoute(t1.id).consecutive_failures,0);
+
+  // Approve shadow decision promotes would_dispatch -> dispatched
+  const approveRes=await request(app,`/api/decisions/${dec.id}/approve`,{method:'POST',body:{}});
+  assert.equal(approveRes.status,200);
+  assert.equal(approveRes.body.decision.outcome,'dispatched');
+
+  // Answer & resume clears handback from attention queue
+  const answerRes=await request(app,'/api/messages',{method:'POST',body:{taskId:t2.id,fromAgent:'codex',toAgent:'claude-code',content:'Keep scope strictly inside charter.md',resolveHandback:true}});
+  assert.equal(answerRes.status,201);
+
+  const snap2=await request(app,'/api/snapshot');
+  assert.equal(snap2.body.attention.length,0);
+  assert.equal(snap2.body.router.mode,'auto');
+
+  // Verify default demo-data.json showcase actions stay in memory
+  const demoProject=workspace(t);
+  const demoBefore=fileState(demoProject);
+  const demoApp=await appFor(t,{project:demoProject,demo:true,toolClient:()=>{throw new Error('Demo must never call MCP');}});
+  const demoSnap=await request(demoApp,'/api/snapshot');
+  assert.equal(demoSnap.status,200);
+  assert.ok(demoSnap.body.attention.some(a=>a.stage==='observe/would_dispatch'));
+  assert.ok(demoSnap.body.attention.some(a=>a.stage==='person/permission_delta'));
+  assert.equal((await request(demoApp,'/api/decisions/dec-501/approve',{method:'POST',body:{}})).status,200);
+  assert.equal((await request(demoApp,'/api/messages',{method:'POST',body:{taskId:'task-107',fromAgent:'claude-code',toAgent:'codex',content:'Keep charter.md scope',resolveHandback:true}})).status,201);
+  assert.equal((await request(demoApp,'/api/router-mode',{method:'POST',body:{mode:'off'}})).body.routerMode,'off');
+  assert.deepEqual(fileState(demoProject),demoBefore);
 });

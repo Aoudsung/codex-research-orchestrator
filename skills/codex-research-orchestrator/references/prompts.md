@@ -15,7 +15,7 @@ Execution: {only if needed: environment, authorized batch/budget, stop condition
 Binding: {existing task, participant, required model and identity requirement, session; if applicable}
 ```
 
-Provide enough source material to make the task answerable. Include actual authorization sources where needed; a filled template does not create permission. Omit irrelevant execution or provider details. Select the role-specific instructions below, and preserve independent-input boundaries. A group may divide work or contact peers only within the recorded policy.
+Provide enough source material and authorization references to make the task answerable. Omit irrelevant execution or provider details. Select the role-specific instructions below, and preserve independent-input boundaries. A group may divide work or contact peers only within the recorded policy.
 
 ## Revision or Repair Follow-up
 
@@ -58,7 +58,7 @@ Resources and stop conditions: {boundaries applicable to this task}
 First resolve questions that logic, original sources, or implementation evidence can settle.
 State the conditions, evidence, and counterexamples for claims; identify specific quantities that remain empirically unknown.
 Evaluation must serve the research goal. Role counts, terminology, agreement, or improvement in one metric do not replace evidence.
-{the project's confirmed contribution standards and writing requirements; do not add any without authorization}
+{the project's confirmed contribution standards and writing requirements}
 
 # Deliverable Format
 Use complete, partial, or blocked on the first line, then provide:
@@ -76,7 +76,7 @@ Use the following work sequence:
 1. State the materials and versions actually read, and the scope covered.
 2. Determine whether the proposal's actual research object matches the user's request. Identify any substitution of definitions, object, or goal.
 3. Identify the core relationship and possible contribution, then check its evidence, conditions, closest predecessors, and strongest counterexamples. Distinguish valid derivations, empirical support, and unsupported claims.
-4. For findings that affect the conclusion, provide the location, trigger, consequence, and smallest reconstruction direction within the research object. Keep construction with the author; a reviewer need not invent a positive solution to every rejected route. Do not repeat concerns already ruled out by the proposal itself.
+4. For findings that affect the conclusion, provide the location, trigger, consequence, and smallest reconstruction direction within the research object. Keep construction ownership with the author. Do not repeat concerns already ruled out by the proposal itself.
 5. Explain what knowledge this round added or which hypothesis it ruled out. Within scope, check whether implementation and evidence support the deliverable.
 
 The deliverable must also state the actual degree of independence and end with the strongest claim supported by the current evidence. Do not present optional improvements as blockers.
@@ -87,13 +87,13 @@ For original research, distinguish handling a finding, resolving the original di
 
 For a brainstorming assignment, include the [brainstormer duties](roles/brainstormer.md), the construction question, input mode, and necessary original materials. Request concrete alternative relationships or a developed mechanism as useful; do not demand a final proof from every early idea or make brainstorming an approval stage.
 
-For observation, specify [fact collection](roles/fact-observer.md) or [process diagnosis](roles/optimizer.md). Give permitted sources, write scope, the existing baseline, and whether this is one check or already-authorized monitoring. A fact check requests source-backed changes or exactly `UNCHANGED`; it requests no ratings or recommendations. An optimizer request asks for evidence and a process improvement without granting authority over the research.
+For observation, specify [fact collection](roles/fact-observer.md) or [process diagnosis](roles/optimizer.md). Give permitted sources, write scope, the existing baseline, and whether this is one check or already-authorized monitoring. A fact check requests source-backed changes or exactly `UNCHANGED`; it requests no ratings or recommendations. An optimizer request asks for evidence-backed bottleneck diagnosis and a concrete process improvement.
 
 ## Implementation or Experiment Handoff
 
 Include exact versions of the proposal and execution contract. Specify editable areas and their owner, research semantics that must not change silently, the actual execution environment, batches, and budget. In external-author mode, assign analysis, implementation, self-checks, and repairs to the author; the lead coordinates feedback and accepts the evidence.
 
-Request a compact receipt: scope of changes or execution, corresponding version and delivered artifact set, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and specific gaps. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work. Keep delivery, application, validation, review, and lead acceptance distinct where relevant; process success alone does not complete delivery.
+Request a compact receipt: scope of changes or execution, corresponding version and delivered artifact set, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and specific gaps. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work. Keep delivery, application, validation, review, and lead acceptance distinct where relevant.
 
 ## Inputs for a Specific Step
 

@@ -3,12 +3,19 @@ import path from "node:path";
 import process from "node:process";
 import { PHASE_LABELS } from "./bridge-db.mjs";
 import {
+  HANDOFF_REASON_CODES,
+  ISOLATION_PROFILES,
+  SUBSCRIPTION_MODES,
+} from "../domain/model.mjs";
+import { messageCard } from "../domain/cards.mjs";
+import {
   validateUnifiedDiff,
   validateBaselineCopy,
   checkGitApply,
   checkPathWithinRoots,
 } from "./patch-validator.mjs";
 import { runTaskPreflight } from "./preflight.mjs";
+import { registerResearchMemoryTools } from "./research-memory-tools.mjs";
 
 const AGENT_ENUM = ["antigravity", "codex", "claude-code", "all"];
 const PEER_AGENT_ENUM = ["antigravity", "codex", "claude-code"];
@@ -30,6 +37,7 @@ export function registerBridgeTools(
 ) {
   const callerAgent = process.env.MCP_CALLER_AGENT || defaultCaller;
   const targetAgent = process.env.MCP_TARGET_AGENT || defaultTarget;
+  registerResearchMemoryTools(server, { caller: callerAgent });
 
   const emitWakeupNotification = (msg) => {
     if (!msg) return;
@@ -256,6 +264,18 @@ export function registerBridgeTools(
             type: "boolean",
             description: "If true, mark returned unread messages as read (default: true).",
           },
+          markConsumed: {
+            type: "boolean",
+            description: "If true, advance phase-2 consumption confirmation (`consumed_at`) so Watchdog knows this turn ingested the message (defaults to `markAsRead`).",
+          },
+          consumeTurnId: {
+            type: "string",
+            description: "Optional turn/conversation identifier recorded in `consumed_turn_id`.",
+          },
+          compactCards: {
+            type: "boolean",
+            description: "If true, include compact Inline Cards (`preview`, `chars`, `sha256`, `read: bridge://message/<id>`) for context-lean reading.",
+          },
           limit: {
             type: "number",
             description: "Maximum number of messages to return (default: 25).",
@@ -265,6 +285,7 @@ export function registerBridgeTools(
     },
     async (args) => {
       const inboxOwner = args.toAgent || callerAgent;
+      const markAsRead = args.markAsRead !== false;
       const messages = bridgeDb.readMessages({
         toAgent: inboxOwner,
         fromAgent: args.fromAgent || null,
@@ -272,7 +293,10 @@ export function registerBridgeTools(
         taskId: args.taskId || null,
         afterSeq: args.afterSeq ?? null,
         unreadOnly: Boolean(args.unreadOnly),
-        markAsRead: args.markAsRead !== false,
+        markAsRead,
+        markConsumed:
+          args.markConsumed !== undefined ? Boolean(args.markConsumed) : markAsRead,
+        consumeTurnId: args.consumeTurnId || null,
         limit: args.limit || 25,
       });
 
@@ -291,6 +315,9 @@ export function registerBridgeTools(
         previousCursor: args.afterSeq ?? null,
         nextCursor,
         messages,
+        ...(args.compactCards
+          ? { cards: messages.map((m) => messageCard(m)) }
+          : {}),
       };
     }
   );
@@ -376,6 +403,15 @@ export function registerBridgeTools(
             description: "Optional task ID to bind the preflight lease to.",
           },
           deliveryMode: { type: "string", enum: ["direct", "read_only", "mcp_structured_patch"], description: "Execution mode checked by preflight (default: direct)." },
+          isolationProfile: {
+            type: "string",
+            enum: ISOLATION_PROFILES,
+            description: "Epistemic isolation profile ('shared', 'blind_analysis', or 'blind_review'). Blind profiles automatically disable live Router thread fan-out.",
+          },
+          threadId: {
+            type: "string",
+            description: "Optional primary thread ID for automatic direct subscription when isolationProfile is 'shared'.",
+          },
           runtime: {
             type: "string",
             enum: ["agy-cli", "antigravity-ide", "codex-cli", "claude-cli"],
@@ -550,6 +586,15 @@ export function registerBridgeTools(
             description: "Operations forbidden during this task (e.g. ['local_tests', 'ssh']).",
           },
           deliveryMode: { type: "string", enum: ["direct", "read_only", "mcp_structured_patch"], description: "Execution mode checked by preflight (default: direct)." },
+          isolationProfile: {
+            type: "string",
+            enum: ISOLATION_PROFILES,
+            description: "Epistemic isolation profile ('shared', 'blind_analysis', or 'blind_review'). Blind profiles automatically disable live Router thread fan-out.",
+          },
+          threadId: {
+            type: "string",
+            description: "Optional primary thread ID for automatic direct subscription when isolationProfile is 'shared'.",
+          },
           runtime: {
             type: "string",
             enum: ["agy-cli", "antigravity-ide", "codex-cli", "claude-cli"],
@@ -612,7 +657,14 @@ export function registerBridgeTools(
           args.metadata?.requiredConversationId ||
           null,
         permissions: preflight.consolidatedPermissionChecklist,
-        metadata: { ...args.metadata, deliveryMode: preflight.deliveryMode },
+        metadata: {
+          ...args.metadata,
+          deliveryMode: preflight.deliveryMode,
+          ...(args.isolationProfile
+            ? { isolationProfile: args.isolationProfile }
+            : {}),
+          ...(args.threadId ? { threadId: args.threadId } : {}),
+        },
       });
 
       const lease = preflight.ok ? bridgeDb.grantTaskLease({
@@ -1681,6 +1733,223 @@ export function registerBridgeTools(
         callerAgent,
         targetAgent,
         ...bridgeDb.getSummaryStats(),
+      };
+    }
+  );
+
+  // ===========================================================================
+  // 19. bridge_subscribe_thread (v1.0.0 Research Router)
+  // ===========================================================================
+  server.registerTool(
+    {
+      name: "bridge_subscribe_thread",
+      description:
+        "Manage or inspect Research Router thread subscriptions for a task (`direct` allows zero-LLM fan-out & wakeup within Mandate; `context` provides read-only thread visibility without wakeup). Strictly rejects `blind_analysis` and `blind_review` tasks.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          threadId: {
+            type: "string",
+            description: "Thread ID to subscribe to (or filter by when listOnly=true).",
+          },
+          taskId: {
+            type: "string",
+            description: "Task ID subscribing to the thread (or filter by when listOnly=true).",
+          },
+          mode: {
+            type: "string",
+            enum: SUBSCRIPTION_MODES,
+            description: "Subscription mode: 'direct' (default) or 'context'.",
+          },
+          active: {
+            type: "boolean",
+            description: "Set to false to unsubscribe/deactivate (default: true).",
+          },
+          listOnly: {
+            type: "boolean",
+            description: "If true, list existing subscriptions without modifying state.",
+          },
+        },
+      },
+    },
+    async (args) => {
+      if (args.listOnly || (!args.threadId && !args.taskId) || !args.threadId || !args.taskId) {
+        if (args.listOnly || (!args.mode && args.active === undefined)) {
+          return {
+            ok: true,
+            subscriptions: bridgeDb.listSubscriptions({
+              threadId: args.threadId || null,
+              taskId: args.taskId || null,
+            }),
+          };
+        }
+      }
+      const subscription = bridgeDb.subscribeThread({
+        threadId: args.threadId,
+        taskId: args.taskId,
+        mode: args.mode || "direct",
+        active: args.active !== false,
+      });
+      return {
+        ok: true,
+        subscription,
+      };
+    }
+  );
+
+  // ===========================================================================
+  // 20. bridge_handback (v1.0.0 Research Router Ownership Release & Escalation)
+  // ===========================================================================
+  server.registerTool(
+    {
+      name: "bridge_handback",
+      description:
+        "Release task/message ownership and escalate cleanly when an assigned request exceeds task Mandate (e.g. scientific ambiguity, mechanism formula change, write-root permission delta, or budget conflict). Prevents router loops and routes directly to Lead Researcher A or Workbench Human Attention.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          taskId: {
+            type: "string",
+            description: "Task ID handing back ownership.",
+          },
+          messageId: {
+            type: "string",
+            description: "Optional inbound message ID being handed back.",
+          },
+          fromAgent: {
+            type: "string",
+            enum: PEER_AGENT_ENUM,
+            description: `Agent performing the handback (defaults to '${callerAgent}').`,
+          },
+          reasonCode: {
+            type: "string",
+            enum: HANDOFF_REASON_CODES,
+            description: "Structured handback reason code.",
+          },
+          summary: {
+            type: "string",
+            description: "Concise factual evidence explaining why the work exceeds current Mandate.",
+          },
+          humanAction: {
+            type: "object",
+            additionalProperties: false,
+            description: "Optional single structured decision prompt surfaced in Workbench Needs Human Attention.",
+            properties: {
+              question: {
+                type: "string",
+                description: "Single clear decision question for the researcher.",
+              },
+              options: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional discrete choices (put recommended option first).",
+              },
+              blockingScope: {
+                type: "string",
+                description: "What is blocked until answered (default: 'task').",
+              },
+            },
+            required: ["question"],
+          },
+        },
+        required: ["taskId", "reasonCode", "summary"],
+      },
+    },
+    async (args) => {
+      return bridgeDb.handback({
+        taskId: args.taskId,
+        messageId: args.messageId || null,
+        fromAgent: args.fromAgent || callerAgent,
+        reasonCode: args.reasonCode,
+        summary: args.summary,
+        humanAction: args.humanAction || null,
+      });
+    }
+  );
+
+  // ===========================================================================
+  // 21. bridge_read_card (v1.0.0 Inline Cards & Spill Pagination)
+  // ===========================================================================
+  server.registerTool(
+    {
+      name: "bridge_read_card",
+      description:
+        "Read compact Inline Card metadata and paginated Spill content by `bridge://<kind>/<id>` URI (or explicit `kind` + `id`) using lossless Unicode code-point `offset`/`limit` paging.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          uri: {
+            type: "string",
+            description: "Spill pointer URI such as 'bridge://message/<id>', 'bridge://task/<id>', 'bridge://patch/<patchId>', or 'bridge://validation/<id>'.",
+          },
+          kind: {
+            type: "string",
+            enum: ["message", "task", "patch", "validation", "context", "decision"],
+            description: "Resource kind if `uri` is omitted.",
+          },
+          id: {
+            type: "string",
+            description: "Resource identifier if `uri` is omitted.",
+          },
+          field: {
+            type: "string",
+            description: "Optional sub-field (e.g. 'prompt', 'result', 'metadata', 'summary', 'details').",
+          },
+          offset: {
+            type: "number",
+            description: "0-based Unicode code-point offset (default: 0).",
+          },
+          limit: {
+            type: "number",
+            description: "Maximum code points to return in this page (default: 4000, max: 65536).",
+          },
+        },
+      },
+    },
+    async (args) => {
+      const result = bridgeDb.readCard({
+        uri: args.uri || null,
+        kind: args.kind || null,
+        id: args.id || null,
+        field: args.field || null,
+        offset: args.offset ?? 0,
+        limit: args.limit ?? 4000,
+      });
+      return {
+        ok: true,
+        ...result,
+      };
+    }
+  );
+
+  // ===========================================================================
+  // 22. bridge_watchdog_status (v1.0.0 Dual-Layer Watchdog & HealthBoard)
+  // ===========================================================================
+  server.registerTool(
+    {
+      name: "bridge_watchdog_status",
+      description:
+        "Inspect HealthBoard component statuses, durable Effects queue depth, concurrency Slot load, Router mode/controlVersion, and current Needs Human Attention items. Optionally trigger an immediate L1/L2 watchdog sweep.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          runSweep: {
+            type: "boolean",
+            description: "If true, execute a synchronous L1/L2 watchdog sweep before returning status (default: false).",
+          },
+        },
+      },
+    },
+    async (args) => {
+      const sweep = args.runSweep ? bridgeDb.runWatchdogSweep() : undefined;
+      return {
+        ok: true,
+        ...bridgeDb.getWatchdogStatus(),
+        ...(sweep ? { sweep } : {}),
       };
     }
   );

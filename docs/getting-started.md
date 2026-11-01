@@ -38,7 +38,7 @@ in this project and help me identify the key question.
 
 Codex reads relevant materials, preserves your original request, and creates minimal research records when needed. It asks only about gaps that affect the scientific question, deliverable, resources, or permissions. You can add constraints in ordinary language, such as “Use public sources only” or “Do not run experiments yet.”
 
-The work stays centered on the question: what is uncertain, what evidence could change the judgment, and what follows from that evidence. Methods and candidate claims can change. Your confirmed requirements stay authoritative. A persuasive proposal or agreement among agents does not establish that a claim is true.
+The work stays centered on the question: what is uncertain, what evidence could change the judgment, and what follows from that evidence. Methods and candidate claims can change. Your confirmed requirements stay authoritative.
 
 ## Continue or check progress
 
@@ -72,7 +72,7 @@ Peers can exchange questions, evidence, revisions, and results in both direction
 
 Connection setup needs Node.js 24 or later and the full bundle's bridge runtime. It generates configuration with real absolute paths and can apply requested project settings for Codex, Claude Code, or Antigravity CLI/IDE. The host may still require trust approval or a reload. Each provider keeps its own supported authentication setup.
 
-A configuration file does not establish a live connection. Codex checks the tools available in the current session before using them. Setup does not launch provider models or authorize experiments, external sharing, publication, or ongoing background work. See [connection details](mcp-setup.md) when you need them.
+Codex checks the tools available in the current session before using them. See [connection details](mcp-setup.md) when you need them.
 
 ## If setup needs attention
 
@@ -89,6 +89,6 @@ The bundled diagnosis is read-only and reports the next action. If you want to r
 python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py doctor --project .
 ```
 
-Missing Node.js does not block research without the optional bridge. If configuration was applied but tools are absent, follow the host's trust or reload steps and check again. The helper cannot establish whether a provider is logged in or a host has loaded a connection.
+Missing Node.js does not block research without the optional bridge. If configuration was applied but tools are absent, follow the host's trust or reload steps and check again.
 
 You can ask Codex to initialize records, connect peers, or open the workbench without remembering command syntax. For manual use, the installed helper exposes `install`, `init`, `connect`, `doctor`, and `workbench`; add `--help` for the relevant options. The workbench is a foreground browser server and does not use the setup commands' `--json` output mode.

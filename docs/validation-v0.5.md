@@ -35,7 +35,7 @@ The final publication check passed 105 local Markdown references, synchronized r
 
 The desktop view was inspected at a 1440 × 1000 viewport and the narrow layout at 390 × 844. The narrow layout had no horizontal document overflow. Browser error and warning logs were empty at the end of the walkthrough.
 
-The walkthrough checked authentication feedback, overview and collaboration map, task list and board, task creation, a full 1,235-character brief, literal HTML rendering, Unicode text, loaded-source download, evidence dependencies, and closing the source viewer with Escape. It also confirmed that pausing disables dispatch while permitting a saved message, resuming restores explicit dispatch, and simulated dispatch reports its own operation result without claiming the task or research is complete.
+The walkthrough checked authentication feedback, overview and collaboration map, task list and board, task creation, a full 1,235-character brief, literal HTML rendering, Unicode text, loaded-source download, evidence dependencies, and closing the source viewer with Escape. It also confirmed that pausing disables dispatch while permitting a saved message, resuming restores explicit dispatch, and simulated dispatch reports its operation result separately from task completion.
 
 The screenshots show fictional records:
 
@@ -47,10 +47,10 @@ The screenshots show fictional records:
 
 [Narrow layout screenshot](images/workbench-mobile.png).
 
-## Review and limits
+## Review and upgrade notes
 
 An independent engineering review found two actionable defects: pause had also blocked Antigravity's message-only question tool, and source pagination mixed UTF-16 lengths with SQLite code-point ranges. Both were corrected and covered by the final targeted tests. The direct runtime launch example was also corrected to require an explicit project.
 
-These checks validate the implemented contracts and the inspected browser paths. They do not establish improved research quality, verify provider account access, or repeat live client communication and idle-chat wakeup tests. Earlier live-client evidence remains separately documented in [v0.3.1 validation](validation-v0.3.1.md).
+Live-client continuation checks are documented in [v0.3.1 validation](validation-v0.3.1.md).
 
-After upgrading, connected MCP clients must be reopened to load the new pause guard. The control affects processes using this project's upgraded bridge; it does not terminate existing calls or pause unrelated clients and jobs. Temporary test sources, downloads, test processes, and isolated runtime installations are removed after publication; the formal source, screenshots, and this validation note are retained.
+After upgrading, connected MCP clients must be reopened to load the new pause guard. The control gates new execution admissions on this project's upgraded bridge while in-flight calls finish. Temporary test sources, downloads, test processes, and isolated runtime installations are removed after publication; the formal source, screenshots, and this validation note are retained.

@@ -18,7 +18,12 @@ JSON uses camelCase and `schemaVersion: 1` on the snapshot. Unknown values are `
 schemaVersion, mode (live|demo), observedAt
 project: {name, path, question, questionSource, currentStatePreview}
 sources: {bridge, memory, records}: {status (ready|missing|error|unsupported), path, detail}
-control: {paused, changedAt, reason, activeOperations}
+control: {paused, changedAt, reason, routerMode, controlVersion, activeOperations}
+attention: AttentionCard[]
+health: {overall (healthy|degraded|error|idle|unavailable), components[]}
+router: {mode (off|observe|auto), controlVersion, decisions[], subscriptionsCount}
+effects: {queueDepth, humanPriorityDepth}
+slots: {maxWorkers, humanReservedSlots, inFlightRoutes}
 totals: {tasks, messages, patches, validations, memoryRecords}
 participants: [{id, label, roles[], requiredModels[], reportedModels[], lastRecordedAt, taskCount, activeTaskCount}]
 exchanges: [{from, to, count, lastAt}]
@@ -35,13 +40,13 @@ Participants and exchanges come from recorded tasks/messages, not a fixed provid
 ### Resources
 
 - `Task`: `id, title, promptPreview, fromAgent, assignedTo, role, priority, status, phase, phaseLabel, createdAt, updatedAt, completedAt, requiredModel, actualModel, modelSource, requiredConversationId, boundConversationId, deliveryVersion, readRoots[], writeRoots[], resultPreview, errorPreview`.
-- `Evidence`: `id, kind, title, summary, source, scope, claimStatus, recordState, updatedAt, dependsOn[]`. These are research-memory records, not bridge artifacts. A current record does not prove a scientific claim.
+- `Evidence`: `id, kind, title, summary, source, scope, claimStatus, recordState, updatedAt, dependsOn[]`. These are research-memory records, not bridge artifacts.
 - `Event`: `id, seq, kind (message|patch|validation), taskId, actor, recipient, title, preview, status, createdAt, source`. Events are recorded observations, not invented milestones.
 - `Message`: `id, seq, taskId, threadId, fromAgent, toAgent, subject, preview, charLength, replyTo, status, createdAt, readAt, processedAt, wakeupStatus, origin`.
 - `Patch`: `id, seq, taskId, fromAgent, kind, summary, status, targetFiles[], dependsOn[], supersedes, supersededBy, createdAt, charLength`.
 - `Validation`: `id, seq, taskId, actor, passed (true|false|null), applied, summary, createdAt`.
 - `Route`: `taskId, toAgent, targetSessionId, driver, enabled, lastDispatchAt, lastDeliveryAt, receipt, lastError`.
-- `Operation`: `id, type, taskId, state (pending|running|succeeded|failed), createdAt, startedAt, finishedAt, summary, result, error`. This describes the workbench request, never scientific acceptance or implicit task completion.
+- `Operation`: `id, type, taskId, state (pending|running|succeeded|failed), createdAt, startedAt, finishedAt, summary, result, error`. Tracks the workbench request status.
 
 ## Read endpoints
 
@@ -53,15 +58,18 @@ Participants and exchanges come from recorded tasks/messages, not a fixed provid
 - `GET /api/activity?taskId=&kind=&cursor=&limit=` returns a sequence-ordered union of messages, patches, and validations.
 - `GET /api/source?kind=message|patch|memory|document|task&id=&offset=0&limit=16000` returns `{text, offset, totalLength, hasMore, sourceLabel}`; maximum range 64000 characters. Task sources accept `field=prompt|result|error`, default `prompt`, to inspect complete instructions and outcomes beyond the list preview. Documents are only declared controls/charter/project/state files or explicitly referenced memory sources inside the selected project. Reject escaping paths and symlinks outside the project. Fail clearly when a source cannot be served safely.
 - `GET /api/operations/:id` returns an operation started by this server.
-- `GET /api/capabilities` returns `{providers: [{id, executableAvailable, authentication: "not-verified"}], controlsAvailable, dispatchAvailable, limits}`. Finding a CLI does not verify an account or model.
+- `GET /api/capabilities` returns `{providers: [{id, executableAvailable, authentication: "not-verified"}], controlsAvailable, dispatchAvailable, limits}`.
 
 ## Explicit actions
 
 All writes are allowlisted, validated, and bound to the selected project. Do not expose arbitrary bridge tools or configuration overrides. Do not run provider commands through a shell.
 
-- `POST /api/tasks`: `{title, prompt, assignedTo, fromAgent?, role?, priority?, requiredModel?, requiredConversationId?, readRoots?, writeRoots?}`. Agents are `codex`, `claude-code`, or `antigravity`; creator defaults to `codex` with metadata marking user initiation through the workbench. Paths must be project-relative and remain inside the selected project; defaults are read `["."]`, write `[]`. Return `{task, preflight}` with status 201. Reuse the bridge creation/preflight contract. Creation is not dispatch, and readiness depends on `preflight.ok`.
+- `POST /api/tasks`: `{title, prompt, assignedTo, fromAgent?, role?, priority?, isolationProfile?, requiredModel?, requiredConversationId?, readRoots?, writeRoots?}`. Agents are `codex`, `claude-code`, or `antigravity`; `isolationProfile` is `shared` (default), `blind_analysis`, or `blind_review`; creator defaults to `codex` with metadata marking user initiation through the workbench. Paths must be project-relative and remain inside the selected project; defaults are read `["."]`, write `[]`. Return `{task, preflight}` with status 201. Reuse the bridge creation/preflight contract. Creation is not dispatch, and readiness depends on `preflight.ok`.
 - `POST /api/tasks/:id/dispatch`: `{effort?, timeoutSeconds?}`. Require a recorded explicit model and matching project scope. Default effort `low`, timeout 120 seconds, maximum 600. Return an accepted `Operation` with status 202 and execute through the existing provider MCP tool, preserving task/model/session bindings and `completeTaskOnExit: false`. Do not expose bypass-permission flags. Surface queued delivery, unavailable providers, model mismatch, permission denial, and timeout honestly. Prevent duplicate concurrent dispatch of the same task from this workbench.
-- `POST /api/messages`: `{taskId, fromAgent, toAgent?, replyTo?, subject?, content}`. Reuse bridge send/reply semantics; mark origin as user-initiated workbench input. Return the actual message receipt with status 201. Do not imply delivery or processing. Messages may be saved during pause, with automatic follow-up still held.
+- `POST /api/tasks/:id/retry-delivery`: `{}`. Resets a task's 3-failure delivery circuit breaker (`consecutive_failures = 0`) and enqueues a `human_priority` wakeup effect using the reserved `+1` human slot.
+- `POST /api/messages`: `{taskId, fromAgent, toAgent?, replyTo?, subject?, content, resolveHandback?}`. Reuse bridge send/reply semantics; mark origin as user-initiated workbench input (`human_priority`). When `resolveHandback: true`, resolves pending task `handback` / `humanAction` / `stallAlert` attention items and resumes the task. Return the actual message receipt with status 201. Messages may be saved during pause, with automatic follow-up still held.
+- `POST /api/router-mode`: `{mode}` (`off`, `observe`, or `auto`). Updates the persisted deterministic Research Router mode in `bridge_control`.
+- `POST /api/decisions/:id/approve`: `{}`. Promotes an `observe`-mode `would_dispatch` proposal in `router_decisions` to `approved_dispatch` and enqueues a `human_priority` wakeup/fanout effect.
 - `POST /api/control`: `{paused, reason?}`. Persist the bridge-wide control state and return it. A pause blocks new execution admission and automatic continuation; already admitted calls may finish. Existing reads, task creation/preflight, messages, results, and validation remain allowed. Resume keeps existing route enabled/disabled settings and bindings, and lets pending work continue. The interface states this effect explicitly before resume.
 
 Pause and execution admission share a database serialization boundary. Gate every provider execution route (exec/resume/fork/review, CLI/SDK/delegated execution) and every wakeup claim, not only HTTP dispatch. Do not repurpose failed/completed task states or revoke leases to represent pause. Status reads must remain read-only. A process holding an admission before pause counts as already started; no process is killed by pausing.
@@ -72,4 +80,4 @@ The application has an overview, collaboration map, task board/list, evidence vi
 
 The demo fixture uses the same shapes and endpoints. A persistent demo banner explains that it is fictional and no providers are contacted. Demo control actions change only that server's in-memory demo state. Live empty states direct users to create a task, initialize memory, or inspect a missing source without inserting sample data into a real project.
 
-The shipped `src/workbench/public/demo-data.json` contains normalized `{project, tasks, messages, patches, validations, evidence, documents, routes}` arrays/objects using the resource shapes above. Tasks may additionally have full `prompt/result/error`, messages `content`, patches `content`, evidence `body`, and documents `text`. The server derives snapshot summaries, participant counts, exchanges, and events from those records. Demo operation results are explicitly simulated. The fixture must contain no private research details, credentials, real session IDs, or claims of real model execution.
+The shipped `src/workbench/public/demo-data.json` contains normalized `{project, tasks, messages, patches, validations, evidence, documents, routes}` arrays/objects using the resource shapes above. Tasks may additionally have full `prompt/result/error`, messages `content`, patches `content`, evidence `body`, and documents `text`. The server derives snapshot summaries, participant counts, exchanges, and events from those records. Demo operation results are explicitly simulated. The fixture contains no private research details, credentials, or real session IDs.

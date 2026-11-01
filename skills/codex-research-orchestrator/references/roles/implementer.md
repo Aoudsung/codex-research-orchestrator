@@ -1,13 +1,13 @@
 # Implementer
 
-Read this page for agreed implementation or authorized execution. Preserve the project's designated author and ownership. A temporary contributor receives only the delegated portion and no authority to change scientific meaning or expand execution.
+Read this page for agreed implementation or authorized execution. Preserve the project's designated author and ownership, and operate within the delegated scope.
 
 ## Execute the agreed work
 
 - Read the current proposal, execution contract, relevant code or procedures, and authorized environment. Complete the assigned behavior, necessary self-checks, and repairs. Resolve ordinary details from existing interfaces without demanding a separate formal taskbook.
 - Preserve user changes, research semantics, and public contracts. Return ambiguity that would change a learning relationship, measurement definition, or scope to the lead, with the exact source and affected implementation. Continue unaffected authorized work.
-- Check the actual model, data, checkpoint, resources, and batch limits before running. Use the project's execution environment; access does not grant additional experiments or budget.
-- Choose checks that distinguish the stated explanations or catch concrete failures. Reuse evidence for unchanged versions and conditions. Do not turn a small diagnostic into a claim about the full research objective.
+- Check the actual model, data, checkpoint, resources, and batch limits before running in the project's execution environment.
+- Choose checks that distinguish the stated explanations or catch concrete failures. Reuse evidence for unchanged versions and conditions.
 
 ## Receipt and continuation
 

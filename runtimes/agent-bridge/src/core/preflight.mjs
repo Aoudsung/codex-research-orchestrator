@@ -1,81 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { normalizeModelId, verifyModelMatch } from "../domain/model.mjs";
 
-/**
- * Canonicalize model IDs so aliases like "Synthetic Model (High)" and "synthetic-model-high"
- * can be compared deterministically while preserving exact model strings.
- * @param {string | null | undefined} model
- */
-export function normalizeModelId(model) {
-  if (!model || typeof model !== "string") return "";
-  return model
-    .trim()
-    .toLowerCase()
-    .replace(/[()[\]]/g, " ")
-    .replace(/[^a-z0-9.+-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-/**
- * Verify whether `actualModel` satisfies `requiredModel`.
- * Never silently falls back when `requiredModel` is specified.
- *
- * @param {string | null | undefined} requiredModel
- * @param {string | null | undefined} actualModel
- * @param {string} [source] - e.g. 'runtime_init_metadata', 'caller_declared', 'cli_flag'
- */
-export function verifyModelMatch(
-  requiredModel,
-  actualModel,
-  source = "runtime_init_metadata"
-) {
-  if (!requiredModel) {
-    return {
-      ok: true,
-      requiredModel: null,
-      actualModel: actualModel || null,
-      verifiedBy: source,
-      normalizedRequired: null,
-      normalizedActual: normalizeModelId(actualModel),
-    };
-  }
-
-  if (!actualModel) {
-    return {
-      ok: false,
-      code: "MODEL_UNVERIFIED",
-      requiredModel,
-      actualModel: null,
-      verifiedBy: source,
-      error: `Task strictly requires model '${requiredModel}', but actual runtime model metadata was not present (source: ${source}). Silent fallback to default CLI model is forbidden.`,
-    };
-  }
-
-  const normReq = normalizeModelId(requiredModel);
-  const normAct = normalizeModelId(actualModel);
-
-  if (normReq !== normAct) {
-    return {
-      ok: false,
-      code: "MODEL_MISMATCH",
-      requiredModel,
-      actualModel,
-      verifiedBy: source,
-      normalizedRequired: normReq,
-      normalizedActual: normAct,
-      error: `Model mismatch: task strictly requires '${requiredModel}' (normalized: '${normReq}'), but runtime metadata reported '${actualModel}' (normalized: '${normAct}'). Silent fallback is forbidden.`,
-    };
-  }
-
-  return {
-    ok: true,
-    requiredModel,
-    actualModel,
-    verifiedBy: source,
-    normalizedRequired: normReq,
-    normalizedActual: normAct,
-  };
-}
+export { normalizeModelId, verifyModelMatch };
 
 /**
  * Parse NDJSON / JSONL output from CLI runs (`agy`, `codex`, `claude`) to extract:
@@ -245,6 +172,10 @@ export const RUNTIME_TOOL_CAPABILITIES = {
       "bridge_set_context",
       "bridge_get_context",
       "bridge_status",
+      "bridge_subscribe_thread",
+      "bridge_handback",
+      "bridge_read_card",
+      "bridge_watchdog_status",
     ],
     unsupportedTools: {
       write_file: {

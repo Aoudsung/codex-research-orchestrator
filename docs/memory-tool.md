@@ -1,5 +1,31 @@
 # Memory tool guide
 
+## Database-first Agent workflow
+
+The five `research_record`, `research_search`, `research_read`, `research_context`, and `research_export` MCP tools store authoritative database records. Full bodies may contain Markdown and LaTeX; no source or intermediary JSON file is required. The older file-snapshot commands below remain available, but are not this project's new-record workflow.
+
+Until MCP tools load, use `tools/research-memory OP` with JSON on stdin:
+
+```sh
+tools/research-memory search <<'JSON'
+{"query":"contraction","round":"round-1","include_history":true,"limit":10}
+JSON
+```
+
+* `record`: required `kind,title,summary,scope,body,author`; optional `topic,round,origin,aliases,external_key,object_key,claim_status,depends_on,relations`. Kinds include `question`. Relations use `{type,target}` with `depends_on`, `supports`, `refutes`, `limits`, or `conflicts`. Revisions specify `supersedes`, `expected_revision`, and `reason`. Identical external-key retries are idempotent; different payloads with that key fail.
+* `search`: `query,limit` plus `kind,topic,round,author,state,claim_status,object_key,include_history`. Empty query permits structured browsing. Historical originals are opt-in, not current decisions. Aliases and one-/two-character queries are supported.
+* `read`: `id,offset,limit`; MCP defaults to 6,000 characters per page. Read all pages of required originals. Pagination never replaces the full stored body.
+* `context`: `query,profile,max_chars,allow,required,target`. Returns text and a lead-only manifest without creating Markdown. Independent `analysis` and `review` require an explicit allowlist; required evidence and the complete review target must fit.
+* `export`: `format` (`markdown` or complete `jsonl`), project-relative `output`, optional Markdown `ids`. MCP requires an output path and refuses overwrites. JSONL includes all versions and relationships. CLI-only `backup` takes `output`; `restore` takes `source` and requires an empty initialized database. Restore retains the target project's live control configuration.
+
+Database: `.research-memory/memory.sqlite3`. User controls are read live for each context. Direct body snapshots are immutable; editing an original Markdown file does not change them. Register a revision explicitly. Replacing evidence flags dependent conclusions as `needs_review`. Historical files remain in place.
+
+`tools/setup_research_memory.py --render-state` refreshes the generated state view without reimporting history. New work logs are exports of the same records. The one-time import manifest is `.research-memory/migration.json`. Attachment paths stay with their original evidence; exports do not embed large binaries.
+
+The dedicated `research-memory-mcp.mjs` entrypoint uses `RESEARCH_MEMORY_PROJECT` and `RESEARCH_MEMORY_PYTHON`; it has no provider execution or bridge watcher. Reload the client's project MCP configuration to expose the tools. The CLI works immediately.
+
+## Legacy file-snapshot interface
+
 The bundled helper provides a local research index and bounded context packets. It uses Python 3.10+ and SQLite FTS5, with no external service, model call, or third-party Python package.
 
 Codex normally handles these operations for you. For a first project, use the [getting-started guide](getting-started.md). This page is the advanced command reference. Run commands in the environment authorized by your project; do not replace existing research files with the example contents.
@@ -64,9 +90,9 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
   --project . read 1
 ```
 
-Search returns compact entries rather than all source bodies. A summary is a retrieval aid, not the evidence itself. Inspect a selected source and its scope before relying on it.
+Search returns compact entries rather than all source bodies. Inspect a selected source and its scope before relying on it.
 
-Queries use lexical full-text retrieval. Use explicit terms and alternate wording where needed; the helper does not expand synonyms or run semantic embeddings. Tokenization can limit recall, including for languages without spaces. A failed lexical search is not a finding that evidence does not exist.
+Queries use lexical full-text retrieval. Use explicit terms and alternate wording where needed; tokenization can limit recall for languages without spaces.
 
 ## Assemble a task packet
 
@@ -100,7 +126,7 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
 
 The target must be allowlisted. Declared dependencies must also be permitted; the tool does not silently follow a link into an excluded evaluation.
 
-Give the independent participant the packet in an isolated context. Keep the manifest, database, prior judgments, and unrestricted history with the lead. Neutral labels hide internal titles and paths, but cannot remove a judgment written inside an allowed source or its scope. Curating those contents remains the lead's responsibility.
+Give the independent participant the packet in an isolated context. Keep the manifest, database, prior judgments, and unrestricted history with the lead. Neutral labels hide internal titles and paths; the lead curates the contents of allowed sources.
 
 ## Budget behavior
 
@@ -120,7 +146,7 @@ Every packet ends with a `Not shown` section. It states how many admitted record
 
 The manifest records the actual character count, selected records, source mappings, every omission, and which omissions were indexed, by their packet label. The independent packet does not reveal excluded evaluation titles or paths.
 
-Text that does not change between builds comes first; the assembly time is the last line. Two packets built from the same inputs therefore agree up to that line. A provider can reuse a cached prefix only if the leading tokens match exactly, the model and settings are the same, and the cache entry has not been evicted. The helper does not observe or measure cache reuse.
+Text that does not change between builds comes first; the assembly time is the last line. Two packets built from the same inputs therefore agree up to that line. A provider can reuse a cached prefix when the leading tokens, model, and settings match and the cache entry has not been evicted.
 
 ## Change and invalidation
 
@@ -134,17 +160,17 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_memory.py \
 
 Selected records and their declared dependencies are checked against the current source text during use. Source changes trigger `needs_review`; explicit supersession or withdrawal also invalidates registered downstream records. Historical snapshots are retained. Restore a usable record by making a fresh, justified entry rather than silently relabeling the old one as current.
 
-Record validity is separate from scientific truth. `needs_review` does not mean `refuted`. Newer evidence does not automatically supersede older evidence, and the helper does not decide scientific contradictions.
+Record state tracks source and dependency freshness separately from `claim_status`.
 
 ## Guarantees and limits
 
-The tool checks project-local paths, explicit record relationships, source snapshots, live controls, profile eligibility, and packet size. Each guarantee below holds only under the stated condition:
+The tool checks project-local paths, explicit record relationships, source snapshots, live controls, profile eligibility, and packet size:
 
 - Excluded records do not affect independent ranking, because ranking statistics are computed from the admitted records alone. The same query, allowlist, and record contents give the same ranking.
 - Every admitted record is either in the packet or counted in its `Not shown` section. Whether it is also indexed depends on the remaining budget.
 - A packet never exceeds `--max-chars` Python characters. That bound is on characters, not on the recipient's tokens.
 - Each write commits all of its changes or none of them: a new record with its dependencies, index entry, and any supersession; a withdrawal with its downstream invalidations; a check with all of its invalidations. Invalidations found while checking a new record's dependencies are committed first, and they remain if the record is then rejected. The packet and manifest are created together, and a failed write removes whichever file was created. A process killed between the two writes can still leave the manifest alone.
 
-It cannot verify the truth of a claim, the user's identity or authorization, the completeness of declared dependencies, the scientific adequacy of a selected evidence set, or the independence of the wider agent context. It checks locally saved sources; external sources need deliberate refresh. Generated packets describe the moment they were built and must be rebuilt after relevant changes.
+The tool checks locally saved sources; refresh external sources deliberately and rebuild packets after relevant changes.
 
 For the collaboration rules, see [research memory and task context](../skills/codex-research-orchestrator/references/memory.md). For the upstream ideas and how they were adapted, see [memory foundations](memory-foundations.md).

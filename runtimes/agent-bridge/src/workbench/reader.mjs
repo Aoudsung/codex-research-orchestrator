@@ -66,6 +66,7 @@ export function normalizeTask(row) {
     deliveryVersion: row.delivery_version, readRoots: permissions.readRoots || [], writeRoots: permissions.writeRoots || [],
     isolationProfile: row.isolation_profile || metadata.isolationProfile || 'shared',
     handback: activeHandback, humanAction: activeHumanAction, stallAlert: activeStall,
+    protocolVersion: metadata.protocolVersion || 1, workflow: metadata.workflow || null,
     resultPreview: row.result?.slice(0, PREVIEW) || null, errorPreview: row.error?.slice(0, PREVIEW) || null,
   };
 }
@@ -390,7 +391,10 @@ export class ProjectReader {
         enabled: Boolean(r.enabled), consecutiveFailures: Number(r.consecutive_failures || 0),
         lastDispatchAt: r.last_dispatched_at, lastDeliveryAt: r.last_delivered_at,
         receipt: parseJSON(r.last_receipt_json, null), lastError: r.last_error } : null;
-      return { task: normalizeTask(raw), ...children, route, operation: null, limits };
+      const why = tableExists(db, 'bridge_task_events') ? db.prepare(
+        'SELECT event_id id, kind, created_at createdAt FROM bridge_task_events WHERE task_id=? ORDER BY seq DESC LIMIT 20'
+      ).all(id) : [];
+      return { task: normalizeTask(raw), ...children, route, operation: null, limits, why };
     });
   }
   rawTask(id) {

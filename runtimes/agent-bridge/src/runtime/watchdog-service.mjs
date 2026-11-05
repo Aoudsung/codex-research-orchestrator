@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { deliveryState } from "../core/wakeup-policy.mjs";
 import {
   DEFAULT_EXTERNAL_CHANNEL_CHECK_MS,
   DEFAULT_HANDBACK_STALE_MS,
@@ -231,7 +232,7 @@ export class WatchdogService {
         timeoutMs: this.orphanTimeoutMs,
       });
       for (const item of orphaned) {
-        const route = repos.getRoute(item.taskId);
+        const route = repos.getRoute(item.taskId, item.toAgent);
         if (!route) continue;
         repos.putRoute({
           ...route,
@@ -241,7 +242,7 @@ export class WatchdogService {
           updated_at: nowIso,
         });
         const taskMsgs = allUnreadMessages.filter(
-          (m) => m.task_id === item.taskId && m.wakeup_status === "dispatched"
+          (m) => m.task_id === item.taskId && m.to_agent === route.to_agent && m.wakeup_status === "dispatched"
         );
         for (const m of taskMsgs) {
           repos.putMessage({ ...m, wakeup_status: "pending" });
@@ -255,7 +256,19 @@ export class WatchdogService {
         });
       }
 
-      // L1.2: Recover phase-1 `delivered` messages that were never phase-2 `consumed` (`consumed_at IS NULL`)
+      // Accepted messages remain in the durable inbox; overdue consumption updates one task card.
+      for (const task of tasks) {
+        const alert = task.metadata?.stallAlert;
+        if (alert?.kind === "message_unconsumed" && !alert.resolvedAt &&
+            alert.messageIds.every((id) => {
+              const message = repos.getMessage(id);
+              return !message || message.consumed_at || message.status !== "unread";
+            })) {
+          const current = repos.getTask(task.id);
+          repos.putTask({ ...current, metadata: { ...current.metadata,
+            stallAlert: { ...alert, resolvedAt: nowIso } }, updated_at: nowIso });
+        }
+      }
       const patchesByTask = new Map();
       for (const t of tasks) {
         patchesByTask.set(
@@ -276,40 +289,22 @@ export class WatchdogService {
       for (const item of unconsumed) {
         const msg = repos.getMessage(item.messageId);
         if (!msg || msg.handback_reason) continue;
-        const route = msg.task_id ? repos.getRoute(msg.task_id) : null;
+        const route = msg.task_id ? repos.getRoute(msg.task_id, msg.to_agent) : null;
         if (route && shouldTripDeliveryCircuitBreaker(route)) {
           continue;
         }
-        repos.putMessage({
-          ...msg,
-          wakeup_status: "pending",
-          metadata: {
-            ...(msg.metadata || {}),
-            recoveryNote: item.recoveryNote,
-            recoveredAt: nowIso,
-          },
-        });
-        // Roll back route.last_woken_seq below this unconsumed message seq so claimPendingWakeup picks it up!
-        if (route && Number(route.last_woken_seq || 0) >= Number(msg.seq || 0)) {
-          repos.putRoute({
-            ...route,
-            last_woken_seq: Math.max(0, Number(msg.seq || 1) - 1),
-            updated_at: nowIso,
-          });
-        }
-        if (msg.task_id) {
-          repos.enqueueEffect({
-            kind: "wakeup",
-            effectKey: msg.task_id,
-            payload: {
-              taskId: msg.task_id,
-              messageId: msg.id,
-              reason: "watchdog_unconsumed_redelivery",
-              recoveryNote: item.recoveryNote,
-            },
-            dueMs: nowMs,
-            nowIso,
-          });
+        repos.putMessage({ ...msg, metadata: { ...msg.metadata,
+          bridgeDelivery: { ...deliveryState(msg), attentionAt: nowIso } } });
+        const task = msg.task_id ? repos.getTask(msg.task_id) : null;
+        const existingAlert = task?.metadata?.stallAlert;
+        if (task && (!existingAlert || existingAlert.resolvedAt || existingAlert.kind === "message_unconsumed")) {
+          const messageIds = [...new Set([...(existingAlert?.kind === "message_unconsumed" &&
+            !existingAlert.resolvedAt ? existingAlert.messageIds || [] : []), msg.id])];
+          repos.putTask({ ...task, metadata: { ...task.metadata, stallAlert: {
+            kind: "message_unconsumed", messageIds,
+            summary: `Host accepted ${messageIds.length} message(s); recipient has not confirmed reading.`,
+            createdAt: existingAlert?.createdAt || nowIso, updatedAt: nowIso,
+          } }, updated_at: nowIso });
         }
       }
 
@@ -409,7 +404,8 @@ export class WatchdogService {
         paused: false,
         sweptAt: nowIso,
         reapedRoutes: orphaned,
-        recoveredMessages: unconsumed,
+        recoveredMessages: [],
+        consumptionAlerts: unconsumed,
         trippedBreakers,
         externalChannelCheck: extCheck,
         l2Alerts,

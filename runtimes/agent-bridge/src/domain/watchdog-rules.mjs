@@ -1,8 +1,9 @@
 import { sha256Hex, unconsumedMessages } from "./model.mjs";
 import { foldPreview } from "./cards.mjs";
+import { CONSUMPTION_GRACE_MS, deliveryState } from "../core/wakeup-policy.mjs";
 
 export const DEFAULT_ORPHAN_ROUTE_TIMEOUT_MS = 120_000;
-export const DEFAULT_UNCONSUMED_GRACE_MS = 15_000;
+export const DEFAULT_UNCONSUMED_GRACE_MS = CONSUMPTION_GRACE_MS;
 export const DEFAULT_HANDBACK_STALE_MS = 600_000;
 export const DELIVERY_FAILURE_BREAKER_THRESHOLD = 3;
 export const REPEATED_VALIDATION_SPIN_THRESHOLD = 3;
@@ -40,6 +41,7 @@ export function findOrphanedInFlightRoutes(
     if (pidDead || timedOut) {
       orphaned.push({
         taskId: r.task_id,
+        toAgent: r.to_agent,
         workerPid: pid || null,
         reason: pidDead ? "worker_pid_dead" : "in_flight_timeout",
       });
@@ -51,12 +53,12 @@ export function findOrphanedInFlightRoutes(
 /**
  * L1 Watchdog Rule 2:
  * Identify messages marked `wakeup_status = 'delivered'` whose recipient turn crashed or exited
- * before calling `bridge_read_messages` (`consumed_at IS NULL`), and generate an idempotent `RecoveryNote`.
+ * before calling `bridge_read_messages`; create one attention item without reposting the body.
  */
 export function findUnconsumedDeliveredMessages(
   messages = [],
   patchesByTask = new Map(),
-  { nowMs = Date.now(), graceMs = DEFAULT_UNCONSUMED_GRACE_MS, maxAttempts = DELIVERY_FAILURE_BREAKER_THRESHOLD } = {}
+  { nowMs = Date.now(), graceMs = DEFAULT_UNCONSUMED_GRACE_MS } = {}
 ) {
   const candidates = unconsumedMessages(messages, { nowMs, graceMs });
   const getLatestPatch = (taskId) => {
@@ -68,14 +70,14 @@ export function findUnconsumedDeliveredMessages(
   };
 
   return candidates
-    .filter((m) => Number(m.delivery_attempts || 0) < maxAttempts)
+    .filter((m) => !deliveryState(m).attentionAt)
     .map((m) => {
       const latestPatch = m.task_id ? getLatestPatch(m.task_id) : null;
       const patchHint = latestPatch
         ? `Latest submitted patch on task '${m.task_id}' is '${latestPatch.patchId}' (sha256=${String(latestPatch.sha256 || "").slice(0, 12)}, status=${latestPatch.status}).`
         : `No submitted patches recorded yet for task '${m.task_id || "unassigned"}'.`;
 
-      const recoveryNote = `Previous wakeup delivery (attempt #${Number(m.delivery_attempts || 0) + 1}) was accepted by host transport without being consumed via bridge_read_messages. ${patchHint} Inspect current workspace git status and patch sha256 before re-running mutating commands to avoid duplicate side effects.`;
+      const recoveryNote = `Host accepted this message; recipient has not confirmed reading. It remains in the durable inbox without another chat notification. ${patchHint}`;
 
       return {
         messageId: m.id,

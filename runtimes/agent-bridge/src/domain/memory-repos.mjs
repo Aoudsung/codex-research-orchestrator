@@ -24,6 +24,7 @@ export class MemoryRepositories {
         controls_hash: "",
       },
       tasks: new Map(),
+      taskEvents: new Map(),
       leases: new Map(),
       mandates: new Map(),
       subscriptions: new Map(), // `${threadId}::${taskId}` -> sub
@@ -401,15 +402,33 @@ export class MemoryRepositories {
   }
 
   // Wakeup Routes
-  getRoute(taskId) {
+  getRoute(taskId, toAgent = null) {
     if (!taskId) return null;
-    const row = this._state.routes.get(taskId);
-    return row ? deepClone(row) : null;
+    if (toAgent) return deepClone(this._state.routes.get(JSON.stringify([taskId, toAgent])) || null);
+    const assigned = this._state.tasks.get(taskId)?.assigned_to;
+    const items = this.listTaskRoutes(taskId).sort((a, b) =>
+      Number(b.to_agent === assigned) - Number(a.to_agent === assigned) ||
+      String(b.updated_at || "").localeCompare(String(a.updated_at || "")) ||
+      String(a.to_agent).localeCompare(String(b.to_agent)));
+    return items[0] || null;
+  }
+
+  listTaskRoutes(taskId) {
+    return [...this._state.routes.values()].filter((row) => row.task_id === taskId)
+      .sort((a, b) => String(a.to_agent).localeCompare(String(b.to_agent))).map(deepClone);
   }
 
   putRoute(route) {
-    this._state.routes.set(route.task_id, deepClone(route));
-    return this.getRoute(route.task_id);
+    const existing = this.getRoute(route.task_id, route.to_agent);
+    const saved = { ...existing, ...route };
+    if (existing) {
+      for (const key of ["model", "effort", "wakeup_command", "app_server_url"]) {
+        saved[key] = route[key] || existing[key] || null;
+      }
+      for (const key of ["cwd", "target_session_id"]) saved[key] = route[key] || existing[key] || "";
+    }
+    this._state.routes.set(JSON.stringify([route.task_id, route.to_agent]), deepClone(saved));
+    return this.getRoute(route.task_id, route.to_agent);
   }
 
   listRoutes({ enabledOnly = false } = {}) {
@@ -669,6 +688,71 @@ export class MemoryRepositories {
       existing.last_error = String(lastError || "");
     }
     return deepClone(existing);
+  }
+
+  // Immutable task events; mutations participate in the surrounding atomic snapshot.
+  getTaskEvent(eventId) {
+    return deepClone(this._state.taskEvents.get(eventId) || null);
+  }
+
+  putTaskEvent(event) {
+    for (const field of ["eventId", "taskId", "kind", "payloadHash"]) {
+      if (typeof event?.[field] !== "string" || !event[field].trim()) {
+        throw new Error(`Task event requires ${field}`);
+      }
+    }
+    return this.atomic(() => {
+      const existing = this.getTaskEvent(event.eventId);
+      if (existing) {
+        if (existing.payloadHash !== event.payloadHash) {
+          throw new Error(`TASK_EVENT_CONFLICT: ${event.eventId}`);
+        }
+        return existing;
+      }
+      const saved = {
+        eventId: event.eventId,
+        taskId: event.taskId,
+        kind: event.kind,
+        logicalKey: event.logicalKey ?? null,
+        payloadHash: event.payloadHash,
+        contractVersion: event.contractVersion ?? null,
+        attemptId: event.attemptId ?? null,
+        ownerEpoch: event.ownerEpoch ?? null,
+        payload: event.payload ?? {},
+        result: event.result ?? null,
+        createdAt: event.createdAt ?? new Date().toISOString(),
+        seq: event.seq ?? this.nextSeq(),
+      };
+      // Keep both repository implementations on the same JSON persistence boundary.
+      this._state.taskEvents.set(event.eventId, JSON.parse(JSON.stringify(saved)));
+      return this.getTaskEvent(event.eventId);
+    });
+  }
+
+  updateTaskEventResult(eventId, result) {
+    return this.atomic(() => {
+      const event = this.getTaskEvent(eventId);
+      if (!event) throw new Error(`TASK_EVENT_NOT_FOUND: ${eventId}`);
+      const encoded = JSON.stringify(result);
+      if (encoded === undefined) throw new Error("Task event result must be JSON serializable");
+      if (event.result !== null && JSON.stringify(event.result) !== encoded) {
+        throw new Error(`TASK_EVENT_RESULT_CONFLICT: ${eventId}`);
+      }
+      event.result = JSON.parse(encoded);
+      this._state.taskEvents.set(eventId, event);
+      return this.getTaskEvent(eventId);
+    });
+  }
+
+  listTaskEvents({ taskId = null, kind = null, logicalKey = null, limit = 50, orderDesc = true } = {}) {
+    return [...this._state.taskEvents.values()]
+      .filter((event) => (taskId === null || event.taskId === taskId) &&
+        (kind === null || event.kind === kind) &&
+        (logicalKey === null || event.logicalKey === logicalKey))
+      .sort((a, b) => (orderDesc ? -1 : 1) *
+        (a.seq - b.seq || a.createdAt.localeCompare(b.createdAt) || a.eventId.localeCompare(b.eventId)))
+      .slice(0, Math.max(0, Math.floor(Number(limit) || 0)))
+      .map(deepClone);
   }
 
   // HealthBoard

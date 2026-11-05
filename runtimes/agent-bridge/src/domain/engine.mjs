@@ -1,4 +1,7 @@
+import * as workflow from './task-workflow.mjs';
 import crypto from "node:crypto";
+import { beginDeliveryMetadata, deliveryAttempts, deliveryState, finishDeliveryMetadata,
+  notificationEnvelope, retryDue } from "../core/wakeup-policy.mjs";
 import {
   BridgeUserError,
   PHASE_LABELS,
@@ -381,6 +384,8 @@ export class BridgeEngine {
     permissions = {},
     sessionId = null,
     metadata = {},
+    contract = null,
+    protocolVersion = null,
   }) {
     return this.repos.atomic(() => {
       if (taskId) {
@@ -488,6 +493,10 @@ export class BridgeEngine {
         completed_at: null,
       });
 
+      if (contract || protocolVersion === 2 || metadata?.protocolVersion === 2) {
+        savedTask.metadata = { ...savedTask.metadata, protocolVersion: 2, workflow: workflow.initialWorkflow(savedTask, contract || {}) };
+        this.repos.putTask(savedTask);
+      }
       const mandate = createMandate({
         task: savedTask,
         controlVersion: ctrl.control_version || "",
@@ -519,6 +528,13 @@ export class BridgeEngine {
       return savedTask;
     });
   }
+
+  updateTaskContract(args) { return workflow.updateTaskContract(this, args); }
+  submitTaskReceipt(args) { return workflow.submitTaskReceipt(this, args); }
+  acceptTaskDelivery(args) { return workflow.acceptTaskDelivery(this, args); }
+  answerTaskDecision(args) { return workflow.answerTaskDecision(this, args); }
+  processTaskContinuation(args) { return workflow.processTaskContinuation(this, args); }
+  signalTaskEvent(args) { return workflow.signalTaskEvent(this, args); }
 
   getTaskById(id) {
     return this.repos.getTask(id);
@@ -742,6 +758,7 @@ export class BridgeEngine {
     error = null,
     sessionId = null,
     model = null,
+    actorAgent = null,
   }) {
     return this.repos.atomic(() => {
       if (model || sessionId) {
@@ -756,6 +773,12 @@ export class BridgeEngine {
 
       const task = this.repos.getTask(taskId);
       if (!task) return null;
+
+      if (task.metadata?.workflow) {
+        const w = task.metadata.workflow;
+        if (!actorAgent) throw new Error('Protocol 2 completion requires the authenticated actor');
+        return this.submitTaskReceipt({ taskId, receiptId: `legacy-complete:${w.owner.epoch}:${w.contract.version}:${sha256Hex(JSON.stringify({status,result,error}))}`, attemptId: `legacy:${taskId}`, contractVersion: w.contract.version, ownerEpoch: w.owner.epoch, outcome: status === 'completed' ? 'delivered' : status === 'cancelled' ? 'cancelled' : 'blocked', summary: result || error || '', actorAgent });
+      }
 
       const resolvedPhase =
         phase ||
@@ -957,7 +980,7 @@ export class BridgeEngine {
     }
 
     const matchedRoute = resolvedTaskId
-      ? this.repos.getRoute(resolvedTaskId)
+      ? this.repos.getRoute(resolvedTaskId, resolvedToAgent)
       : null;
 
     if (!resolvedThreadId) {
@@ -975,6 +998,7 @@ export class BridgeEngine {
       ...(metadata || {}),
       ...(resolvedTaskId ? { taskId: resolvedTaskId } : {}),
     };
+    delete enrichedMeta.bridgeDelivery;
 
     if (resolvedTaskId && fromAgent) {
       this.repos.markPriorTaskMessagesProcessed({
@@ -1052,7 +1076,7 @@ export class BridgeEngine {
     }
 
     // If user message explicitly resolves a previous handback / humanAction, clear blocking flags
-    if (resolvedTaskId && (enrichedMeta.resolveHandback || enrichedMeta.userInitiated)) {
+    if (resolvedTaskId && !this.repos.getTask(resolvedTaskId)?.metadata?.workflow && (enrichedMeta.resolveHandback || enrichedMeta.userInitiated)) {
       const t = this.repos.getTask(resolvedTaskId);
       if (t && (t.metadata?.handback || t.metadata?.humanAction || t.metadata?.attention || t.metadata?.stallAlert)) {
         const nextMeta = { ...t.metadata };
@@ -1247,6 +1271,17 @@ export class BridgeEngine {
         }
         updated.push(changed ? this.repos.putMessage(patch) : row);
       }
+      for (const id of new Set(rows.map((row) => row.task_id).filter(Boolean))) {
+        const task = this.repos.getTask(id);
+        const alert = task?.metadata?.stallAlert;
+        if (alert?.kind === "message_unconsumed" && alert.messageIds.every((mid) => {
+          const message = this.repos.getMessage(mid);
+          return !message || message.consumed_at || message.status !== "unread";
+        })) {
+          this.repos.putTask({ ...task, metadata: { ...task.metadata,
+            stallAlert: { ...alert, resolvedAt: now } }, updated_at: now });
+        }
+      }
       return updated;
     });
   }
@@ -1275,6 +1310,17 @@ export class BridgeEngine {
         routerMode: ctrl.router_mode || "observe",
         nowIso,
       });
+
+      if (task.metadata?.workflow) {
+        const w = task.metadata.workflow;
+        const receiptId = `handback:${w.contract.version}:${w.owner.epoch}:${messageId || sha256Hex(JSON.stringify({ reasonCode, summary, humanAction }))}`;
+        const result = this.submitTaskReceipt({ taskId, receiptId, attemptId: `legacy-handback:${taskId}`,
+          contractVersion: w.contract.version, ownerEpoch: w.owner.epoch,
+          outcome: humanAction ? 'waiting_user' : 'blocked', summary,
+          ...(humanAction ? { decision: { id: receiptId, ...humanAction } } : {}),
+          actorAgent: fromAgent || task.assigned_to });
+        return { ok: true, task: this.repos.getTask(taskId), businessReceipt: result, decisionId: humanAction ? receiptId : null };
+      }
 
       if (message) {
         this.repos.putMessage({
@@ -1400,7 +1446,7 @@ export class BridgeEngine {
     });
   }
 
-  retryTaskDelivery({ taskId, userInitiated = true }) {
+  retryTaskDelivery({ taskId, userInitiated = true, toAgent = null }) {
     return this.repos.atomic(() => {
       const task = this.repos.getTask(taskId);
       if (!task) {
@@ -1415,7 +1461,7 @@ export class BridgeEngine {
         this.repos.putTask({ ...task, metadata: nextMeta, updated_at: nowIso });
       }
 
-      const route = this.repos.getRoute(taskId);
+      const route = this.repos.getRoute(taskId, toAgent);
       let updatedRoute = null;
       if (route) {
         updatedRoute = this.repos.putRoute({
@@ -1428,7 +1474,7 @@ export class BridgeEngine {
         });
       }
 
-      // Reset failed or unconsumed delivered unread messages back to 'pending'
+      // An accepted notification stays visible once; only explicit transport retries reset.
       const msgs = this.repos.queryMessages({
         toAgent: route?.to_agent || task.assigned_to,
         taskId,
@@ -1442,10 +1488,13 @@ export class BridgeEngine {
           m.wakeup_status === "dispatched" ||
           (m.wakeup_status === "delivered" && !m.consumed_at)
         ) {
+          if (this.validHostReceipt(m.wakeup_receipt, route)) continue;
           this.repos.putMessage({
             ...m,
             wakeup_status: "pending",
             wakeup_error: null,
+            delivery_attempts: 0,
+            metadata: { ...m.metadata, bridgeDelivery: { ...deliveryState(m), attempts: 0, retryAt: null } },
           });
           resetIds.push(m.id);
         }
@@ -1476,9 +1525,13 @@ export class BridgeEngine {
   // Wakeup Routes & Delivery Receipts
   // ===========================================================================
 
-  getWakeupRoute(taskId) {
+  getWakeupRoute(taskId, toAgent = null) {
     if (!taskId) return null;
-    return this.repos.getRoute(taskId);
+    return this.repos.getRoute(taskId, toAgent);
+  }
+
+  getWakeupRoutes(taskId) {
+    return this.repos.listTaskRoutes(taskId);
   }
 
   configureWakeupRoute({
@@ -1489,6 +1542,8 @@ export class BridgeEngine {
     driver = "host_poll",
     wakeupCommand = null,
     appServerUrl = null,
+    model = null,
+    effort = null,
     cwd = "",
     enabled = true,
   }) {
@@ -1496,7 +1551,7 @@ export class BridgeEngine {
       throw new Error("taskId is required to configure a wakeup route.");
     }
     return this.repos.atomic(() => {
-      const existing = this.repos.getRoute(taskId);
+      const existing = this.repos.getRoute(taskId, toAgent);
       const nowIso = this._nowIso();
       const resolvedThreadId =
         threadId || existing?.thread_id || `example-${taskId}`;
@@ -1515,6 +1570,8 @@ export class BridgeEngine {
         driver: resolvedDriver,
         wakeup_command: wakeupCommand ?? existing?.wakeup_command ?? null,
         app_server_url: appServerUrl ?? existing?.app_server_url ?? null,
+        model: model ?? existing?.model ?? null,
+        effort: effort ?? existing?.effort ?? null,
         cwd: resolvedCwd,
         enabled: resolvedEnabled,
         in_flight: existing?.in_flight ?? 0,
@@ -1533,34 +1590,42 @@ export class BridgeEngine {
   }
 
   validHostReceipt(receipt, route) {
-    return Boolean(
-      route &&
-        receipt?.accepted === true &&
-        typeof receipt.turnId === "string" &&
-        receipt.turnId &&
-        receipt.targetSessionId === route.target_session_id
-    );
+    if (!route || receipt?.accepted !== true || receipt.targetSessionId !== route.target_session_id) return false;
+    const evidence = receipt.evidence;
+    if (route.driver === 'cli_resume') return evidence?.provider === 'codex' && evidence.sessionId === route.target_session_id && evidence.status === 'completed';
+    if (route.driver === 'antigravity_desktop') return evidence?.provider === 'antigravity' && evidence.transport === 'agentapi' && evidence.status === 'accepted' && evidence.sessionId === route.target_session_id;
+    if (route.driver === 'claude_desktop') return evidence?.provider === 'claude-code' && evidence.transport === 'desktop_inbox' && evidence.status === 'accepted' && evidence.sessionId === route.target_session_id && Boolean(evidence.messageId) && (!route.model || evidence.model === route.model) && (!route.effort || evidence.effort === route.effort);
+    if (route.driver === 'claude_cli' || route.driver === 'agy_cli') {
+      return evidence?.provider === route.to_agent && evidence.sessionId === route.target_session_id &&
+        (route.driver === 'claude_cli' ? evidence.status === 'success' : evidence.status === 'SUCCESS');
+    }
+    return typeof receipt.turnId === 'string' && Boolean(receipt.turnId);
   }
 
-  recordWakeupFailure(taskId, messageIds = [], errorMsg = "wakeup_failed") {
+  recordWakeupFailure(taskId, messageIds = [], errorMsg = "wakeup_failed", toAgent = null) {
     return this.repos.atomic(() => {
+      const selectedRoute = this.repos.getRoute(taskId, toAgent || this.repos.getMessage(messageIds[0])?.to_agent);
+      if (!selectedRoute) return null;
+      const recipient = selectedRoute.to_agent;
       const nowIso = this._nowIso();
       const errText = String(errorMsg || "wakeup_failed");
       if (Array.isArray(messageIds) && messageIds.length > 0) {
         for (const id of messageIds) {
           const m = this.repos.getMessage(id);
-          if (m) {
+          if (m && m.task_id === taskId && m.to_agent === recipient && !this.validHostReceipt(m.wakeup_receipt, this.repos.getRoute(m.task_id, m.to_agent))) {
             this.repos.putMessage({
               ...m,
               wakeup_status: "failed",
               wakeup_error: errText,
               delivery_attempts: Number(m.delivery_attempts || 0) + 1,
+              metadata: finishDeliveryMetadata(m, m.wakeup_target_session ||
+                this.repos.getRoute(m.task_id, m.to_agent)?.target_session_id, nowIso, false),
             });
           }
         }
       } else if (taskId) {
         const msgs = this.repos.queryMessages({
-          toAgent: "*",
+          toAgent: recipient || toAgent,
           taskId,
           limit: 200,
         });
@@ -1574,13 +1639,15 @@ export class BridgeEngine {
               wakeup_status: "failed",
               wakeup_error: errText,
               delivery_attempts: Number(m.delivery_attempts || 0) + 1,
+              metadata: finishDeliveryMetadata(m, m.wakeup_target_session ||
+                this.repos.getRoute(m.task_id, m.to_agent)?.target_session_id, nowIso, false),
             });
           }
         }
       }
 
       if (taskId) {
-        const route = this.repos.getRoute(taskId);
+        const route = selectedRoute;
         if (route) {
           const nextFailures = Number(route.consecutive_failures || 0) + 1;
           this.repos.putRoute({
@@ -1607,18 +1674,39 @@ export class BridgeEngine {
           }
         }
       }
+      this._scheduleWakeupRetry(taskId);
     });
+  }
+
+  _scheduleWakeupRetry(taskId) {
+    if (!taskId) return;
+    const deadlines = [];
+    for (const route of this.repos.listTaskRoutes(taskId)) {
+      if (!route.enabled || Number(route.consecutive_failures || 0) >= 3) continue;
+      const unread = this.repos.queryMessages({ taskId, toAgent: route.to_agent, unreadOnly: true, limit: 200 });
+      for (const message of unread) {
+        if (message.handback_reason || this.validHostReceipt(message.wakeup_receipt, route)) continue;
+        if (message.wakeup_status === 'failed' && deliveryAttempts(message, route.target_session_id) < 3) {
+          const deadline = Date.parse(deliveryState(message).retryAt || '');
+          deadlines.push(Number.isFinite(deadline) ? deadline : this._nowMs());
+        } else if (message.wakeup_status === 'pending' && retryDue(message, route.target_session_id, this._nowMs())) {
+          deadlines.push(this._nowMs());
+        }
+      }
+    }
+    if (deadlines.length) this._enqueueEffect({ kind: 'wakeup', effectKey: taskId,
+      payload: { taskId, reason: 'transport_retry' }, dueMs: Math.min(...deadlines) });
   }
 
   claimPendingWakeup(
     taskId,
-    { workerPid = 0, includeDispatched = false, bypassCircuitBreaker = false } = {}
+    { workerPid = 0, includeDispatched = false, bypassCircuitBreaker = false, toAgent = null } = {}
   ) {
     return this.repos.atomic(() => {
       if (this.getControlState().paused) {
         return { claimed: false, reason: "bridge_paused" };
       }
-      const route = this.repos.getRoute(taskId);
+      const route = this.repos.getRoute(taskId, toAgent);
       if (!route || !route.enabled) {
         return { claimed: false, reason: "route_disabled_or_missing" };
       }
@@ -1640,7 +1728,6 @@ export class BridgeEngine {
         const holderPid = Number(route.worker_pid || 0);
         if (
           holderPid > 0 &&
-          holderPid !== Number(workerPid) &&
           this.isPidAlive(holderPid)
         ) {
           return {
@@ -1675,21 +1762,30 @@ export class BridgeEngine {
       const unreadMsgs = this.repos.queryMessages({
         toAgent: refreshed.to_agent,
         taskId,
-        afterSeq: Number(refreshed.last_woken_seq || 0),
         unreadOnly: true,
         limit: 200,
       });
+      for (const message of unreadMsgs) {
+        if (allowedStatuses.has(message.wakeup_status) &&
+            this.validHostReceipt(message.wakeup_receipt, refreshed)) {
+          this.repos.putMessage({ ...message, wakeup_status: "delivered" });
+        }
+      }
 
-      const pendingRows = unreadMsgs.filter(
+      const eligibleRows = unreadMsgs.filter(
         (m) =>
           m.to_agent === refreshed.to_agent &&
           allowedStatuses.has(m.wakeup_status) &&
-          !m.handback_reason
+          !m.handback_reason &&
+          !this.validHostReceipt(m.wakeup_receipt, refreshed) &&
+          retryDue(m, refreshed.target_session_id, Date.parse(nowIso))
       );
 
-      if (pendingRows.length === 0) {
+      if (eligibleRows.length === 0) {
         return { claimed: false, reason: "no_unread_pending_messages" };
       }
+      const envelope = notificationEnvelope(eligibleRows, refreshed.target_session_id);
+      const pendingRows = envelope.messages;
 
       const lockedRoute = this.repos.putRoute({
         ...refreshed,
@@ -1708,6 +1804,7 @@ export class BridgeEngine {
           wakeup_status: "dispatched",
           wakeup_dispatched_at: nowIso,
           wakeup_error: null,
+          metadata: beginDeliveryMetadata(r, envelope, refreshed.target_session_id, nowIso),
         });
         messageIds.push(updatedMsg.id);
         claimedMessages.push(updatedMsg);
@@ -1719,6 +1816,7 @@ export class BridgeEngine {
         route: lockedRoute,
         messageIds,
         messages: claimedMessages,
+        notificationId: envelope.id,
         maxSeq,
       };
     });
@@ -1727,10 +1825,10 @@ export class BridgeEngine {
   completeWakeupDelivery(
     taskId,
     messageIds = [],
-    { delivered = true, maxSeq = 0, error = null, receipt = null } = {}
+    { delivered = true, maxSeq = 0, error = null, receipt = null, toAgent = null } = {}
   ) {
     return this.repos.atomic(() => {
-      const route = this.repos.getRoute(taskId);
+      const route = this.repos.getRoute(taskId, toAgent || this.repos.getMessage(messageIds[0])?.to_agent);
       if (delivered && !this.validHostReceipt(receipt, route)) {
         throw new Error(
           "Host acceptance requires accepted:true, turnId and matching targetSessionId"
@@ -1764,6 +1862,7 @@ export class BridgeEngine {
           wakeup_receipt: delivered && receipt ? receipt : m.wakeup_receipt,
           wakeup_error: error,
           delivery_attempts: Number(m.delivery_attempts || 0) + 1,
+          metadata: finishDeliveryMetadata(m, route.target_session_id, nowIso, delivered, receipt),
         });
       }
 
@@ -1819,6 +1918,7 @@ export class BridgeEngine {
         }
       }
 
+      this._scheduleWakeupRetry(taskId);
       return updatedRoute;
     });
   }
@@ -1828,11 +1928,12 @@ export class BridgeEngine {
     messageIds = [],
     maxSeq = null,
     receipt = null,
+    toAgent = null,
   } = {}) {
     if (!taskId) {
       throw new Error("taskId is required for confirmWakeupDelivery.");
     }
-    const route = this.repos.getRoute(taskId);
+    const route = this.repos.getRoute(taskId, toAgent || this.repos.getMessage(messageIds[0])?.to_agent || this.repos.listTaskRoutes(taskId).find((r) => r.target_session_id === receipt?.targetSessionId)?.to_agent);
     if (!this.validHostReceipt(receipt, route)) {
       return {
         ok: false,
@@ -1884,6 +1985,7 @@ export class BridgeEngine {
       maxSeq: resolvedMaxSeq,
       error: null,
       receipt: normalizedReceipt,
+      toAgent: route.to_agent,
     });
 
     return {
@@ -1892,6 +1994,7 @@ export class BridgeEngine {
       deliveredMessageIds: resolvedIds,
       maxSeq: resolvedMaxSeq,
       receipt: normalizedReceipt,
+      toAgent: route.to_agent,
       route: updatedRoute,
     };
   }
@@ -2274,6 +2377,7 @@ export class BridgeEngine {
     return {
       taskId: task.id,
       title: task.title,
+      ...workflow.workflowOverview(this, task),
       status: task.status,
       phase: task.phase,
       phaseLabel: task.phase_label,

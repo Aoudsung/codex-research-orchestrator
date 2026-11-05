@@ -203,13 +203,15 @@ export class SqliteStore {
             ON agent_sessions(agent, updated_at);
 
           CREATE TABLE IF NOT EXISTS wakeup_routes (
-            task_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
             thread_id TEXT NOT NULL,
             to_agent TEXT NOT NULL,
             target_session_id TEXT NOT NULL,
             driver TEXT NOT NULL DEFAULT 'host_poll',
             wakeup_command TEXT DEFAULT NULL,
             app_server_url TEXT DEFAULT NULL,
+            model TEXT DEFAULT NULL,
+            effort TEXT DEFAULT NULL,
             cwd TEXT DEFAULT '',
             enabled INTEGER NOT NULL DEFAULT 1,
             in_flight INTEGER NOT NULL DEFAULT 0,
@@ -222,7 +224,8 @@ export class SqliteStore {
             last_handled_by_client_id TEXT DEFAULT NULL,
             last_error TEXT DEFAULT NULL,
             consecutive_failures INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (task_id, to_agent)
           );
 
           -- v1.0.0 Durable Effects Queue
@@ -241,6 +244,25 @@ export class SqliteStore {
           );
           CREATE INDEX IF NOT EXISTS idx_bridge_effects_due
             ON bridge_effects(kind, due_ms, seq);
+
+          CREATE TABLE IF NOT EXISTS bridge_task_events (
+            event_id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            logical_key TEXT DEFAULT NULL,
+            payload_hash TEXT NOT NULL,
+            contract_version INTEGER DEFAULT NULL,
+            attempt_id TEXT DEFAULT NULL,
+            owner_epoch INTEGER DEFAULT NULL,
+            payload_json TEXT NOT NULL,
+            result_json TEXT DEFAULT NULL,
+            created_at TEXT NOT NULL,
+            seq INTEGER NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_bridge_task_events_task
+            ON bridge_task_events(task_id, seq);
+          CREATE INDEX IF NOT EXISTS idx_bridge_task_events_logical
+            ON bridge_task_events(task_id, kind, logical_key, seq);
 
           -- v1.0.0 Immutable Task Mandates
           CREATE TABLE IF NOT EXISTS bridge_mandates (
@@ -313,6 +335,28 @@ export class SqliteStore {
     }
   }
 
+  _migrateRoutePrimaryKey() {
+    this.atomic(() => {
+      const columns = this.db.prepare("PRAGMA table_info(wakeup_routes)").all();
+      const primary = columns.filter((col) => col.pk).sort((a, b) => a.pk - b.pk).map((col) => col.name);
+      if (primary.join(",") === "task_id,to_agent") return;
+      if (primary.join(",") !== "task_id") throw new Error("Unsupported wakeup_routes primary key");
+      const original = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'wakeup_routes'").get().sql;
+      // Retain the original column definitions and any installation-specific columns.
+      let definition = original.replace(/(\btask_id\s+TEXT)\s+PRIMARY\s+KEY/i, "$1 NOT NULL");
+      if (definition === original) throw new Error("Cannot migrate wakeup_routes primary key definition");
+      definition = definition.replace(/CREATE TABLE(?: IF NOT EXISTS)?\s+["`\[]?wakeup_routes["`\]]?/i,
+        "CREATE TABLE wakeup_routes_recipient_migration").replace(/\)(\s*(?:WITHOUT ROWID|STRICT)?\s*)$/i,
+        ", PRIMARY KEY (task_id, to_agent))$1");
+      const dependents = this.db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name = 'wakeup_routes' AND type IN ('index', 'trigger') AND sql IS NOT NULL").all();
+      const names = columns.map((col) => '"' + col.name.replaceAll('"', '""') + '"').join(", ");
+      this.db.exec(definition);
+      this.db.exec(`INSERT INTO wakeup_routes_recipient_migration (${names}) SELECT ${names} FROM wakeup_routes`);
+      this.db.exec("DROP TABLE wakeup_routes; ALTER TABLE wakeup_routes_recipient_migration RENAME TO wakeup_routes;");
+      for (const { sql } of dependents) this.db.exec(sql);
+    });
+  }
+
   _migrateExistingTables() {
     const addColIfMissing = (table, colName, colDef) => {
       const cols = this.db.prepare(`PRAGMA table_info(${table})`).all();
@@ -341,11 +385,15 @@ export class SqliteStore {
     addColIfMissing("messages", "handback_reason", "TEXT DEFAULT NULL");
     addColIfMissing("messages", "delivery_attempts", "INTEGER NOT NULL DEFAULT 0");
 
+    this._migrateRoutePrimaryKey();
+
     // wakeup_routes columns
     addColIfMissing("wakeup_routes", "worker_pid", "INTEGER DEFAULT NULL");
     addColIfMissing("wakeup_routes", "driver", "TEXT NOT NULL DEFAULT 'host_poll'");
     addColIfMissing("wakeup_routes", "wakeup_command", "TEXT DEFAULT NULL");
     addColIfMissing("wakeup_routes", "app_server_url", "TEXT DEFAULT NULL");
+    addColIfMissing("wakeup_routes", "model", "TEXT DEFAULT NULL");
+    addColIfMissing("wakeup_routes", "effort", "TEXT DEFAULT NULL");
     addColIfMissing("wakeup_routes", "last_receipt_json", "TEXT DEFAULT NULL");
     addColIfMissing("wakeup_routes", "last_turn_id", "TEXT DEFAULT NULL");
     addColIfMissing("wakeup_routes", "last_handled_by_client_id", "TEXT DEFAULT NULL");
@@ -1121,6 +1169,7 @@ export class SqliteStore {
           created_at, read_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
+          metadata_json = excluded.metadata_json,
           status = excluded.status,
           wakeup_status = excluded.wakeup_status,
           wakeup_target_session = excluded.wakeup_target_session,
@@ -1274,14 +1323,20 @@ export class SqliteStore {
     };
   }
 
-  getRoute(taskId) {
+  getRoute(taskId, toAgent = null) {
     if (!taskId) return null;
-    const row =
-      this.db
-        .prepare(`SELECT * FROM wakeup_routes WHERE task_id = ?`)
-        .get(taskId) || null;
-    if (!row) return null;
-    return this._deserializeRoute(row);
+    const row = toAgent
+      ? this.db.prepare(`SELECT * FROM wakeup_routes WHERE task_id = ? AND to_agent = ?`).get(taskId, toAgent)
+      : this.db.prepare(`SELECT r.* FROM wakeup_routes r WHERE r.task_id = ?
+          ORDER BY CASE WHEN r.to_agent = (SELECT assigned_to FROM tasks WHERE id = r.task_id) THEN 0 ELSE 1 END,
+            r.updated_at DESC, r.to_agent LIMIT 1`).get(taskId);
+    return row ? this._deserializeRoute(row) : null;
+  }
+
+  listTaskRoutes(taskId) {
+    if (!taskId) return [];
+    return this.db.prepare(`SELECT * FROM wakeup_routes WHERE task_id = ? ORDER BY to_agent`)
+      .all(taskId).map((row) => this._deserializeRoute(row));
   }
 
   putRoute(route) {
@@ -1291,17 +1346,19 @@ export class SqliteStore {
     this.db
       .prepare(
         `INSERT INTO wakeup_routes (
-          task_id, thread_id, to_agent, target_session_id, driver, wakeup_command, app_server_url, cwd,
+          task_id, thread_id, to_agent, target_session_id, driver, wakeup_command, app_server_url, model, effort, cwd,
           enabled, in_flight, worker_pid, last_woken_seq, last_dispatched_at, last_delivered_at,
           last_receipt_json, last_turn_id, last_handled_by_client_id, last_error, consecutive_failures, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(task_id) DO UPDATE SET
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(task_id, to_agent) DO UPDATE SET
           thread_id = excluded.thread_id,
           to_agent = excluded.to_agent,
           target_session_id = CASE WHEN excluded.target_session_id != '' THEN excluded.target_session_id ELSE wakeup_routes.target_session_id END,
           driver = excluded.driver,
           wakeup_command = COALESCE(excluded.wakeup_command, wakeup_routes.wakeup_command),
           app_server_url = COALESCE(excluded.app_server_url, wakeup_routes.app_server_url),
+          model = COALESCE(excluded.model, wakeup_routes.model),
+          effort = COALESCE(excluded.effort, wakeup_routes.effort),
           cwd = CASE WHEN excluded.cwd != '' THEN excluded.cwd ELSE wakeup_routes.cwd END,
           enabled = excluded.enabled,
           in_flight = excluded.in_flight,
@@ -1324,6 +1381,8 @@ export class SqliteStore {
         route.driver || "host_poll",
         route.wakeup_command || null,
         route.app_server_url || null,
+        route.model || null,
+        route.effort || null,
         route.cwd || "",
         route.enabled ? 1 : 0,
         route.in_flight ? 1 : 0,
@@ -1338,7 +1397,7 @@ export class SqliteStore {
         Number(route.consecutive_failures || 0),
         route.updated_at
       );
-    return this.getRoute(route.task_id);
+    return this.getRoute(route.task_id, route.to_agent);
   }
 
   listRoutes({ enabledOnly = false } = {}) {
@@ -1773,6 +1832,87 @@ export class SqliteStore {
       due_ms: Number(row.due_ms),
       last_error: row.last_error || "",
       since: row.since,
+    };
+  }
+
+  getTaskEvent(eventId) {
+    const row = this.db.prepare(`SELECT * FROM bridge_task_events WHERE event_id = ?`).get(eventId);
+    return row ? this._deserializeTaskEvent(row) : null;
+  }
+
+  putTaskEvent(event) {
+    for (const field of ["eventId", "taskId", "kind", "payloadHash"]) {
+      if (typeof event?.[field] !== "string" || !event[field].trim()) {
+        throw new Error(`Task event requires ${field}`);
+      }
+    }
+    return this.atomic(() => {
+      const existing = this.getTaskEvent(event.eventId);
+      if (existing) {
+        if (existing.payloadHash !== event.payloadHash) {
+          throw new Error(`TASK_EVENT_CONFLICT: ${event.eventId}`);
+        }
+        return existing;
+      }
+      this.db.prepare(`INSERT INTO bridge_task_events (
+        event_id, task_id, kind, logical_key, payload_hash, contract_version,
+        attempt_id, owner_epoch, payload_json, result_json, created_at, seq
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        event.eventId, event.taskId, event.kind, event.logicalKey ?? null,
+        event.payloadHash, event.contractVersion ?? null, event.attemptId ?? null,
+        event.ownerEpoch ?? null, JSON.stringify(event.payload ?? {}),
+        event.result === undefined || event.result === null ? null : JSON.stringify(event.result),
+        event.createdAt ?? new Date().toISOString(), event.seq ?? this.nextSeq()
+      );
+      return this.getTaskEvent(event.eventId);
+    });
+  }
+
+  updateTaskEventResult(eventId, result) {
+    return this.atomic(() => {
+      const event = this.getTaskEvent(eventId);
+      if (!event) throw new Error(`TASK_EVENT_NOT_FOUND: ${eventId}`);
+      const encoded = JSON.stringify(result);
+      if (encoded === undefined) throw new Error("Task event result must be JSON serializable");
+      if (event.result !== null && JSON.stringify(event.result) !== encoded) {
+        throw new Error(`TASK_EVENT_RESULT_CONFLICT: ${eventId}`);
+      }
+      this.db.prepare(`UPDATE bridge_task_events SET result_json = ? WHERE event_id = ?`).run(encoded, eventId);
+      return this.getTaskEvent(eventId);
+    });
+  }
+
+  listTaskEvents({ taskId = null, kind = null, logicalKey = null, limit = 50, orderDesc = true } = {}) {
+    const conditions = [];
+    const parameters = [];
+    for (const [column, value] of [["task_id", taskId], ["kind", kind], ["logical_key", logicalKey]]) {
+      if (value !== null) {
+        conditions.push(`${column} = ?`);
+        parameters.push(value);
+      }
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const order = orderDesc ? "DESC" : "ASC";
+    return this.db.prepare(`SELECT * FROM bridge_task_events ${where}
+      ORDER BY seq ${order}, created_at ${order}, event_id ${order} LIMIT ?`)
+      .all(...parameters, Math.max(0, Math.floor(Number(limit) || 0)))
+      .map((row) => this._deserializeTaskEvent(row));
+  }
+
+  _deserializeTaskEvent(row) {
+    return {
+      eventId: row.event_id,
+      taskId: row.task_id,
+      kind: row.kind,
+      logicalKey: row.logical_key,
+      payloadHash: row.payload_hash,
+      contractVersion: row.contract_version,
+      attemptId: row.attempt_id,
+      ownerEpoch: row.owner_epoch,
+      payload: parseJsonSafe(row.payload_json, {}),
+      result: parseJsonSafe(row.result_json, null),
+      createdAt: row.created_at,
+      seq: Number(row.seq),
     };
   }
 

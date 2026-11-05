@@ -4,6 +4,15 @@ An optional local MCP runtime for autonomous, reciprocal information exchange an
 
 Three backend adapters share one durable message and task store. Participants can request work, ask questions, return artifacts, exchange focused feedback, and continue the same authorized task with less manual relay.
 
+Wakeup batches retain a notification ID in the durable message metadata. Transport
+retries reuse that ID, and a bound host acceptance receipt prevents another visible
+delivery of the same message. Receipt acceptance does not mark the message read or
+the work complete. Failed transports retry after 30 seconds and then 2 minutes,
+with at most three attempts. The normal consumption grace is 2 minutes; a receipt
+for an active turn establishes a 10-minute processing lease. An overdue accepted
+message stays in the inbox and updates one task attention card, without repeating
+its body in the chat. Reading the message clears its consumption attention.
+
 ## Recommended setup
 
 From the complete repository, run `python3 setup.py install --project /path/to/your-project`, then ask Codex to connect the peers you want. The installed setup helper creates real paths and project-scoped configuration; see the [getting-started guide](https://github.com/Aoudsung/codex-research-orchestrator/blob/main/docs/getting-started.md).
@@ -57,6 +66,23 @@ Use the tool schemas returned by the installed server. The common surface includ
 - Summary operations keep full artifact contents out of the ordinary handoff. Retrieve the original when it is needed.
 
 The agents decide their next authorized action using the skill and task instructions. The bridge transports and records that work; storing a message alone does not launch a provider process or authorize a new task.
+
+## Task workflow protocol 2
+
+New MCP tasks support versioned contracts, business receipts, ownership handoffs,
+precise decision answers, incident tracking and durable continuations. Existing
+tasks retain their original protocol and sessions. Delivery criteria and scientific
+success criteria are recorded independently. Ordinary progress stays in task state;
+human notification categories are decision required, blocked and completed.
+
+See [the workflow protocol](docs/workflow-v2.md) for the tool fields, recovery
+behavior, project defaults and compatibility rules. The Workbench displays the
+responsible agent, wait condition, next action, artifacts and the event reason chain.
+
+The canonical runtime generates its release manifest and synchronizes installed
+and publication copies with `scripts/sync-release.py`. Runtime status reports the
+loaded release and actual database schema. This revision received syntax checks;
+unit tests and synthetic provider notifications were not run.
 
 ## Verify the runtime
 

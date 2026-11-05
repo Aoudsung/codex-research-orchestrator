@@ -40,11 +40,11 @@ if (
   path.resolve(process.argv[1]) === path.resolve(__filename)
 ) {
   if (process.argv[2] === "--deliver-task") {
-    const [, , , taskId, dbPath, delayMsStr, driverArg] = process.argv;
+    const [, , , taskId, dbPath, delayMsStr, driverArg, toAgent] = process.argv;
     const db = new BridgeDatabase(dbPath);
     const failAndExit = (err) => {
       try {
-        db.recordWakeupFailure(taskId, [], err?.message || String(err));
+        db.recordWakeupFailure(taskId, [], err?.message || String(err), toAgent || null);
       } catch {
         // ignore
       }
@@ -59,6 +59,7 @@ if (
           await new Promise((r) => setTimeout(r, delayMs));
         }
         await db.executeWakeupDelivery(taskId, {
+          toAgent: toAgent || null,
           driverOverride: driverArg || null,
           workerPid: process.pid,
           includeDispatched: false,

@@ -1,10 +1,13 @@
 import process from "node:process";
-import { resolveBinary, runCommand } from "../core/process-runner.mjs";
+import { parseJsonLines, resolveBinary, runCommand } from "../core/process-runner.mjs";
 import {
   deliverViaAppServerWs,
   deliverViaCodexIpcSocket,
 } from "../core/codex-host-driver.mjs";
+import { deliverViaPeerCli } from "../core/peer-wakeup.mjs";
 import { messageCard } from "../domain/cards.mjs";
+import { deliverViaClaudeDesktopInbox } from "../core/claude-desktop-wakeup.mjs";
+import { deliverViaAntigravityDesktop } from "../core/antigravity-desktop-wakeup.mjs";
 
 /**
  * Format compact wakeup prompt combining backwards-compatible header with v1.0.0 Inline Cards,
@@ -62,6 +65,7 @@ export async function executeTaskWakeupDriver(
   engine,
   taskId,
   {
+    toAgent = null,
     driverOverride = null,
     workerPid = process.pid,
     includeDispatched = false,
@@ -73,11 +77,18 @@ export async function executeTaskWakeupDriver(
     delivered: false,
     claimed: false,
     taskId,
-    route: engine.getWakeupRoute(taskId),
+    route: engine.getWakeupRoute(taskId, toAgent),
   };
+
+  // Only the app-managed sidecar may submit to this native conversation.
+  if (lastOutcome.route?.driver === "antigravity_desktop" &&
+      !process.env.ANTIGRAVITY_EXECUTABLE_DATA_DIR) {
+    return { ...lastOutcome, ok: true, reason: "waiting_for_antigravity_sidecar" };
+  }
 
   while (true) {
     const claim = engine.claimPendingWakeup(taskId, {
+      toAgent,
       workerPid,
       includeDispatched,
       bypassCircuitBreaker,
@@ -90,7 +101,7 @@ export async function executeTaskWakeupDriver(
           claimed: false,
           reason: claim.reason,
           taskId,
-          route: engine.getWakeupRoute(taskId),
+          route: engine.getWakeupRoute(taskId, toAgent),
         };
       }
       break;
@@ -106,6 +117,24 @@ export async function executeTaskWakeupDriver(
       (process.env.CODEX_BIN ? "cli_resume" : null) ||
       "codex_ipc";
 
+    const allowed = {
+      codex: ["host_poll", "codex_ipc", "app_server_ws", "cli_resume", "custom_command", "manual"],
+      "claude-code": ["claude_cli", "claude_desktop", "custom_command", "manual"],
+      antigravity: ["agy_cli", "antigravity_desktop", "custom_command", "manual"],
+    };
+    const invalidDriver = !allowed[route.to_agent]?.includes(driver);
+    const unsupportedModel = ["host_poll", "codex_ipc", "app_server_ws"].includes(driver) &&
+      Boolean(route.model || route.effort);
+    if (invalidDriver || unsupportedModel) {
+      const error = invalidDriver
+        ? `Wakeup driver '${driver}' cannot target '${route.to_agent}'.`
+        : "This desktop transport cannot guarantee a requested model or effort; no turn was started.";
+      const updatedRoute = engine.completeWakeupDelivery(taskId, claim.messageIds, {
+        toAgent: route.to_agent, delivered: false, maxSeq: claim.maxSeq, error,
+      });
+      return { ok: false, delivered: false, claimed: true, driver, error, route: updatedRoute };
+    }
+
     if (driver === "manual") {
       engine.repos.atomic(() => {
         const nowIso = new Date().toISOString();
@@ -115,7 +144,7 @@ export async function executeTaskWakeupDriver(
             engine.repos.putMessage({ ...m, wakeup_status: "pending" });
           }
         }
-        const curRoute = engine.getWakeupRoute(taskId);
+        const curRoute = engine.getWakeupRoute(taskId, toAgent);
         if (curRoute) {
           engine.repos.putRoute({
             ...curRoute,
@@ -131,11 +160,75 @@ export async function executeTaskWakeupDriver(
         claimed: true,
         driver: "manual",
         reason: "manual_driver_does_not_auto_deliver",
-        route: engine.getWakeupRoute(taskId),
+        route: engine.getWakeupRoute(taskId, toAgent),
       };
     }
 
     const prompt = buildDriverWakeupPrompt({ route, claim });
+
+    if (driver === "claude_desktop" || driver === "antigravity_desktop") {
+      let submitted = false;
+      try {
+        const expectedAgent = driver === "claude_desktop" ? "claude-code" : "antigravity";
+        if (driver !== route.driver || route.to_agent !== expectedAgent) {
+          throw new Error("Native desktop delivery requires the stored driver and matching recipient.");
+        }
+        // Commit uncertainty before native I/O: a crash must not enqueue a second send.
+        engine.repos.atomic(() => {
+          for (const id of claim.messageIds) {
+            const message = engine.getMessageById(id);
+            if (message) engine.repos.putMessage({ ...message, wakeup_status: "unconfirmed" });
+          }
+        });
+        const deliver = driver === "claude_desktop" ? deliverViaClaudeDesktopInbox : deliverViaAntigravityDesktop;
+        const desktop = await deliver({
+          targetSessionId: route.target_session_id, prompt,
+          notificationId: claim.notificationId, model: route.model, effort: route.effort,
+        });
+        submitted = true;
+        const updatedRoute = engine.completeWakeupDelivery(taskId, claim.messageIds, {
+          toAgent: route.to_agent,
+delivered: true, maxSeq: claim.maxSeq, receipt: desktop.receipt,
+        });
+        lastOutcome = { ...desktop, claimed: true, messageIds: claim.messageIds, route: updatedRoute };
+        continue;
+      } catch (error) {
+        engine.repos.atomic(() => {
+          engine.recordWakeupFailure(taskId, claim.messageIds, error?.message || String(error), route.to_agent);
+          if (submitted || error?.deliveryAttempted) {
+            for (const id of claim.messageIds) {
+              const message = engine.getMessageById(id);
+              if (message) engine.repos.putMessage({ ...message, wakeup_status: "unconfirmed" });
+            }
+          }
+        });
+        return { ok: false, delivered: false, claimed: true, driver,
+          error: error?.message || String(error), route: engine.getWakeupRoute(taskId, toAgent) };
+      }
+    }
+
+    if (driver === "claude_cli" || driver === "agy_cli") {
+      const expectedAgent = driver === "claude_cli" ? "claude-code" : "antigravity";
+      const peer = route.to_agent === expectedAgent
+        ? await deliverViaPeerCli({
+            agent: route.to_agent, targetSessionId: route.target_session_id, prompt,
+            cwd: route.cwd || process.cwd(), model: route.model || undefined,
+            effort: route.effort || undefined,
+          })
+        : { ok: false, error: `Wakeup driver '${driver}' cannot target '${route.to_agent}'.` };
+      const accepted = Boolean(peer.ok && peer.delivered && engine.validHostReceipt(peer.receipt, route));
+      const updatedRoute = engine.completeWakeupDelivery(taskId, claim.messageIds, {
+        toAgent: route.to_agent, delivered: accepted, maxSeq: claim.maxSeq,
+        error: accepted ? null : peer.error || "peer_cli_wakeup_failed",
+        receipt: accepted ? peer.receipt : null,
+      });
+      lastOutcome = { ok: accepted, delivered: accepted, claimed: true, driver,
+        messageIds: claim.messageIds, maxSeq: claim.maxSeq,
+        receipt: accepted ? peer.receipt : null, actualModel: peer.actualModel || null,
+        error: accepted ? null : peer.error, route: updatedRoute };
+      if (!accepted) break;
+      continue;
+    }
 
     // 1. Custom shell command driver
     if (driver === "custom_command") {
@@ -145,6 +238,7 @@ export async function executeTaskWakeupDriver(
           taskId,
           claim.messageIds,
           {
+          toAgent: route.to_agent,
             delivered: false,
             maxSeq: claim.maxSeq,
             error: "No wakeup_command or BRIDGE_WAKEUP_COMMAND configured",
@@ -187,6 +281,7 @@ export async function executeTaskWakeupDriver(
         taskId,
         claim.messageIds,
         {
+          toAgent: route.to_agent,
           delivered: Boolean(accepted),
           maxSeq: claim.maxSeq,
           error: accepted
@@ -219,6 +314,7 @@ export async function executeTaskWakeupDriver(
         appServerUrl,
         targetSessionId: route.target_session_id,
         prompt,
+        clientUserMessageId: claim.notificationId,
         cwd: route.cwd || process.cwd(),
         timeoutMs: 20000,
       });
@@ -233,6 +329,7 @@ export async function executeTaskWakeupDriver(
         taskId,
         claim.messageIds,
         {
+          toAgent: route.to_agent,
           delivered: accepted,
           maxSeq: claim.maxSeq,
           error: accepted ? null : wsRes.error || "app_server_ws_failed",
@@ -268,12 +365,14 @@ export async function executeTaskWakeupDriver(
             appServerUrl: explicitUrl,
             targetSessionId: route.target_session_id,
             prompt,
+            clientUserMessageId: claim.notificationId,
             cwd: route.cwd || process.cwd(),
             timeoutMs: 20000,
           })
         : await deliverViaCodexIpcSocket({
             targetSessionId: route.target_session_id,
             prompt,
+            clientUserMessageId: claim.notificationId,
             cwd: route.cwd || process.cwd(),
             ipcSocketPath: explicitUrl || null,
             timeoutMs: 20000,
@@ -290,6 +389,7 @@ export async function executeTaskWakeupDriver(
         taskId,
         claim.messageIds,
         {
+          toAgent: route.to_agent,
           delivered: accepted,
           maxSeq: claim.maxSeq,
           error: accepted
@@ -323,6 +423,7 @@ export async function executeTaskWakeupDriver(
         taskId,
         claim.messageIds,
         {
+          toAgent: route.to_agent,
           delivered: false,
           maxSeq: claim.maxSeq,
           error: "codex binary not found on PATH or CODEX_BIN",
@@ -339,16 +440,13 @@ export async function executeTaskWakeupDriver(
       break;
     }
 
+    const codexArgs = ["exec", "resume", "--json", "--skip-git-repo-check"];
+    if (route.model) codexArgs.push("--model", route.model);
+    if (route.effort) codexArgs.push("-c", `model_reasoning_effort=${JSON.stringify(route.effort)}`);
+    codexArgs.push(route.target_session_id, "-");
     const res = await runCommand({
       command: codexBin,
-      args: [
-        "exec",
-        "resume",
-        "--json",
-        "--skip-git-repo-check",
-        route.target_session_id,
-        "-",
-      ],
+      args: codexArgs,
       cwd: route.cwd || process.cwd(),
       stdinText: prompt,
       timeoutMs: 0,
@@ -362,14 +460,17 @@ export async function executeTaskWakeupDriver(
       (combinedErr.includes("already has an active writer") ||
         combinedErr.includes("-32600"))
     ) {
-      engine.configureWakeupRoute({
-        taskId,
-        driver: "host_poll",
-        enabled: true,
-      });
+      if (route.model || route.effort) {
+        const error = "An active Codex writer prevents resumption with the requested model/effort.";
+        const updatedRoute = engine.completeWakeupDelivery(taskId, claim.messageIds, {
+          toAgent: route.to_agent, delivered: false, error,
+        });
+        return { ok: false, delivered: false, claimed: true, driver, error, route: updatedRoute };
+      }
       const ipcFallback = await deliverViaCodexIpcSocket({
         targetSessionId: route.target_session_id,
         prompt,
+        clientUserMessageId: claim.notificationId,
         cwd: route.cwd || process.cwd(),
         timeoutMs: 20000,
       });
@@ -384,6 +485,7 @@ export async function executeTaskWakeupDriver(
         taskId,
         claim.messageIds,
         {
+          toAgent: route.to_agent,
           delivered: accepted,
           maxSeq: claim.maxSeq,
           error: accepted
@@ -394,6 +496,9 @@ export async function executeTaskWakeupDriver(
           receipt: accepted ? ipcFallback.receipt : null,
         }
       );
+      if (accepted) engine.configureWakeupRoute({
+        taskId, toAgent: route.to_agent, driver: "host_poll", enabled: true,
+      });
       lastOutcome = {
         ok: accepted,
         delivered: accepted,
@@ -411,29 +516,27 @@ export async function executeTaskWakeupDriver(
       continue;
     }
 
-    const updatedRoute = engine.completeWakeupDelivery(
-      taskId,
-      claim.messageIds,
-      {
-        delivered: false,
-        maxSeq: claim.maxSeq,
-        error: res.ok
-          ? "CLI process exited without host acceptance evidence"
-          : res.stderr || res.error || `exitCode=${res.exitCode}`,
-        receipt: null,
-      }
-    );
-    lastOutcome = {
-      ok: Boolean(res.ok),
-      delivered: false,
-      claimed: true,
-      driver: "cli_resume",
-      messageIds: claim.messageIds,
-      maxSeq: claim.maxSeq,
-      receipt: null,
-      route: updatedRoute,
-    };
-    break;
+    const events = parseJsonLines(res.stdout).events;
+    const started = events.filter((event) => event.type === "thread.started");
+    const completed = events.filter((event) => event.type === "turn.completed");
+    const response = events.find((event) => event.type === "item.completed" &&
+      event.item?.type === "agent_message" && typeof event.item.text === "string" && event.item.text.trim());
+    const accepted = Boolean(res.ok && started.length === 1 &&
+      started[0].thread_id === route.target_session_id && completed.length === 1 && response &&
+      !events.some((event) => event.type === "turn.failed"));
+    const cliReceipt = accepted ? {
+      accepted: true, targetSessionId: route.target_session_id,
+      evidence: { provider: "codex", sessionId: started[0].thread_id, status: "completed" },
+    } : null;
+    const updatedRoute = engine.completeWakeupDelivery(taskId, claim.messageIds, {
+      toAgent: route.to_agent, delivered: accepted, maxSeq: claim.maxSeq,
+      error: accepted ? null : res.ok ? "CLI process exited without a bound completed turn" :
+        res.stderr || res.error || `exitCode=${res.exitCode}`,
+      receipt: cliReceipt,
+    });
+    lastOutcome = { ok: accepted, delivered: accepted, claimed: true, driver: "cli_resume",
+      messageIds: claim.messageIds, maxSeq: claim.maxSeq, receipt: cliReceipt, route: updatedRoute };
+    if (!accepted) break;
   }
 
   return lastOutcome;

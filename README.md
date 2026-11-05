@@ -4,6 +4,8 @@
 
 [Get started](docs/getting-started.md) · [Workbench](docs/workbench.md) · [Changelog](CHANGELOG.md) · [Connect agents](docs/mcp-setup.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [MIT License](LICENSE)
 
+The bundled bridge also supports [workflow protocol 2](runtimes/agent-bridge/docs/workflow-v2.md): versioned task contracts, durable business receipts, precise decisions, ownership handoffs and event-driven continuation. Existing tasks retain their protocol and sessions. The runtime release manifest identifies the shared source used by installed and publication copies.
+
 ## Start in three steps
 
 Requires **Python 3.11+** for setup. Node.js and external provider accounts are optional.

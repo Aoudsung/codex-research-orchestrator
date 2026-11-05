@@ -181,7 +181,7 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
         JSON.stringify(
           {
             pid: process.pid,
-            version: "1.0.0",
+            version: "1.1.0",
             dbPath: resolvedDbPath,
             codeMtimeMs: bootMtimeMs,
             startedAt: bootIso,
@@ -230,12 +230,11 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
   });
 
   // Register standard durable Effect handlers
-  effectsQueue.registerHandler("wakeup", async (effect) => {
+  const dispatchRoute = async (effect, route) => {
     if (engine.getControlState().paused) {
       throw new Later(2000, "bridge_paused");
     }
-    const taskId = effect.effect_key;
-    const route = engine.getWakeupRoute(taskId);
+    const taskId = effect.payload?.taskId || effect.effect_key;
     if (!route || !route.enabled || route.driver === "manual") {
       return { skipped: true, reason: "no_enabled_auto_route" };
     }
@@ -247,7 +246,6 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
       .queryMessages({
         toAgent: route.to_agent,
         taskId,
-        afterSeq: Number(route.last_woken_seq || 0),
         unreadOnly: true,
         limit: 50,
       })
@@ -288,8 +286,9 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
       effect.priority === "human_priority" ||
       Boolean(effect.payload?.userInitiated);
 
-    return slotScheduler.runWithSlot(taskId, { userInitiated }, async () => {
+    return slotScheduler.runWithSlot(`${taskId}:${route.to_agent}`, { userInitiated }, async () => {
       const outcome = await executeTaskWakeupDriver(engine, taskId, {
+        toAgent: route.to_agent,
         workerPid: process.pid,
         includeDispatched: true,
         bypassCircuitBreaker: userInitiated,
@@ -299,6 +298,24 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
       }
       return outcome;
     });
+  };
+
+  effectsQueue.registerHandler("wakeup", async (effect) => {
+    const taskId = effect.payload?.taskId || effect.effect_key;
+    const routes = repos.listTaskRoutes(taskId);
+    let failure = null;
+    for (const route of routes) {
+      try { await dispatchRoute(effect, route); }
+      catch (error) { failure ||= error; }
+    }
+    if (failure) throw failure;
+    return { ok: true };
+  });
+
+  effectsQueue.registerHandler("task_continue", (effect) => {
+    const result = engine.processTaskContinuation(effect.payload);
+    if (result?.deferred) throw new Later(result.retryAfterMs || 30000, result.reason || "waiting_for_trigger");
+    return result;
   });
 
   effectsQueue.registerHandler("control_notice", async () => {
@@ -316,9 +333,10 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
     if (!task || ["completed", "failed", "cancelled"].includes(task.status)) {
       return { skipped: true };
     }
-    const route = engine.getWakeupRoute(taskId);
-    if (route && route.enabled && route.driver !== "manual") {
+    for (const route of repos.listTaskRoutes(taskId)) {
+      if (!route.enabled || route.driver === "manual") continue;
       await executeTaskWakeupDriver(engine, taskId, {
+        toAgent: route.to_agent,
         workerPid: process.pid,
         includeDispatched: true,
       });
@@ -396,12 +414,11 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
               .queryMessages({
                 toAgent: r.to_agent,
                 taskId: r.task_id,
-                afterSeq: Number(r.last_woken_seq || 0),
                 unreadOnly: true,
                 limit: 10,
               })
               .filter((m) =>
-                ["pending", "dispatched"].includes(m.wakeup_status)
+                ["pending", "dispatched", "failed"].includes(m.wakeup_status)
               );
             if (pending.length > 0) {
               const existing = repos

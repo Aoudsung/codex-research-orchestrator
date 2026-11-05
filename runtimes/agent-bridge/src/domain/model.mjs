@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
+import { CONSUMPTION_GRACE_MS, PROCESSING_LEASE_MS, deliveryState } from "../core/wakeup-policy.mjs";
 
 export const PHASE_LABELS = {
+  waiting_external: "Waiting for external event",
+  waiting_user: "Waiting for decision",
+  retry_scheduled: "Retry scheduled",
+  blocked: "Blocked",
   pending_preflight: "Awaiting preflight",
   ready: "Ready",
   in_progress: "In progress",
@@ -24,6 +29,7 @@ export const EFFECT_KINDS = [
   "fanout",
   "control_notice",
   "channel_check",
+  "task_continue",
 ];
 
 export const HANDOFF_REASON_CODES = [
@@ -228,7 +234,7 @@ export function isBlindIsolated(mandateOrTask) {
  */
 export function unconsumedMessages(
   messages = [],
-  { nowMs = Date.now(), graceMs = 15000 } = {}
+  { nowMs = Date.now(), graceMs = CONSUMPTION_GRACE_MS } = {}
 ) {
   if (!Array.isArray(messages)) return [];
   const results = [];
@@ -240,6 +246,9 @@ export function unconsumedMessages(
     const processedAt = m.processed_at || m.processedAt || null;
     const status = m.status || "unread";
     if (consumedAt || processedAt || status !== "unread") continue;
+    const state = deliveryState(m);
+    const processingUntil = Date.parse(state.processingUntil || "");
+    if (Number.isFinite(processingUntil) && nowMs < processingUntil) continue;
 
     const deliveredIso =
       m.wakeup_delivered_at ||
@@ -248,7 +257,11 @@ export function unconsumedMessages(
       m.createdAt ||
       null;
     const deliveredMs = deliveredIso ? Date.parse(deliveredIso) : 0;
-    if (!Number.isFinite(deliveredMs) || nowMs - deliveredMs >= graceMs) {
+    const activeReceipt = m.wakeup_receipt?.turnStatus === "inProgress" ||
+      m.wakeup_receipt?.turnStatus === "running" ||
+      m.wakeup_receipt?.method === "thread-follower-steer-turn";
+    const waitMs = activeReceipt ? Math.max(graceMs, PROCESSING_LEASE_MS) : graceMs;
+    if (!Number.isFinite(deliveredMs) || nowMs - deliveredMs >= waitMs) {
       results.push(m);
     }
   }

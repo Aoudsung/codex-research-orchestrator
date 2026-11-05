@@ -80,6 +80,7 @@ export function createMandate({
   const resolvedIsolation =
     isolationProfile || resolveIsolationProfile(task);
   const scope = {
+    protocolVersion: task.metadata?.protocolVersion || 1,
     fromAgent: task.from_agent || task.fromAgent || "codex",
     assignedTo: task.assigned_to || task.assignedTo || null,
     cwd: task.cwd || "",
@@ -177,7 +178,7 @@ export function revalidateMandate(
     Boolean(snap.controlsHash) &&
     mandateControlsHash !== snap.controlsHash;
 
-  if (controlsChanged && isResumeFromIdle) {
+  if (controlsChanged && isResumeFromIdle && mandate.scope?.protocolVersion !== 2) {
     return {
       ok: false,
       reasonCode: REASONS.CONTROL_VERSION_CHANGED,

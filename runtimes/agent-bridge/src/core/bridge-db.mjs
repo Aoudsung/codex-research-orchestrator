@@ -308,9 +308,11 @@ export class BridgeDatabase {
     }
   }
 
-  getWakeupRoute(taskId) {
-    return this.engine.getWakeupRoute(taskId);
+  getWakeupRoute(taskId, toAgent = null) {
+    return this.engine.getWakeupRoute(taskId, toAgent);
   }
+
+  getWakeupRoutes(taskId) { return this.engine.getWakeupRoutes(taskId); }
 
   configureWakeupRoute(args) {
     const route = this.engine.configureWakeupRoute(args);
@@ -329,18 +331,19 @@ export class BridgeDatabase {
     return route;
   }
 
-  recordWakeupFailure(taskId, messageIds = [], errorMsg = "wakeup_failed") {
-    return this.engine.recordWakeupFailure(taskId, messageIds, errorMsg);
+  recordWakeupFailure(taskId, messageIds = [], errorMsg = "wakeup_failed", toAgent = null) {
+    return this.engine.recordWakeupFailure(taskId, messageIds, errorMsg, toAgent);
   }
 
   claimPendingWakeup(
     taskId,
-    { workerPid = process.pid, includeDispatched = false, bypassCircuitBreaker = false } = {}
+    { workerPid = process.pid, includeDispatched = false, bypassCircuitBreaker = false, toAgent = null } = {}
   ) {
     return this.engine.claimPendingWakeup(taskId, {
       workerPid,
       includeDispatched,
       bypassCircuitBreaker,
+      toAgent,
     });
   }
 
@@ -356,6 +359,7 @@ export class BridgeDatabase {
     taskId,
     {
       driverOverride = null,
+      toAgent = null,
       workerPid = process.pid,
       includeDispatched = false,
       bypassCircuitBreaker = false,
@@ -363,6 +367,7 @@ export class BridgeDatabase {
   ) {
     return executeTaskWakeupDriver(this.engine, taskId, {
       driverOverride,
+      toAgent,
       workerPid,
       includeDispatched,
       bypassCircuitBreaker,
@@ -378,7 +383,7 @@ export class BridgeDatabase {
     ) {
       return;
     }
-    const route = this.getWakeupRoute(msg.task_id);
+    const route = this.getWakeupRoute(msg.task_id, msg.to_agent);
     if (!route || !route.enabled) return;
 
     this._notifyLocalWaiters();
@@ -420,6 +425,7 @@ export class BridgeDatabase {
           this.dbPath,
           String(coalesceMs),
           "",
+          msg.to_agent,
         ],
         {
           detached: true,
@@ -432,7 +438,8 @@ export class BridgeDatabase {
           this.recordWakeupFailure(
             msg.task_id,
             [msg.id],
-            err?.message || String(err)
+            err?.message || String(err),
+            msg.to_agent
           );
         } catch {}
       });
@@ -480,6 +487,24 @@ export class BridgeDatabase {
 
   completeTask(args) {
     return this.engine.completeTask(args);
+  }
+
+  updateTaskContract(args) { return this.engine.updateTaskContract(args); }
+  submitTaskReceipt(args) { return this.engine.submitTaskReceipt(args); }
+  acceptTaskDelivery(args) { return this.engine.acceptTaskDelivery(args); }
+  answerTaskDecision(args) { return this.engine.answerTaskDecision(args); }
+  processTaskContinuation(args) { return this.engine.processTaskContinuation(args); }
+  signalTaskEvent(args) { return this.engine.signalTaskEvent(args); }
+
+  getRuntimeInfo() {
+    const root = new URL("../../", import.meta.url);
+    const pkg = JSON.parse(fs.readFileSync(new URL("package.json", root), "utf8"));
+    const manifest = new URL("release-manifest.json", root);
+    const release = fs.existsSync(manifest) ? JSON.parse(fs.readFileSync(manifest, "utf8")) : {};
+    const hasEvents = Boolean(this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='bridge_task_events'").get());
+    return { version: pkg.version, releaseId: release.releaseId || null,
+      protocolVersions: [1, 2], schemaVersion: hasEvents ? (this.db.prepare("PRAGMA table_info(wakeup_routes)").all().some(c => c.name === "to_agent" && c.pk > 0) ? 3 : 2) : 1,
+      capabilities: ["task_contract", "task_receipt", "decision_answer", "task_handoff", "task_continuation"] };
   }
 
   async waitForTask({ taskId, timeoutMs = 60000, pollIntervalMs = 500 }) {
@@ -666,7 +691,7 @@ export class BridgeDatabase {
     receipt = null,
   } = {}) {
     let resolvedAfterSeq = afterSeq;
-    const route = taskId ? this.getWakeupRoute(taskId) : null;
+    const route = taskId ? this.getWakeupRoute(taskId, toAgent) : null;
     if (resolvedAfterSeq === null || resolvedAfterSeq === undefined) {
       const lastWoken = Number(route?.last_woken_seq || 0);
       let lastActiveOutbound = 0;
@@ -744,13 +769,14 @@ export class BridgeDatabase {
       }
       this.db
         .prepare(
-          `UPDATE wakeup_routes SET last_dispatched_at = ?, updated_at = ? WHERE task_id = ?`
+          `UPDATE wakeup_routes SET last_dispatched_at = ?, updated_at = ? WHERE task_id = ? AND to_agent = ?`
         )
-        .run(nowIso, nowIso, taskId);
+        .run(nowIso, nowIso, taskId, toAgent);
 
       if (deliverToHost) {
         const execOutcome = await this.executeWakeupDelivery(taskId, {
           includeDispatched: true,
+          toAgent,
         });
         if (execOutcome.delivered && execOutcome.receipt?.accepted) {
           deliveryConfirmed = true;
@@ -762,6 +788,7 @@ export class BridgeDatabase {
         const confirmOutcome = this.confirmWakeupDelivery({
           taskId,
           messageIds: msgIds,
+          toAgent,
           maxSeq: pollResult.nextCursor,
           receipt,
         });
@@ -799,7 +826,7 @@ export class BridgeDatabase {
         )
     );
 
-    const refreshedRoute = taskId ? this.getWakeupRoute(taskId) : route;
+    const refreshedRoute = taskId ? this.getWakeupRoute(taskId, toAgent) : route;
     const refreshedMessages = pollResult.messages.map(
       (m) => this.getMessageById(m.id) || m
     );

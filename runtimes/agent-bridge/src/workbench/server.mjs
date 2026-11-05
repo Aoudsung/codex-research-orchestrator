@@ -102,7 +102,7 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
     return { task: normalizeTask(result.task), preflight: result.preflight };
   }
   async function message(body) {
-    validateObject(body, ['taskId','fromAgent','toAgent','replyTo','subject','content','resolveHandback']);
+    validateObject(body, ['taskId','fromAgent','toAgent','replyTo','subject','content','resolveHandback','decisionId','eventId']);
     const taskId = string(body,'taskId',true,300), fromAgent = agent(body.fromAgent), content = string(body,'content',true,64000);
     const toAgent = body.toAgent === undefined ? undefined : agent(body.toAgent), replyTo = string(body,'replyTo',false,300), subject = string(body,'subject',false,300);
     if (body.resolveHandback !== undefined && typeof body.resolveHandback !== 'boolean') throw fail('INVALID_FIELD', 'resolveHandback must be a boolean');
@@ -120,7 +120,15 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
       if (body.resolveHandback) reader.resolveTaskAttention(taskId);
       return { receipt: { messageId: msg.id, seq, actualFromAgent: fromAgent, actualToAgent: recipient, threadId: msg.threadId, taskId, replyTo: msg.replyTo, simulated: true }, message: reader.list('messages', new URLSearchParams({ taskId })).items.find(m => m.id === msg.id), simulated: true };
     }
-    requireScope(reader.rawTask(taskId));
+    const scopedTask = requireScope(reader.rawTask(taskId));
+    const decisionId = string(body, 'decisionId', false, 300);
+    if (decisionId) {
+      const eventId = string(body, 'eventId', true, 300);
+      const result = await providerCall('codex', 'bridge_answer_task_decision', { taskId, decisionId, eventId, answer: content }, undefined, scopedTask.from_agent || 'codex');
+      if (result.ok === false) throw fail(result.errorCode || 'ANSWER_FAILED', result.error || 'Answer could not be saved', 409, result);
+      return { receipt: result.result, decisionId };
+    }
+    if (body.resolveHandback && scopedTask.metadata?.protocolVersion === 2) throw fail('DECISION_REQUIRED', 'Select the specific pending decision to answer', 409);
     if (replyTo) reader.database('bridge', db => {
       const parent = db.prepare('SELECT task_id FROM messages WHERE id=?').get(replyTo);
       if (!parent || parent.task_id !== taskId) throw fail('REPLY_BINDING_MISMATCH','Reply must belong to the selected task');

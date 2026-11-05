@@ -59,6 +59,7 @@ function writeLengthPrefixedFrame(socket, payloadObj) {
 export async function deliverViaCodexIpcSocket({
   targetSessionId,
   prompt,
+  clientUserMessageId = crypto.randomUUID(),
   cwd = process.cwd(),
   ipcSocketPath = null,
   hostId = "local",
@@ -134,7 +135,6 @@ export async function deliverViaCodexIpcSocket({
     const ownerReqId = crypto.randomUUID();
     const steerReqId = crypto.randomUUID();
     const startReqId = crypto.randomUUID();
-    const clientUserMessageId = crypto.randomUUID();
 
     const buildRestoreMessage = () => ({
       id: clientUserMessageId,
@@ -526,6 +526,7 @@ export async function deliverViaAppServerWs({
   appServerUrl,
   targetSessionId,
   prompt,
+  clientUserMessageId = crypto.randomUUID(),
   cwd = process.cwd(),
   timeoutMs = 20000,
 } = {}) {
@@ -562,6 +563,7 @@ export async function deliverViaAppServerWs({
     return deliverViaCodexIpcSocket({
       targetSessionId,
       prompt,
+      clientUserMessageId,
       cwd,
       ipcSocketPath: appServerUrl,
       timeoutMs,
@@ -569,7 +571,6 @@ export async function deliverViaAppServerWs({
   }
 
   const effectiveTimeoutMs = Math.max(2000, Number(timeoutMs || 20000));
-  const clientUserMessageId = crypto.randomUUID();
 
   return new Promise((resolve) => {
     let settled = false;

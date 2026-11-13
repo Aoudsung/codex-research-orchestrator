@@ -8,6 +8,7 @@ import {
   REASONS,
   ROUTER_MODES,
   attentionStage,
+  buildValidationEscalationGuidance,
   computePatchApplyOrder,
   isBlindIsolated,
   resolveCognitiveProfile,
@@ -2359,10 +2360,35 @@ export class BridgeEngine {
         });
       }
 
+      const recentValidations = this.repos.listValidations({
+        taskId,
+        limit: 50,
+        orderDesc: true,
+      });
+      let consecutiveFailures = 0;
+      for (const item of recentValidations) {
+        if (item.passed === false) {
+          consecutiveFailures += 1;
+        } else if (item.passed === true) {
+          break;
+        }
+      }
+      const patchCount = this.repos.listPatches({
+        taskId,
+        activeOnly: false,
+        includeRawContent: false,
+      }).length;
+      const jitGuidance = buildValidationEscalationGuidance({
+        passed: passed === null || passed === undefined ? null : Boolean(passed),
+        consecutiveFailures,
+        patchCount,
+      });
+
       return {
         validationId: id,
         seq,
         task: updatedTask,
+        ...(jitGuidance ? { jitGuidance } : {}),
         notificationReceipt: notification
           ? {
               messageId: notification.id,

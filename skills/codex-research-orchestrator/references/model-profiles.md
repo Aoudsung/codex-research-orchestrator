@@ -1,97 +1,45 @@
-# Model Cognitive Profiles and Prompt Adapters
+# Model Cognitive Profiles, L0–L4 Routing & Session Lanes
 
-Roles define **what responsibility** an assignment carries; model cognitive adapters define **how instructions, context packets, and constraints are shaped** so each model family operates at peak reasoning capability rather than fighting its post-training priors.
+Assignments compile along three axes: `Role × Epistemic Stance × Model Adapter` (compiled deterministically via `research_context(..., role=..., stance=..., recipient_profile=...)`). **Claude (`claude-code`) is strictly opt-in**—never assume or route to Claude unless explicitly declared available in the user's request, `controls.md`, or `project.md`.
 
-Codex can execute every role alone when external providers are not connected. **Claude (`claude-code`) is strictly opt-in**: never assume, suggest, or route tasks to Claude unless the user explicitly declares Claude available in the current prompt, `controls.md`, or `project.md`. By default, multi-agent collaboration forms a complete, zero-gap system using **`Codex` + `Antigravity (Gemini)` (+ `ChatGPT Pro` when authorized)**.
+## Adaptive Participant Topology
 
-Compile assignments along three orthogonal axes:
-
-$$\text{Assignment} = \text{Role Responsibility} \times \text{Epistemic Stance} \times \text{Model Adapter}$$
-
-See [epistemic stances](epistemic-stances.md) for stance rules and [purpose-specific prompts](prompts.md) for prompt assembly.
-
-## Adaptive Participant Topology (Default Without Claude vs. Opt-In Claude)
-
-| Scientific responsibility | Default complete topology (`Codex` + `Antigravity` [+ `ChatGPT Pro`]) | Optional overlay (ONLY when user explicitly declares `Claude` available) |
+| Scientific responsibility | Default complete topology (`Codex` + `Antigravity` [+ `ChatGPT Pro`]) | Opt-in overlay (`Claude` explicitly declared) |
 |---|---|---|
-| **First-principles framing & bottleneck escape** | **ChatGPT Pro** (`pro_macro`), or isolated **Codex** (`abductive_pioneer`) if Pro is unavailable | Unchanged (**ChatGPT Pro** retains macro-paradigm framing) |
-| **Latest SOTA ceiling mapping, operator collision & cross-domain scan** | **Antigravity Gemini** (`gemini_panoramic`: full-text latest primary papers + cross-field search) | Unchanged (**Antigravity Gemini** retains panoramic recall & multimodal diagnostics) |
-| **Main-author mechanism derivation & cohesive writing** | **Codex** (derives unified operator, runs coupling/deletion checks, authors trope-free prose) | **Claude** (`claude_synthesis`) may take `Main Author` mechanism deepening and narrative drafting |
-| **Tier-0/Tier-1 diagnostics & zero-drift execution** | **Codex** (core math-to-code & diagnostic probes) + **Antigravity** (benchmark pipelines & full-log diagnostics) | **Claude** may own clean-sheet modular sub-packages within narrow `writeRoots` |
-| **Dual-track independent blind review (`blind_review`)** | **Isolated Codex** (`formal_falsification` + `subtractive_razor`) $\parallel$ **Isolated Antigravity** (`prior_art_isomorphism` + `sota_breakthrough`) | Add or substitute **Isolated Claude** (`mechanistic_reconstruction`: minimal structural repair) |
+| Macro framing & bottleneck escape | **ChatGPT Pro** (`pro_macro`), or isolated **Codex** (`abductive_pioneer`) | Unchanged (`ChatGPT Pro` retains macro framing) |
+| SOTA ceiling, operator collision & cross-domain scan | **Antigravity Gemini** (`gemini_panoramic`) | Unchanged (`Gemini` retains panoramic recall) |
+| Main-author derivation & cohesive prose | **Codex** (`gpt_contract`) | **Claude** (`claude_synthesis`) may lead drafting |
+| Tier-0/1 diagnostics & zero-drift code | **Codex** (math-to-code) + **Antigravity** (pipelines/logs) | **Claude** owns narrow `writeRoots` sub-packages |
+| Dual-track blind review (`blind_review`) | **Isolated Codex** (`formal_falsification`) ∥ **Isolated Antigravity** (`prior_art_isomorphism`) | Add **Isolated Claude** (`mechanistic_reconstruction`) |
 
-## Capability, Failure-Mode, and Routing Matrix
+## Four Cognitive Adapters & Packet Profiles
 
-| Model family & adapter | Intrinsic cognitive strengths | Predictable failure modes (must constrain) | Primary role affinities | Context packet profile |
-|---|---|---|---|---|
-| **ChatGPT Pro**<br>`pro_macro` | Deepest internal test-time search tree; holds abstract mathematical/functional invariants simultaneously; discovers first-principles unifications | **Micro-constraint suffocation:** code paths, symbol names, `D{k}/C{n}` ledgers, and rigid output tables consume search depth and anchor Pro to local patching | Macro Problem Framing, First-Principles Mechanism Genesis, Bottleneck Escape (`>=2` patches), Fundamental Ceiling Analysis | `pro_macro`<br>(`<=6,000` chars; zero code, diffs, or ledger dumps) |
-| **ChatGPT / Codex**<br>`gpt_contract` | Exact multi-constraint satisfaction; formal proof and boundary auditing; surgical edits; deterministic tool/state discipline | **Checklist module-stacking:** open-ended ideation under heavy checklists favors safe modular combinations over native conceptual leaps | `Research Lead` State Arbiter, Formal Blind `Reviewer` (`formal_falsification`), Precision `Implementer` & Verification Harness | `focused_curated`<br>(`16,000–48,000` chars; exact contracts & line pointers) |
-| **Claude (Opus / Sonnet)** *(Opt-in only)*<br>`claude_synthesis` | Strongest concept-to-architecture isomorphism; turns macro sketches into cohesive end-to-end algorithms; constructive critique; fluid academic prose | **Polite compromise & scope creep:** default tendency to hedge, blend incompatible mechanisms, or over-refactor adjacent modules if `writeRoots` are loose | *(Active only when user-declared)*: `Main Author` Mechanism Deepener, Constructive Blind `Reviewer` (`mechanistic_reconstruction`), Scientific Prose Author | `focused_curated`<br>(`24,000–64,000` chars; full proposal + primary sources) |
-| **Antigravity (Gemini)**<br>`gemini_panoramic` | Native `1M+` long-context global recall across dozens of full papers, repos, or logs; widest cross-disciplinary breadth; multimodal plot/trace diagnostics | **Premature convergence & surface metaphor:** cross-field analogies risk staying metaphorical without exact operator bijection; proof hand-waving; silent config tweaks | Panoramic Closest-Predecessor Scout, Cross-Domain Isomorphism `Brainstormer`, Whole-Repo / Multi-Log Empirical Diagnostician, `Fact Observer`, Rapid Pipeline Builder | `gemini_panoramic`<br>(`150,000–400,000+` chars; raw full texts, static-first) |
+- **`pro_macro` (ChatGPT Pro, `<=6,000` chars):** Deepest internal search tree over invariants; suffocated by repo paths, symbol names, diffs, `D{k}/C{n}` ledgers, or rigid checklists. Feed pure 3-paragraph structural prose (`pro_macro` hard-strips code/diffs/ledgers). **Asymmetric post-reply:** Lead (`Codex`) translates prose into variables/operators, runs `deductive_auditor` Object Invariant Checks against `controls.md`, and logs claims via `research_record`.
+- **`gpt_contract` (Codex / ChatGPT, `focused_curated` `16k–48k` chars):** Contract-first precision; prone to safe module-stacking under heavy open-ended checklists. For review (`formal_falsification`): disable `<5%` cutoff, verify text/equation/code object identity, hunt hidden identifiability/leakage assumptions, and construct degenerate boundaries. For execution (`zero_drift_executor`): trigger `bridge_handback(reasonCode='scientific_ambiguity')` instead of guessing semantics.
+- **`claude_synthesis` (Claude — Opt-in only, `focused_curated` `24k–64k` chars):** Concept-to-architecture synthesis and constructive repair (`mechanistic_reconstruction`). Forbid balancing compromises or retreating to safe baselines; enforce tight `writeRoots`.
+- **`gemini_panoramic` (Antigravity Gemini, `150k–400k` chars):** Native `1M+` raw long-context recall (full papers, repos, run logs) in static-first prefix order. Enforce the **Five-Tuple Isomorphism** for cross-domain transfer and verbatim `section`/`file:line`/`timestamp` citations (`UNOBSERVED` if absent).
 
-## Adapter 1: `pro_macro` (ChatGPT Pro — Extended Deep-Reasoning Oracle)
+## L0–L4 Risk-Based Model & Thinking Effort Routing Matrix
 
-Use ChatGPT Pro at **high-leverage conceptual inflection points**, not for routine bug triage, bookkeeping, or incremental parameter tuning.
+Match model tier and reasoning `effort` (`minimal | low | medium | high | xhigh | pro_max`) to epistemic risk and reversibility rather than maxing compute everywhere:
 
-### Two-tier prompt separation
+| Level | Workload & Risk Profile | Recommended Model + Effort | Tool Profile |
+|---|---|---|---|
+| **L0** | Mechanical reads, status, search, export, formatting | Lightweight/fast peer or Lead (`minimal` / `low`) | `worker` / `exec_only` |
+| **L1** | Scoped implementation & reproducible smoke checks with locked spec (`zero_drift_executor`) | `Codex` or `Antigravity` (`medium`) | `worker` (9 tools) |
+| **L2** | Standard synthesis, core math-to-code, ablation/Tier-1 probe design | `Codex` / `Gemini` / opt-in `Claude` (`high`) | `lead` / `worker` |
+| **L3** | High-risk `deductive_auditor` review, `<5%` tail/leakage hunt, multi-patch diagnosis | `Codex` (`xhigh`) ∥ Blind Reviewer (`high`/`xhigh`) | `lead` (`review` packet) |
+| **L4** | Structural impasse (`>=2` patches), core problem framing, cross-domain breakthrough | `ChatGPT Pro` (`pro_max`) + `Gemini` (`gemini_panoramic`) + `Codex` (`xhigh`) | `pro_macro` / `gemini_panoramic` |
 
-1. **Persistent Project / System Constitution (set once per research line):**
-   Place the **Universal Rhetoric Baseline** and the full **`abductive_pioneer` stance** (cohesive human prose, zero bullet-list fragmentation, zero antithetical "not A, but B" framing, abductive signal amplification, burden-of-proof inversion, `5%` tail-risk truncation, Assume-and-Proceed 2–3 layers deep, and first-principles native framework aesthetics) in Pro's persistent system/project instructions so per-turn prompts stay clean.
-2. **Minimalist Per-Turn Macro Inquiry (`<= 400–800` words, three prose paragraphs):**
-   - **Paragraph 1 — The Research Object and Functional Invariants:** State what system is being studied and which causal or information-flow loop must remain intact, expressed in pure conceptual/mathematical terms (plus verbatim user constraints where scope-critical).
-   - **Paragraph 2 — The Core Structural Paradox:** Compress prior theoretical or empirical friction into the underlying structural contradiction (why existing classes of representations or feedback rules break at the principle level). Share raw anomalies or impossibility tensions—**never** attach the lead's tentative patchwork plan before Pro forms its own view.
-   - **Paragraph 3 — One Open High-Horizon Question:** Ask **one** (at most two tightly coupled) macro-directional question inviting a unified representation, operator, or dynamics, and ask Pro to push its strongest candidate 2–3 layers deep into mechanism dynamics, emergent properties, and critical failure boundaries.
+## Runtime Dynamic Escalation & De-escalation Triggers
 
-### Pre-dispatch de-clutter gate (hard exclusions for `pro_macro`)
+1. **Two-Failure / Two-Patch Escalation (`engine.mjs` `jitGuidance`):** After `>=2` consecutive failed validations or `>=2` stacked local patches, automatically escalate to `high`/`xhigh` (`recommendedEffort`), freeze ad-hoc patching, run endogenous operator + destructive deletion checks, or escalate to **L4** `pro_macro`.
+2. **Zero-Delta Discussion Spin (`>=3` turns without new evidence/patch):** Watchdog trips circuit; escalate to Lead `high`/`xhigh` to issue a Tier-1 discriminative probe or controlled two-branch fork.
+3. **Scientific Ambiguity Handback:** Worker calling `bridge_handback(reasonCode='scientific_ambiguity')` halts local guessing; Lead resolves semantics at `high` effort before re-dispatch.
+4. **Verification De-escalation:** Once mechanism equations and baseline pass **L3** audit (`derived`/`supported`), downgrade routine sweeps and regression runs back to **L1** (`medium`).
 
-Before sending any prompt to ChatGPT Pro, strip:
+## CLI vs Desktop Session-Lane Binding Rules
 
-- Repository file paths, function/class identifiers, CLI flags, git commits, and patch diffs;
-- Internal bookkeeping IDs (`D1..Dk`, `C1..Cn`, `W0001`, SQLite/bridge IDs);
-- Prescribed step-by-step `Work Sequence` checklists and rigid multi-part output schemas (such as variable-by-variable compliance tables or `complete / partial / blocked` status headers).
-
-### Asymmetric post-reply assimilation ("Pro Abducts Free, Lead Audits Strict")
-
-Never ask Pro to maintain `state.md` or format ledger updates. After collecting Pro's complete unbroken reply:
-
-1. **Codex (`Research Lead`)** translates Pro's continuous conceptual/mathematical mechanism into concrete state variables, operators, and dataflow steps.
-2. **Codex** runs the strict `deductive_auditor` **Object Invariant Check** (`满足 / 违反 / 不涉及` with variable/step citations) against `controls.md`. If Pro's abduction crossed a boundary, repair the boundary locally within the mechanism or isolate the exact contradiction for a targeted follow-up.
-3. Record extracted claims (`conjecture` / `derived`) in `.research-memory` and route them to blind falsification (`gpt_contract` / `claude_synthesis`) and closest-predecessor check (`gemini_panoramic`).
-
-## Adapter 2: `gpt_contract` (ChatGPT / Codex — Precision Auditor & Executor)
-
-- **Contract-first structure:** Put exact input/output schemas, invariants, line-numbered source/code references, and `readRoots` / `writeRoots` up front.
-- **Formal falsification focus (`auditTrack: "formal_falsification"`):** When reviewing, enforce `deductive_auditor` and require three explicit checks:
-  1. *Object consistency*: verify whether abstract claims, mathematical objective, and code/protocol address the exact same research object without silent proxy substitution.
-  2. *Identifiability and assumption audit*: expose unstated independence, stationarity, rank, or oracle-information leaks.
-  3. *Degenerate boundary test*: construct a concrete edge regime (`N=1`, zero-variance signal, adversarial tie, distribution shift) to test whether the mechanism collapses to a known baseline.
-- **Zero-drift execution:** Enforce `zero_drift_executor`. Require `completeTaskOnExit: false` where supported, version-linked `Execution Receipts`, and immediate `bridge_handback` on semantic ambiguity.
-
-## Adapter 3: `claude_synthesis` (Claude — Mechanistic Deepener, Constructive Critic & Author)
-
-- **Teleological framing:** State the **core unifying principle** ("derive representation, update rule, and stopping/feedback criterion from one shared relationship rather than adding separate corrective modules") before listing constraints.
-- **Anti-compromise and anti-retreat guardrails:** Explicitly forbid blending two incompatible candidate mechanisms merely to appear balanced, and forbid retreating to a safe standard baseline when an early mechanism hits a local open condition—require deriving the minimal operator modification that preserves the core contribution.
-- **Constructive review focus (`auditTrack: "mechanistic_reconstruction"`):** Pair conceptual critique with the smallest structural repair inside the original research object.
-- **Cohesive authoring + tight write fences:** Enforce continuous prose (eliminating antithetical cliches and listicle fragmentation) for proposals and papers; bind explicit narrow `writeRoots` during code tasks to prevent out-of-scope refactoring.
-
-## Adapter 4: `gemini_panoramic` (Antigravity Gemini — Panoramic Scout & Empirical Analyst)
-
-- **Full-raw long-context ingestion:** Use `gemini_panoramic` context packets (`150k–400k+` chars) containing complete primary papers, whole module trees, or full raw run logs, ordered with static controls and primary sources first for prefix cache reuse. Avoid feeding lossy pre-summaries when raw sources fit.
-- **Five-tuple structural isomorphism gate (for cross-domain transfer and brainstorming):** Explicitly forbid metaphorical analogies ("this resembles simulated annealing / immune selection"). Every transferred mechanism must specify:
-  1. *State mapping*: exact correspondence between source-domain state and target research object;
-  2. *Observable feedback*: proof that the signal driving the source operator actually exists at runtime in our setting;
-  3. *Operator form*: explicit mathematical or algorithmic update rule after transfer;
-  4. *Broken assumption & cost*: which source theorem assumption fails here and what modification supplies it;
-  5. *Falsifiable prediction*: one concrete behavior that differs from existing target-domain baselines.
-- **Verbatim anchor & `UNOBSERVED` rule:** Every prior-art comparison, codebase trace, or log diagnosis must cite exact paper sections/equations or `file:line` / log timestamps. Any quantity not present in raw materials must be marked `UNOBSERVED`—never interpolated.
-
-## Multi-Model Research Lifecycle Routing
-
-By default (without Claude), coordinate the research lifecycle across **Codex**, **Antigravity (Gemini)**, and authorized **ChatGPT Pro** (attaching **Claude** only when explicitly declared by the user):
-
-1. **Frontier Ceiling & Real-Baseline Bottleneck Check:** **Antigravity** (`gemini_panoramic`) ingests full texts of the strongest recent primary papers to identify their shared unspoken assumption, while **Codex / Antigravity** runs a Tier-1 read-only diagnostic on real baseline data/logs to verify the bottleneck exists in actual dataflow.
-2. **Divergent Genesis (`blind_analysis`):** Dispatch isolated problem framing in parallel—**ChatGPT Pro** (`pro_macro` first-principles inquiry), **Antigravity Gemini** (`gemini_panoramic` cross-field isomorphism scan), and **Codex** (or opt-in **Claude** `claude_synthesis`) concrete mechanism sketch. Compare only after independent outputs are saved.
-3. **Focused Mechanism Construction & Operator Collision Check:** **Codex** (or opt-in **Claude**) acts as `Main Author` to derive the unified mechanism; **Antigravity** immediately runs a de-jargonized Stage-2 operator collision search against recent primary literature to verify genuine SOTA breakthrough.
-4. **Dual-Track Blind Review (`blind_review`):** Run **Isolated Codex** (`formal_falsification`: invariants, leaks, boundary counterexamples, and coupling/deletion razor) in parallel with **Isolated Antigravity** (`prior_art_isomorphism` & SOTA assumption-relaxation check)—plus opt-in **Isolated Claude** (`mechanistic_reconstruction`) when declared.
-5. **Implementation & Panoramic Diagnostics:** Use **Codex** (and opt-in **Claude Code** if declared) for zero-drift core implementation and verification tests; use **Antigravity Gemini** for benchmark harness wiring and whole-log / multimodal failure trajectory diagnosis.
-6. **Bottleneck Escape (`>=2` consecutive local patches):** Have **Antigravity** distill the invariant failure signature across raw run logs, then send a clean 3-paragraph paradox inquiry to **ChatGPT Pro** (`pro_macro`) to re-architect the core representation.
+- Record explicit `(logicalTaskId, participant, sessionId, requestedModel, effortTier)` per task; keep requested model/effort separate from runtime-reported model identity.
+- **CLI headless lanes** (`codex_exec`, `antigravity_exec`, opt-in `claude_exec`) run on isolated task/worktree bindings (`completeTaskOnExit: false` when awaiting verification; secondary MCP peers use `BRIDGE_TOOL_PROFILE=exec_only`).
+- **Desktop / Web interactive lanes** (e.g., `ChatGPT Pro` browser/desktop pane, Workbench human-attention queue) handle **L4** macro consults and user decisions without colliding with CLI cursors or overwriting active worktrees.

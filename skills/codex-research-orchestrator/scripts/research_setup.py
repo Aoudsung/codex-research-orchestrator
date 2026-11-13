@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import difflib
 import hashlib
 import importlib.util
@@ -523,7 +524,7 @@ def memory_status(project):
     if not database.is_file():
         return {"status": "missing", "path": str(database)}
     try:
-        with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as db:
+        with contextlib.closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as db:
             config = dict(db.execute("SELECT key, value FROM config"))
             controls = json.loads(config.get("controls", "[]"))
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -540,7 +541,7 @@ def memory_status(project):
 
 def fts_status():
     try:
-        with sqlite3.connect(":memory:") as db:
+        with contextlib.closing(sqlite3.connect(":memory:")) as db:
             db.execute("CREATE VIRTUAL TABLE probe USING fts5(body)")
         return "ready"
     except sqlite3.Error:
@@ -658,10 +659,16 @@ def provider_status(peers):
     return {peer: {"executable": shutil.which(AGENTS[peer][0]), "authentication": "not-verified"} for peer in peers}
 
 
-def entries_for(project, client, peers, runtime, node, providers):
+def entries_for(project, client, peers, runtime, node, providers, tool_profile="auto"):
     entries = {}
-    for peer in peers:
+    for index, peer in enumerate(peers):
         environment = {"AGENT_BRIDGE_DB": str(safe_path(project, ".agent-bridge/bridge.sqlite")), "MCP_CALLER_AGENT": client}
+        if tool_profile != "full":
+            if tool_profile == "worker":
+                resolved_profile = "worker" if index == 0 else "exec_only"
+            else:
+                resolved_profile = "lead" if index == 0 else "exec_only"
+            environment["BRIDGE_TOOL_PROFILE"] = resolved_profile
         if providers[peer]["executable"]:
             environment[AGENTS[peer][1]] = str(Path(providers[peer]["executable"]).resolve())
         entries["cro_" + peer.replace("-", "_")] = {
@@ -768,7 +775,8 @@ def connect(args, project):
     if node["status"] != "ready":
         raise SetupError("Connect needs Node >=24; install it or pass --node /absolute/path/to/node")
     providers = provider_status(peers)
-    entries = entries_for(project, args.client, peers, runtime, node["path"], providers)
+    tool_profile = getattr(args, "tool_profile", "auto")
+    entries = entries_for(project, args.client, peers, runtime, node["path"], providers, tool_profile=tool_profile)
     export, manifest, config = connection_paths(args.client)
     state = connection_state(project, args.client)
     state["generated"] = entries
@@ -786,7 +794,10 @@ def connect(args, project):
     if applied:
         next_action = f"Reopen {args.client} in {project} and inspect its MCP server status."
     else:
-        extra = ["--client", args.client, "--peers", *peers, "--node", node["path"], "--apply"]
+        extra = ["--client", args.client, "--peers", *peers, "--node", node["path"]]
+        if tool_profile != "auto":
+            extra.extend(["--tool-profile", tool_profile])
+        extra.append("--apply")
         next_action = cli_command(project, "connect", *extra)
     return result("connect", changed, next_action, generated=str(project / export),
                   applied=str(project / config) if applied else None, client=args.client, peers=peers,
@@ -1024,7 +1035,7 @@ def inspect_bridge_readonly(db_path: Path):
         return summary
 
     try:
-        with sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True) as db:
+        with contextlib.closing(sqlite3.connect(db_path.as_uri() + "?mode=ro", uri=True)) as db:
             tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if "bridge_control" in tables:
                 cols = {r[1] for r in db.execute("PRAGMA table_info(bridge_control)")}
@@ -1558,6 +1569,8 @@ def parser():
             command.add_argument("--peers", nargs="+", help="Explicit other agents (space or comma separated)")
             command.add_argument("--node", help="Node >=24 executable path or command")
         if name == "connect":
+            command.add_argument("--tool-profile", choices=("auto", "lead", "worker", "full"), default="auto",
+                                 help="MCP bridge tool exposure profile (auto deduplicates multi-peer schemas)")
             command.add_argument("--apply", action="store_true", help="Register project config for Codex, Claude Code or Antigravity CLI/IDE")
         if name == "probe":
             command.add_argument("--node", help="Node >=24 executable path or command")

@@ -1,24 +1,9 @@
-# Researcher
+# Role: Researcher (`role="researcher"`)
 
-Read this page when leading research or contributing a delegated construction. Use the common task rules in `SKILL.md`, [research methods](../method.md), [epistemic stances](../epistemic-stances.md), and [model cognitive profiles](../model-profiles.md).
+Own scientific problem formulation, core mechanism synthesis, falsifiable tests, and serial claim decisions (or a delegated research question). Compile handoff headers deterministically via `research_context(..., role="researcher")`.
 
-## Identity and authority
-
-The project identifies its lead and existing collaborators. The lead owns scientific meaning, route selection, shared state, resource decisions within authorization, and final acceptance. A delegated contributor owns only the assigned question and deliverables.
-
-Ordinary resumption uses current project records. Independent construction starts from the curated inputs in [collaboration](../collaboration.md), without prior decompositions or evaluations.
-
-## Construct and decide
-
-- When direction is unclear or blocked, organize short independent proposals that differ in information, representation, operations, or feedback relationships. Compare their mechanisms and evidence before choosing a main author to deepen one. Other contributors supply focused sources, counterexamples, or cost evidence rather than repeating the whole investigation.
-- Use a [brainstormer](brainstormer.md) when another construction perspective would help. It is optional and remains within the project's existing contact and resource authorization.
-- Combine the core difference from the closest work, the information actually available, the mechanism's effect on the target outcome, and full relevant cost in the decision. Do not reduce the lead to forwarding opinions or redo an external author's supported work in full.
-- Locate the minimum condition behind a counterexample and attempt a justified reconstruction. If the route is ruled out, retain the result and pursue a different route within the original object. If surviving counterexamples requires more than two consecutive local patches without simplifying the core relationship, freeze local patching, distill the underlying structural paradox, and trigger an `abductive_pioneer` reframing inquiry (using zero-clutter `pro_macro` for ChatGPT Pro and `gemini_panoramic` for cross-domain / prior-art checks when available). If novelty is weak, investigate the problem's distinctive structure and a mechanism difference with nontrivial consequences.
-- When assimilating a macro-inquiry reply from ChatGPT Pro (`pro_macro`), translate its cohesive conceptual mechanism into concrete variables/operators and run a strict `deductive_auditor` object-invariant check before promoting claims to implementation.
-- Treat feedback as accepted, rebutted, or unresolved with evidence. Adding a condition may close a finding while leaving the original difficulty open. Repeated patches require a reason to retain the underlying representation or learning relationship.
-
-## Handoff and completion
-
-Send material changes and necessary new evidence for independent review; reuse unchanged coverage. Hand off implementation to the designated author within execution authorization.
-
-Return inspectable constructions, derivations, observations, or justified negative results, and apply the task's completion criteria. Only the lead maintains shared state and the work index, unless the user explicitly assigns another maintainer. Use [records](../records.md) for recordkeeping and [MCP collaboration](../mcp-collaboration.md) for external handoffs and waiting.
+## Duties
+- **Own scientific alignment & SQLite ledger:** Lead translates conceptual mechanisms (including `pro_macro` replies) into concrete operators, runs `deductive_auditor` Object Invariant Checks against `controls.md`, and records results **once** per milestone via `research_record` (export `state.md` only at user briefings, pause, or delivery).
+- **Construct before patching:** When direction is blocked, elicit short independent constructions differing in representation or feedback before picking a main author (`Codex` default; `Claude` strictly opt-in). Require endogenous operator fixes before adding modules, and enforce the destructive deletion test.
+- **Two-Patch & Epistemic-Delta Control:** After `>2` local patches without simplification, freeze edits and escalate via `abductive_pioneer` (`pro_macro` + `gemini_panoramic` SOTA scan). Record dead routes as `<=40`-word tombstones and resolve multi-round deadlocks via Tier-1 probes or controlled two-branch forks.
+- **Receipt:** Return inspectable derivations, primary evidence IDs, updated `claim` status (`conjecture | derived | supported | refuted`), and next decisive check.

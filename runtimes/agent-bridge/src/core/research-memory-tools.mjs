@@ -9,6 +9,8 @@ const kinds = ['source', 'evidence', 'claim', 'decision', 'evaluation', 'checkpo
 const profiles = { type: 'string', enum: ['resume', 'analysis', 'review'] };
 const recipientProfiles = { type: 'string', enum: ['default', 'pro_macro', 'focused_curated', 'gemini_panoramic'] };
 const filters = Object.fromEntries(['topic', 'round', 'author', 'state', 'claim_status', 'object_key'].map(key => [key, string]));
+const roles = { type: 'string', enum: ['researcher', 'reviewer', 'implementer', 'brainstormer', 'optimizer', 'fact_observer'], description: 'Role header compiled deterministically.' };
+const stances = { type: 'string', enum: ['abductive_pioneer', 'deductive_auditor', 'zero_drift_executor'], description: 'Stance contract compiled deterministically.' };
 const schemas = {
   record: {
     required: ['kind', 'title', 'summary', 'scope', 'body'],
@@ -24,17 +26,18 @@ const schemas = {
   search: { properties: { query: string, limit: { type: 'integer', minimum: 1, maximum: 100 },
     kind: { type: 'string', enum: kinds }, ...filters, include_history: { type: 'boolean' }, profile: profiles, allow: ids, target: { type: 'integer', minimum: 1 } } },
   read: { required: ['id'], properties: { id: { type: 'integer', minimum: 1 }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 20000 } } },
-  context: { properties: { query: string, profile: profiles, recipient_profile: recipientProfiles, max_chars: { type: 'integer', minimum: 1, maximum: 400000 }, allow: ids, required: ids, target: { type: 'integer', minimum: 1 } } },
+  context: { properties: { query: string, profile: profiles, recipient_profile: recipientProfiles, role: roles, stance: stances, max_chars: { type: 'integer', minimum: 1, maximum: 400000 }, allow: ids, required: ids, target: { type: 'integer', minimum: 1 } } },
   export: { required: ['format', 'output'], properties: { format: { type: 'string', enum: ['jsonl', 'markdown'] }, ids,
-    output: { type: 'string', description: 'New project-relative output path; the response returns its location instead of the exported body.' } } },
+    output: { type: 'string', description: 'New project-relative output path.' } } },
 };
 const descriptions = {
-  record: 'Save complete research text directly to the project SQLite database. Keep conditions and sources; revisions require explicit supersession and reason. Reuse external_key when retrying the same result.',
-  search: 'Find compact research records, including status, scope and provenance. Chinese short queries and aliases are supported; select historical records explicitly when needed.',
-  read: 'Read an exact research record version with provenance, in Unicode character pages. Default page is 6000 characters; request subsequent offsets to read the complete record.',
-  context: 'Assemble bounded task context with current controls, complete required evidence, and allowed material. Independent analysis/review requires an explicit allowlist; judgments outside that list stay excluded.',
-  export: 'Export project research to a new Markdown or lossless JSONL file. Exported documents are derived views, not a second editable source of truth.',
+  record: 'Save research record to project SQLite. Revisions require supersedes + reason; reuse external_key for idempotency.',
+  search: 'Search compact records (status, scope, provenance); supports short/Chinese queries and aliases.',
+  read: 'Read record version by ID in Unicode pages (default 6000 chars).',
+  context: 'Assemble bounded context with verbatim controls, compiled role/stance header, JIT checks, and allowed evidence.',
+  export: 'Export project SQLite records to a derived Markdown or JSONL file.',
 };
+const RESEARCH_MEMORY_MODES = Object.freeze(['full', 'readonly', 'none']);
 
 function bounded(value, fallback, minimum, maximum, name) {
   const result = value ?? fallback;
@@ -71,8 +74,12 @@ export function registerResearchMemoryTools(server, {
   projectRoot = process.env.RESEARCH_MEMORY_PROJECT,
   python = process.env.RESEARCH_MEMORY_PYTHON || 'python3',
   caller = process.env.MCP_CALLER_AGENT || 'codex',
+  mode = 'full',
 } = {}) {
-  if (!projectRoot) return false;
+  if (!RESEARCH_MEMORY_MODES.includes(mode)) {
+    throw new Error(`Invalid research memory mode "${mode}". Expected one of: ${RESEARCH_MEMORY_MODES.join(', ')}`);
+  }
+  if (mode === 'none' || !projectRoot) return false;
   const project = fs.realpathSync(projectRoot);
   if (!fs.statSync(project).isDirectory()) throw new Error('RESEARCH_MEMORY_PROJECT must be an existing directory');
   const installed = path.join(project, '.agents/skills/codex-research-orchestrator/scripts/research_memory.py');
@@ -84,7 +91,8 @@ export function registerResearchMemoryTools(server, {
     : [];
   const helper = [installed, workspacePkg, bundled, ...siblingCandidates].find(candidate => fs.existsSync(candidate)) || bundled;
   if (!fs.existsSync(helper)) throw new Error('Research memory Python helper is missing; install the project skill');
-  for (const operation of Object.keys(schemas)) {
+  const operations = mode === 'readonly' ? ['search', 'read'] : Object.keys(schemas);
+  for (const operation of operations) {
     server.registerTool({ name: `research_${operation}`, description: descriptions[operation],
       inputSchema: { type: 'object', additionalProperties: false, ...schemas[operation] } }, args => {
       const payload = { ...args };

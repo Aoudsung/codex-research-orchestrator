@@ -163,5 +163,52 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(240000,panoramic['manifest']['max_chars'])
         self.assertIn(extra_paper['id'],panoramic['manifest']['selected_ids'])
         self.assertIn('Complete primary ergodic control paper',panoramic['text'])
+        self.assertIn('=== JIT Recency Check ===',panoramic['text'])
+        self.assertIn('Five-Tuple Isomorphism',panoramic['text'])
+
+    def test_role_stance_kv_cache_prefix_and_jit_recency_card(self):
+        src=self.save(kind='source',title='Primary Source',body='Shared primary specification alpha beta.')
+        prop=self.save(kind='proposal',title='Candidate Proposal',body='Proposed unified operator alpha beta.',depends_on=[src['id']])
+        pkt1=self.mem.database_context(
+            'alpha',profile='review',allow=[src['id'],prop['id']],target=prop['id'],required=[src['id']],
+            recipient_profile='focused_curated',role='reviewer',stance='deductive_auditor',
+        )
+        pkt2=self.mem.database_context(
+            'beta',profile='review',allow=[src['id'],prop['id']],target=prop['id'],required=[src['id']],
+            recipient_profile='focused_curated',role='reviewer',stance='deductive_auditor',
+        )
+        prefix_len=pkt1['manifest']['anchor_prefix_chars']
+        self.assertEqual(prefix_len,pkt2['manifest']['anchor_prefix_chars'])
+        self.assertEqual(pkt1['text'][:prefix_len],pkt2['text'][:prefix_len])
+        self.assertIn('=== Role & Stance Contract ===',pkt1['text'][:prefix_len])
+        self.assertIn('Role (reviewer):',pkt1['text'][:prefix_len])
+        self.assertIn('Stance (deductive_auditor):',pkt1['text'][:prefix_len])
+        self.assertEqual('reviewer',pkt1['manifest']['role'])
+        self.assertEqual('deductive_auditor',pkt1['manifest']['stance'])
+        self.assertTrue(pkt1['text'].rstrip().endswith('require endogenous operator repair.'))
+        self.assertIn('=== JIT Recency Check ===',pkt1['text'])
+        self.assertIn('<5% truncation OFF',pkt1['text'])
+
+    def test_cli_context_role_stance_and_jit_before_timestamp(self):
+        rec_file=self.root/'source.md'
+        rec_file.write_text('Primary source body for alpha check.\n')
+        prop_file=self.root/'proposal.md'
+        prop_file.write_text('Candidate proposal for alpha check.\n')
+        r1=self.root/'r1.json'
+        r1.write_text(json.dumps({'kind':'source','title':'Src','summary':'s','source':'source.md','scope':'all'}))
+        r2=self.root/'r2.json'
+        r2.write_text(json.dumps({'kind':'proposal','title':'Prop','summary':'p','source':'proposal.md','scope':'all','depends_on':[1]}))
+        self.assertEqual(0,m.main(['--project',str(self.root),'remember','r1.json']))
+        self.assertEqual(0,m.main(['--project',str(self.root),'remember','r2.json']))
+        rc=m.main([
+            '--project',str(self.root),'context','alpha','--profile','review',
+            '--allow','1,2','--target','2','--require','1','--max-chars','12000',
+            '--role','reviewer','--stance','deductive_auditor','--output','review-pkt.md',
+        ])
+        self.assertEqual(0,rc)
+        pkt_text=(self.root/'review-pkt.md').read_text()
+        self.assertIn('=== Role & Stance Contract ===',pkt_text)
+        self.assertIn('=== JIT Recency Check ===',pkt_text)
+        self.assertLess(pkt_text.index('=== JIT Recency Check ==='),pkt_text.index('Assembled at '))
 
 if __name__=='__main__':unittest.main()

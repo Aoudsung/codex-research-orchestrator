@@ -1,22 +1,8 @@
-# Optional observation and collaboration improvement
+# Optional Observation & Process Diagnosis
 
-Use observation only within the user's requested scope. Keep fact collection and interpretation separate:
+Use only within explicit user authorization. Separate raw fact collection from process interpretation:
 
-- A [fact observer](roles/fact-observer.md) performs one incremental check and returns source-backed events or exactly `UNCHANGED`. It does not rate progress or recommend intervention.
-- A [collaboration optimizer](roles/optimizer.md) interprets permitted evidence and proposes process improvements. It does not take over research, direct participants, or modify research state.
+- **[Fact observer](roles/fact-observer.md):** Runs read-only incremental checks over permitted sources and returns source-backed events (distinguishing source time vs observation time and claimed vs recorded completion) or verbatim `UNCHANGED`. Never rates progress or writes recommendations.
+- **[Collaboration optimizer](roles/optimizer.md):** Interprets observed evidence (without inventing missing cost numbers), identifies collaboration bottlenecks, and writes concrete process recommendations in the observation area only.
 
-Record the assigned participant, model requirements, allowed sources, and write area in project settings.
-
-## Existing records and checks
-
-Reuse the existing observation baseline, processed positions, and event records. Keep one observer instance; if its assigned check is active, wait for it rather than starting another. Read only new material and the necessary original passages. Record source time separately from the actual observation time and distinguish a source claim of completion from an observed completion record.
-
-Keep observation output in the project's designated observation area. The lead remains responsible for research state and acceptance. Do not create a second research ledger or turn observation criteria into acceptance requirements. Missing measurements are unknown, not zero effects or proof of wasted work.
-
-Repeated checks use an authorized monitoring schedule and channel. Stay quiet without meaningful change. External waiting and continuation are maintained in [MCP collaboration](mcp-collaboration.md#wait-and-resume).
-
-## Recommendations
-
-An optimizer connects the difficulty, action, evidence, and change in judgment. It distinguishes knowledge gained, original construction, implementation, and measured research outcomes. It should cite specific evidence for a bottleneck, explain a useful change to existing work, and state what observed effect would support that change.
-
-Track proposed, accepted, implemented, and observed effects separately.
+Keep one observer instance, track proposed/accepted/implemented/observed effects separately, and never let observation scripts overwrite Lead research state or block scientific decisions.

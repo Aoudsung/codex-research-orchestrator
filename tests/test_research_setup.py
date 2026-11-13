@@ -625,6 +625,17 @@ class SetupTests(unittest.TestCase):
         out_respect = self.run_cli("watchdog", "restart", "--respect-stop", "--node", str(self.node), code=0)
         self.assertEqual(out_respect["status"], "respecting-manual-stop")
 
+    def test_connect_multi_peer_auto_deduplicates_tool_profile_and_supports_worker_override(self):
+        self.initialize()
+        self.connect(client="codex", peers=("antigravity", "claude-code"), apply=False)
+        codex_toml = tomllib.loads((self.project / ".research-orchestrator/mcp/codex.toml").read_text())["mcp_servers"]
+        self.assertEqual(codex_toml["cro_antigravity"]["env"]["BRIDGE_TOOL_PROFILE"], "lead")
+        self.assertEqual(codex_toml["cro_claude_code"]["env"]["BRIDGE_TOOL_PROFILE"], "exec_only")
+
+        self.run_cli("connect", "--client", "antigravity", "--peers", "codex", "--tool-profile", "worker", "--node", str(self.node))
+        ag_json = json.loads((self.project / ".research-orchestrator/mcp/antigravity.json").read_text())["mcpServers"]
+        self.assertEqual(ag_json["cro_codex"]["env"]["BRIDGE_TOOL_PROFILE"], "worker")
+
 
 if __name__ == "__main__":
     unittest.main()

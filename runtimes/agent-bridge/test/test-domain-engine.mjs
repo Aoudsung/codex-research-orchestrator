@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { BridgeUserError, REASONS, sha256Hex } from "../src/domain/model.mjs";
+import { BridgeUserError, REASONS, resolveCognitiveProfile, sha256Hex } from "../src/domain/model.mjs";
 import { MemoryRepositories } from "../src/domain/memory-repos.mjs";
 import { BridgeEngine } from "../src/domain/engine.mjs";
 import { SqliteStore } from "../src/store/sqlite-store.mjs";
@@ -879,4 +879,97 @@ test("14. Opt-in Claude participant gating, Progressive Epistemic-Delta multi-ro
   const updated = engine.getTaskById("debate-task-1");
   assert.equal(updated.metadata.workflow.hypothesisForks.length, 2);
   assert.equal(updated.metadata.workflow.hypothesisForks[0].branchId, "H-A");
+});
+
+test("15. L0-L4 effort/risk cognitive profile preservation and recordValidation jitGuidance escalation", () => {
+  const resolved = resolveCognitiveProfile({
+    cognitiveProfile: {
+      stance: "deductive_auditor",
+      effortTier: "xhigh",
+      riskLevel: "L3",
+    },
+  });
+  assert.deepEqual(resolved, {
+    stance: "deductive_auditor",
+    adapter: null,
+    auditTrack: null,
+    effortTier: "xhigh",
+    riskLevel: "L3",
+  });
+
+  const { engine } = makeMemoryFixture();
+  engine.createTask({
+    taskId: "jit-val-task",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    prompt: "Verify internal operator fix",
+  });
+
+  const firstFail = engine.recordValidation({
+    taskId: "jit-val-task",
+    validatorAgent: "codex",
+    passed: false,
+    summary: "First failure on tail boundary",
+    notifyAssignee: false,
+  });
+  assert.equal(firstFail.jitGuidance, undefined);
+
+  const secondFail = engine.recordValidation({
+    taskId: "jit-val-task",
+    validatorAgent: "codex",
+    passed: false,
+    summary: "Second consecutive failure",
+    notifyAssignee: false,
+  });
+  assert.ok(secondFail.jitGuidance);
+  assert.equal(secondFail.jitGuidance.recommendedEffort, "high");
+  assert.equal(secondFail.jitGuidance.consecutiveFailures, 2);
+  assert.ok(secondFail.jitGuidance.checklist.some((line) => /endogenous/i.test(line)));
+
+  // Patch count >= 2 with pending/failed validation also triggers guidance
+  engine.createTask({
+    taskId: "jit-patch-task",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    prompt: "Patch loop test",
+  });
+  engine.submitPatch({
+    patchId: "jit-patch-1",
+    taskId: "jit-patch-task",
+    fromAgent: "antigravity",
+    toAgent: "codex",
+    rawContent: "--- a/src/a.py\n+++ b/src/a.py\n@@ -1 +1 @@\n-a\n+b\n",
+    targetFiles: ["src/a.py"],
+    summary: "Patch 1",
+  });
+  engine.submitPatch({
+    patchId: "jit-patch-2",
+    taskId: "jit-patch-task",
+    fromAgent: "antigravity",
+    toAgent: "codex",
+    rawContent: "--- a/src/b.py\n+++ b/src/b.py\n@@ -1 +1 @@\n-a\n+b\n",
+    targetFiles: ["src/b.py"],
+    summary: "Patch 2",
+  });
+  const patchFail1 = engine.recordValidation({
+    taskId: "jit-patch-task",
+    validatorAgent: "codex",
+    passed: false,
+    summary: "Still failing after 2 patches (first validation)",
+    notifyAssignee: false,
+  });
+  assert.ok(patchFail1.jitGuidance);
+  assert.equal(patchFail1.jitGuidance.recommendedEffort, "high");
+  assert.equal(patchFail1.jitGuidance.patchCount, 2);
+  assert.ok(patchFail1.jitGuidance.checklist.some((line) => /Two-Patch Escape Law/i.test(line)));
+
+  const patchFail2 = engine.recordValidation({
+    taskId: "jit-patch-task",
+    validatorAgent: "codex",
+    passed: false,
+    summary: "Second failure after 2 patches",
+    notifyAssignee: false,
+  });
+  assert.ok(patchFail2.jitGuidance);
+  assert.equal(patchFail2.jitGuidance.recommendedEffort, "xhigh");
 });

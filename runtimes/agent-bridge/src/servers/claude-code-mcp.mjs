@@ -131,7 +131,7 @@ server.registerTool(
   {
     name: "claude_exec",
     description:
-      "Execute a prompt or coding task using Claude Code (`claude -p --output-format json`) with explicit model and task binding. If the `claude` CLI is unavailable, queues the task in the shared multi-agent bridge.",
+      "Run Claude Code CLI (`claude -p`) with explicit model, effort, and task binding (queues if CLI absent).",
     inputSchema: {
       type: "object",
       additionalProperties: false,

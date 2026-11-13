@@ -39,6 +39,15 @@ export const AUDIT_TRACKS = [
   "mechanistic_reconstruction",
   "prior_art_isomorphism",
 ];
+export const EFFORT_TIERS = Object.freeze([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "pro_max",
+]);
+export const RISK_LEVELS = Object.freeze(["L0", "L1", "L2", "L3", "L4"]);
 export const EFFECT_KINDS = [
   "wakeup",
   "launch",
@@ -341,10 +350,30 @@ export function resolveCognitiveProfile(target) {
     );
   }
 
+  const effortTier = raw?.effortTier ?? null;
+  if (effortTier !== null && !EFFORT_TIERS.includes(effortTier)) {
+    throw new BridgeUserError(
+      REASONS.INVALID_COGNITIVE_PROFILE,
+      `Invalid cognitiveProfile.effortTier '${effortTier}'. Expected one of: ${EFFORT_TIERS.join(", ")}.`,
+      { effortTier }
+    );
+  }
+
+  const riskLevel = raw?.riskLevel ?? null;
+  if (riskLevel !== null && !RISK_LEVELS.includes(riskLevel)) {
+    throw new BridgeUserError(
+      REASONS.INVALID_COGNITIVE_PROFILE,
+      `Invalid cognitiveProfile.riskLevel '${riskLevel}'. Expected one of: ${RISK_LEVELS.join(", ")}.`,
+      { riskLevel }
+    );
+  }
+
   return {
     stance,
     adapter,
     auditTrack,
+    ...(effortTier ? { effortTier } : {}),
+    ...(riskLevel ? { riskLevel } : {}),
   };
 }
 
@@ -358,6 +387,8 @@ export function stanceWakeupGuidance(profile) {
     profile.stance ? `stance=${profile.stance}` : null,
     profile.adapter ? `adapter=${profile.adapter}` : null,
     profile.auditTrack ? `auditTrack=${profile.auditTrack}` : null,
+    profile.riskLevel ? `risk=${profile.riskLevel}` : null,
+    profile.effortTier ? `effort=${profile.effortTier}` : null,
   ].filter(Boolean);
   if (tags.length === 0) return null;
 
@@ -373,6 +404,37 @@ export function stanceWakeupGuidance(profile) {
       "Operate in cohesive continuous prose; amplify structural positive signals and bridge gaps constructively without listicle fragmentation.";
   }
   return `[Cognitive Profile: ${tags.join(", ")}]${rule ? ` ${rule}` : ""}`;
+}
+
+/**
+ * Deterministic runtime escalation advice surfaced on validation/patch retries.
+ * Prompts dynamic effort escalation (medium -> high/xhigh) and Two-Patch Escape Law checks.
+ */
+export function buildValidationEscalationGuidance({
+  passed = null,
+  consecutiveFailures = 0,
+  patchCount = 0,
+} = {}) {
+  const repeatedFailure = passed === false && consecutiveFailures >= 2;
+  const twoPatchThreshold = patchCount >= 2 && passed !== true;
+  if (!repeatedFailure && !twoPatchThreshold) {
+    return null;
+  }
+  return {
+    trigger: repeatedFailure ? "repeated_validation_failure" : "two_patch_threshold",
+    consecutiveFailures,
+    patchCount,
+    recommendedEffort: consecutiveFailures >= 2 && patchCount >= 2 ? "xhigh" : "high",
+    checklist: [
+      "Escalate reasoning effort (medium -> high/xhigh) and deduce root cause from raw failure invariants before editing code again.",
+      "Prefer endogenous core-operator repair over stacking auxiliary regularizers, gates, or fallback branches.",
+      ...(patchCount >= 2
+        ? [
+            "Two-Patch Escape Law triggered (>=2 patches): if core causal explanation is not simpler, freeze local patching and escalate purified paradox to pro_macro / lead synthesis.",
+          ]
+        : []),
+    ],
+  };
 }
 
 /**

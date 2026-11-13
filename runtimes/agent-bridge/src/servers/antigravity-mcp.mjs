@@ -157,7 +157,7 @@ server.registerTool(
   {
     name: "antigravity_exec",
     description:
-      "Execute a prompt or dispatch/continue a task on Google Antigravity with explicit model ID ('model'/'requiredModel'), conversation binding ('conversationId'), and task binding ('taskId'). Runs upfront permission & tool compatibility preflight, verifies runtime init model metadata (failing explicitly on mismatch without silent fallback), and distinguishes CLI turn end from overall task completion.",
+      "Execute or continue a task on Antigravity with explicit model/session/task bindings, preflight checks, and strict model verification.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -765,8 +765,7 @@ server.registerTool(
 server.registerTool(
   {
     name: "antigravity_ask",
-    description:
-      "Send a question or message from Codex or Claude Code to the active Antigravity session with an explicit delivery receipt and optional reply wait.",
+    description: "Send a question/message to the active Antigravity session with delivery receipt.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -855,8 +854,7 @@ server.registerTool(
 server.registerTool(
   {
     name: "antigravity_report_result",
-    description:
-      "Report findings, patch handoff, or task results back to a peer agent (or Antigravity). Supports updating unified task phase ('awaiting_validation', 'awaiting_review', 'completed') without prematurely closing the task.",
+    description: "Report findings/handoff back to a peer and update unified task phase.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -1016,8 +1014,7 @@ server.registerTool(
 server.registerTool(
   {
     name: "antigravity_status",
-    description:
-      "Check Google Antigravity availability (CLI, Python SDK, macOS App, current cursor seq, and active bridge inbox/tasks).",
+    description: "Check Antigravity CLI/SDK/app availability, cursor, and active tasks/inbox.",
     inputSchema: {
       type: "object",
       additionalProperties: false,

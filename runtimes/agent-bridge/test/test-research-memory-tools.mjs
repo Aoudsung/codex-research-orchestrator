@@ -6,6 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { registerResearchMemoryTools } from '../src/core/research-memory-tools.mjs';
+import { registerBridgeTools, WORKER_BRIDGE_TOOLS } from '../src/core/bridge-tools.mjs';
+import { BridgeDatabase } from '../src/core/bridge-db.mjs';
 import { validateToolArguments } from '../src/core/mcp-server.mjs';
 
 const bundledHelper = fileURLToPath(new URL('../../../skills/codex-research-orchestrator/scripts/research_memory.py', import.meta.url));
@@ -102,4 +104,67 @@ test('recipient_profile supports pro_macro clutter filtering and gemini_panorami
   const gemCtx = await f.call('context', { query: 'tension', recipient_profile: 'gemini_panoramic', max_chars: 250000 });
   assert.equal(gemCtx.manifest.max_chars, 250000);
   assert.ok(gemCtx.manifest.selected_ids.includes(paper.id));
+
+  const proposal = await f.call('record', {
+    kind: 'proposal',
+    title: 'Candidate Mechanism',
+    summary: 'Coupled update rule',
+    scope: 'Global',
+    body: 'Proposed coupled operator tension solution.',
+    depends_on: [paper.id],
+  });
+  const roleCtx = await f.call('context', {
+    query: 'tension',
+    profile: 'review',
+    allow: [paper.id, proposal.id],
+    target: proposal.id,
+    required: [paper.id],
+    recipient_profile: 'focused_curated',
+    role: 'reviewer',
+    stance: 'deductive_auditor',
+  });
+  assert.equal(roleCtx.manifest.role, 'reviewer');
+  assert.equal(roleCtx.manifest.stance, 'deductive_auditor');
+  assert.ok(roleCtx.text.includes('=== Role & Stance Contract ==='));
+  assert.ok(roleCtx.text.includes('=== JIT Recency Check ==='));
+  assert.ok(roleCtx.text.includes('<5% truncation OFF'));
+});
+
+test('BRIDGE_TOOL_PROFILE prunes worker and exec_only schemas while keeping compressed lead schema compact', t => {
+  const f = fixture(t);
+  const bridgeDbPath = path.join(f.project, 'bridge.sqlite');
+  const bdb = new BridgeDatabase(bridgeDbPath);
+  const prevProj = process.env.RESEARCH_MEMORY_PROJECT;
+  process.env.RESEARCH_MEMORY_PROJECT = f.project;
+  t.after(() => {
+    bdb.db.close();
+    if (prevProj === undefined) delete process.env.RESEARCH_MEMORY_PROJECT;
+    else process.env.RESEARCH_MEMORY_PROJECT = prevProj;
+  });
+
+  const collect = (profile) => {
+    const defs = [];
+    const server = {
+      registerTool(def) { defs.push({ name: def.name, description: def.description, inputSchema: def.inputSchema }); },
+      registerResource() {},
+    };
+    const meta = registerBridgeTools(server, bdb, { toolProfile: profile });
+    return { defs, meta, schemaChars: JSON.stringify(defs).length };
+  };
+
+  const lead = collect('lead');
+  assert.equal(lead.defs.length, 33);
+  assert.ok(lead.schemaChars <= 19500, `Expected compressed lead schema <= 19500 chars, got ${lead.schemaChars}`);
+
+  const worker = collect('worker');
+  assert.equal(worker.defs.length, 9);
+  assert.ok(worker.schemaChars <= 6500, `Expected worker schema <= 6500 chars, got ${worker.schemaChars}`);
+  assert.deepEqual(
+    worker.defs.map(d => d.name).sort(),
+    ['research_search', 'research_read', ...WORKER_BRIDGE_TOOLS].sort()
+  );
+
+  const execOnly = collect('exec_only');
+  assert.equal(execOnly.defs.length, 0);
+  assert.equal(execOnly.meta.researchMemoryMode, 'none');
 });

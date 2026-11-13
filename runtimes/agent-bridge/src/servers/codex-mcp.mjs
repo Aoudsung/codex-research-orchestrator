@@ -109,7 +109,7 @@ server.registerTool(
   {
     name: "codex_exec",
     description:
-      "Run OpenAI Codex non-interactively (`codex exec`) on a prompt with explicit model & task binding, returning its response, session ID, and binding metadata.",
+      "Run Codex CLI (`codex exec`) non-interactively with explicit model, effort, and task binding.",
     inputSchema: {
       type: "object",
       additionalProperties: false,

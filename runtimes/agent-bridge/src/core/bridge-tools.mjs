@@ -21,24 +21,73 @@ import { projectWorkflowDefaults } from "./project-workflow.mjs";
 const AGENT_ENUM = ["antigravity", "codex", "claude-code", "all"];
 const PEER_AGENT_ENUM = ["antigravity", "codex", "claude-code"];
 
+export const BRIDGE_TOOL_PROFILES = Object.freeze([
+  "full",
+  "lead",
+  "worker",
+  "exec_only",
+]);
+
+export const WORKER_BRIDGE_TOOLS = Object.freeze([
+  "bridge_get_task_overview",
+  "bridge_read_messages",
+  "bridge_read_card",
+  "bridge_send_message",
+  "bridge_submit_task_receipt",
+  "bridge_submit_patch",
+  "bridge_handback",
+]);
+
+export function resolveBridgeToolProfile(explicitProfile = null) {
+  const raw = String(
+    explicitProfile || process.env.BRIDGE_TOOL_PROFILE || "full"
+  )
+    .trim()
+    .toLowerCase();
+  if (!BRIDGE_TOOL_PROFILES.includes(raw)) {
+    throw new Error(
+      `Invalid BRIDGE_TOOL_PROFILE "${raw}". Expected one of: ${BRIDGE_TOOL_PROFILES.join(", ")}`
+    );
+  }
+  return raw;
+}
+
 /**
- * Register shared bidirectional communication, preflight, patch attachment,
- * and unified lifecycle tools on an MCP server.
- *
- * @param {import('./mcp-server.mjs').McpStdioServer} server
- * @param {import('./bridge-db.mjs').BridgeDatabase} bridgeDb
- * @param {object} options
- * @param {string} options.defaultCaller - Default identity of the agent calling this MCP server
- * @param {string} options.defaultTarget - Default identity of the target agent represented by this MCP server
+ * Register bridge communication, preflight, patch, and lifecycle tools on an MCP server.
  */
 export function registerBridgeTools(
   server,
   bridgeDb,
-  { defaultCaller = "antigravity", defaultTarget = "codex" } = {}
+  { defaultCaller = "antigravity", defaultTarget = "codex", toolProfile = null } = {}
 ) {
   const callerAgent = process.env.MCP_CALLER_AGENT || defaultCaller;
   const targetAgent = process.env.MCP_TARGET_AGENT || defaultTarget;
-  registerResearchMemoryTools(server, { caller: callerAgent });
+  const resolvedProfile = resolveBridgeToolProfile(toolProfile);
+  if (resolvedProfile === "exec_only") {
+    return {
+      toolProfile: resolvedProfile,
+      registeredBridgeTools: [],
+      researchMemoryMode: "none",
+    };
+  }
+
+  const researchMemoryMode = resolvedProfile === "worker" ? "readonly" : "full";
+  registerResearchMemoryTools(server, {
+    caller: callerAgent,
+    mode: researchMemoryMode,
+  });
+
+  const registeredBridgeTools = [];
+  const registerBridgeTool = (definition, handler) => {
+    if (
+      resolvedProfile === "worker" &&
+      !WORKER_BRIDGE_TOOLS.includes(definition.name)
+    ) {
+      return;
+    }
+    registeredBridgeTools.push(definition.name);
+    server.registerTool(definition, handler);
+  };
 
   const emitWakeupNotification = (msg) => {
     if (!msg) return;
@@ -89,74 +138,27 @@ export function registerBridgeTools(
   // ===========================================================================
   // 1. bridge_send_message
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_send_message",
-      description:
-        "Send a message across the multi-agent bridge. Strictly rejects unknown fields (such as 'from'/'to'). Requires explicit 'toAgent' OR 'replyTo' (which inherits recipient and thread from the parent message). Supports `waitForDelivery: true` to block and coalesce the passive party's multi-step patch + receipt delivery in the same turn.",
+      description: "Send message by toAgent or replyTo; supports waitForDelivery coalescing.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          content: {
-            type: "string",
-            description: "Message body (Markdown or plain text). For diffs/patches, prefer 'bridge_submit_patch'.",
-          },
-          toAgent: {
-            type: "string",
-            enum: AGENT_ENUM,
-            description:
-              "Explicit recipient agent ('antigravity', 'codex', 'claude-code', or 'all'). Required unless 'replyTo' is provided.",
-          },
-          fromAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Sender agent identifier (defaults to '${callerAgent}').`,
-          },
-          replyTo: {
-            type: "string",
-            description:
-              "Message ID being replied to. Automatically inherits 'toAgent', 'threadId', and 'taskId' from the parent message.",
-          },
-          taskId: {
-            type: "string",
-            description: "Optional task ID associated with this message.",
-          },
-          subject: {
-            type: "string",
-            description: "Optional short subject line.",
-          },
-          threadId: {
-            type: "string",
-            description: "Optional conversation thread ID.",
-          },
-          metadata: {
-            type: "object",
-            description: "Optional structured metadata.",
-          },
-          allowSelfSend: {
-            type: "boolean",
-            description: "If true, allow sending a message where fromAgent === toAgent (default: false).",
-          },
-          waitForReply: {
-            type: "boolean",
-            description: "If true, wait for the recipient agent to reply to this message.",
-          },
-          waitForDelivery: {
-            type: "boolean",
-            description:
-              "If true, wait for new task messages/patches after this message's cursor and coalesce nearby updates over settleMs. Update receipt, artifact completeness, and host acceptance are reported separately.",
-          },
-          settleMs: {
-            type: "number",
-            description:
-              "Quiet-window coalescing duration in milliseconds when waitForDelivery is true (default: 2500).",
-          },
-          timeoutMs: {
-            type: "number",
-            description:
-              "Timeout in milliseconds when waitForReply or waitForDelivery is true (default: 30000 for waitForReply, 600000 for waitForDelivery).",
-          },
+          content: { type: "string" },
+          toAgent: { type: "string", enum: AGENT_ENUM },
+          fromAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          replyTo: { type: "string" },
+          taskId: { type: "string" },
+          subject: { type: "string" },
+          threadId: { type: "string" },
+          metadata: { type: "object" },
+          allowSelfSend: { type: "boolean" },
+          waitForReply: { type: "boolean" },
+          waitForDelivery: { type: "boolean" },
+          settleMs: { type: "number" },
+          timeoutMs: { type: "number" },
         },
         required: ["content"],
       },
@@ -229,58 +231,25 @@ export function registerBridgeTools(
   // ===========================================================================
   // 2. bridge_read_messages
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_read_messages",
-      description: `Read messages from an agent inbox (defaults to '${callerAgent}'). Supports incremental cursor reading via 'afterSeq' and filtering by 'taskId'. Strictly rejects unknown fields like 'agent' (use 'toAgent').`,
+      description: `Read inbox (default '${callerAgent}') by afterSeq/taskId.`,
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          toAgent: {
-            type: "string",
-            description: `Recipient agent inbox to read (defaults to '${callerAgent}', use '*' for all agents).`,
-          },
-          fromAgent: {
-            type: "string",
-            description: "Optional filter by sender agent.",
-          },
-          taskId: {
-            type: "string",
-            description: "Optional filter by task ID.",
-          },
-          threadId: {
-            type: "string",
-            description: "Optional filter by conversation thread ID.",
-          },
-          afterSeq: {
-            type: "number",
-            description: "Incremental cursor: only return messages with seq > afterSeq.",
-          },
-          unreadOnly: {
-            type: "boolean",
-            description: "If true, only return unread messages (default: false).",
-          },
-          markAsRead: {
-            type: "boolean",
-            description: "If true, mark returned unread messages as read (default: true).",
-          },
-          markConsumed: {
-            type: "boolean",
-            description: "If true, advance phase-2 consumption confirmation (`consumed_at`) so Watchdog knows this turn ingested the message (defaults to `markAsRead`).",
-          },
-          consumeTurnId: {
-            type: "string",
-            description: "Optional turn/conversation identifier recorded in `consumed_turn_id`.",
-          },
-          compactCards: {
-            type: "boolean",
-            description: "If true, include compact Inline Cards (`preview`, `chars`, `sha256`, `read: bridge://message/<id>`) for context-lean reading.",
-          },
-          limit: {
-            type: "number",
-            description: "Maximum number of messages to return (default: 25).",
-          },
+          toAgent: { type: "string" },
+          fromAgent: { type: "string" },
+          taskId: { type: "string" },
+          threadId: { type: "string" },
+          afterSeq: { type: "number" },
+          unreadOnly: { type: "boolean" },
+          markAsRead: { type: "boolean" },
+          markConsumed: { type: "boolean" },
+          consumeTurnId: { type: "string" },
+          compactCards: { type: "boolean" },
+          limit: { type: "number" },
         },
       },
     },
@@ -326,38 +295,21 @@ export function registerBridgeTools(
   // ===========================================================================
   // 3. bridge_reply_message
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_reply_message",
-      description:
-        "Reply directly to a received message ID. Automatically inherits recipient ('toAgent'), 'threadId', and 'taskId' from the parent message and returns an explicit delivery receipt.",
+      description: "Reply to message ID (inherits toAgent, threadId, taskId).",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          replyTo: {
-            type: "string",
-            description: "The ID of the message being replied to.",
-          },
-          content: {
-            type: "string",
-            description: "Reply content.",
-          },
-          fromAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Replying agent identifier (defaults to '${callerAgent}').`,
-          },
-          subject: {
-            type: "string",
-            description: "Optional subject override.",
-          },
-          decisionId: { type: "string", description: "Exact pending decision to answer; ordinary replies do not resolve other decisions." },
-          eventId: { type: "string", description: "Stable idempotency key for a decision answer." },
-          metadata: {
-            type: "object",
-            description: "Optional structured metadata.",
-          },
+          replyTo: { type: "string" },
+          content: { type: "string" },
+          fromAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          subject: { type: "string" },
+          decisionId: { type: "string", description: "Pending decision ID to answer." },
+          eventId: { type: "string", description: "Decision answer idempotency key." },
+          metadata: { type: "object" },
         },
         required: ["replyTo", "content"],
       },
@@ -401,73 +353,27 @@ export function registerBridgeTools(
   // ===========================================================================
   // 4. bridge_preflight_task [P0]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_preflight_task",
-      description:
-        "Run upfront preflight checks for a task BEFORE execution: checks tool compatibility (flagging unsupported tools like 'write_file' upfront), validates read/write directory scopes, computes the permission delta to authorize once, and records a task-scoped readiness lease. This does not grant human authority or host permissions.",
+      description: "Check tool/scope compatibility upfront and grant task lease.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Optional task ID to bind the preflight lease to.",
-          },
-          deliveryMode: { type: "string", enum: ["direct", "read_only", "mcp_structured_patch"], description: "Execution mode checked by preflight (default: direct)." },
-          isolationProfile: {
-            type: "string",
-            enum: ISOLATION_PROFILES,
-            description: "Epistemic isolation profile ('shared', 'blind_analysis', or 'blind_review'). Blind profiles automatically disable live Router thread fan-out.",
-          },
-          threadId: {
-            type: "string",
-            description: "Optional primary thread ID for automatic direct subscription when isolationProfile is 'shared'.",
-          },
-          runtime: {
-            type: "string",
-            enum: ["agy-cli", "antigravity-ide", "codex-cli", "claude-cli"],
-            description: "Target execution runtime (default: 'agy-cli').",
-          },
-          cwd: {
-            type: "string",
-            description: "Workspace directory.",
-          },
-          readRoots: {
-            type: "array",
-            items: { type: "string" },
-            description: "Authorized read-only directory roots.",
-          },
-          writeRoots: {
-            type: "array",
-            items: { type: "string" },
-            description: "Authorized write directory roots.",
-          },
-          requestedTools: {
-            type: "array",
-            items: { type: "string" },
-            description: "Tools the agent intends to call during the task.",
-          },
-          allowedCommands: {
-            type: "array",
-            items: { type: "string" },
-            description: "Shell commands needed for the task.",
-          },
-          forbiddenOperations: {
-            type: "array",
-            items: { type: "string" },
-            description: "Explicitly forbidden operations (e.g. ['local_tests', 'ssh', 'other_models']).",
-          },
-          alreadyGrantedTools: {
-            type: "array",
-            items: { type: "string" },
-            description: "Optional list of tools already granted in user settings to compute delta.",
-          },
-          alreadyGrantedCommands: {
-            type: "array",
-            items: { type: "string" },
-            description: "Optional list of shell commands already granted in user settings to compute delta.",
-          },
+          taskId: { type: "string" },
+          deliveryMode: { type: "string", enum: ["direct", "read_only", "mcp_structured_patch"] },
+          isolationProfile: { type: "string", enum: ISOLATION_PROFILES },
+          threadId: { type: "string" },
+          runtime: { type: "string", enum: ["agy-cli", "antigravity-ide", "codex-cli", "claude-cli"] },
+          cwd: { type: "string" },
+          readRoots: { type: "array", items: { type: "string" } },
+          writeRoots: { type: "array", items: { type: "string" } },
+          requestedTools: { type: "array", items: { type: "string" } },
+          allowedCommands: { type: "array", items: { type: "string" } },
+          forbiddenOperations: { type: "array", items: { type: "string" } },
+          alreadyGrantedTools: { type: "array", items: { type: "string" } },
+          alreadyGrantedCommands: { type: "array", items: { type: "string" } },
         },
       },
     },
@@ -525,107 +431,37 @@ export function registerBridgeTools(
   // ===========================================================================
   // 5. bridge_create_task
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_create_task",
-      description: `Create and assign a collaborative task (or reuse an existing 'taskId') with explicit model/session binding and upfront permission scope. New tasks use workflow 2: report progress/delivery with bridge_submit_task_receipt; the contract acceptor records final acceptance with evidence.`,
+      description: "Create/reuse task with model/session binding, scope, and v2 contract.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Optional explicit task ID (if it already exists, returns the existing task without duplicating).",
-          },
-          title: {
-            type: "string",
-            description: "Short task title.",
-          },
-          prompt: {
-            type: "string",
-            description: "Detailed instructions and acceptance criteria for the task.",
-          },
-          assignedTo: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Target agent to execute the task (defaults to '${targetAgent}').`,
-          },
-          fromAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Requester agent (defaults to '${callerAgent}').`,
-          },
-          requiredModel: {
-            type: "string",
-            description: "Exact model ID required for this task (e.g. 'synthetic-model-high'). Mismatched models will be rejected.",
-          },
-          requiredConversationId: {
-            type: "string",
-            description: "Optional conversation/session ID that must be used for this task.",
-          },
-          cwd: {
-            type: "string",
-            description: "Working directory path.",
-          },
-          priority: {
-            type: "string",
-            enum: ["low", "normal", "high", "urgent"],
-            description: "Task priority (default: 'normal').",
-          },
-          readRoots: {
-            type: "array",
-            items: { type: "string" },
-            description: "Authorized read-only directory roots for this task.",
-          },
-          writeRoots: {
-            type: "array",
-            items: { type: "string" },
-            description: "Authorized write directory roots for this task.",
-          },
-          requestedTools: {
-            type: "array",
-            items: { type: "string" },
-            description: "Tools requested for this task (checked upfront for compatibility).",
-          },
-          allowedCommands: {
-            type: "array",
-            items: { type: "string" },
-            description: "Shell commands authorized for this task.",
-          },
-          forbiddenOperations: {
-            type: "array",
-            items: { type: "string" },
-            description: "Operations forbidden during this task (e.g. ['local_tests', 'ssh']).",
-          },
-          deliveryMode: { type: "string", enum: ["direct", "read_only", "mcp_structured_patch"], description: "Execution mode checked by preflight (default: direct)." },
-          isolationProfile: {
-            type: "string",
-            enum: ISOLATION_PROFILES,
-            description: "Epistemic isolation profile ('shared', 'blind_analysis', or 'blind_review'). Blind profiles automatically disable live Router thread fan-out.",
-          },
-          threadId: {
-            type: "string",
-            description: "Optional primary thread ID for automatic direct subscription when isolationProfile is 'shared'.",
-          },
-          runtime: {
-            type: "string",
-            enum: ["agy-cli", "antigravity-ide", "codex-cli", "claude-cli"],
-            description: "Target runtime surface for preflight checks (default: 'agy-cli').",
-          },
-          contract: { type: "object", description: "Versioned objective, scope, delivery criteria, success criteria, and allowed continuation." },
-          protocolVersion: { type: "integer", enum: [1, 2], description: "New tasks use v2; existing tasks keep their recorded protocol." },
-          metadata: {
-            type: "object",
-            description: "Optional metadata object.",
-          },
-          waitForCompletion: {
-            type: "boolean",
-            description: "If true, wait until the target agent completes the task.",
-          },
-          timeoutMs: {
-            type: "number",
-            description: "Timeout in ms if waitForCompletion is true (default: 60000).",
-          },
+          taskId: { type: "string" },
+          title: { type: "string" },
+          prompt: { type: "string" },
+          assignedTo: { type: "string", enum: PEER_AGENT_ENUM },
+          fromAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          requiredModel: { type: "string" },
+          requiredConversationId: { type: "string" },
+          cwd: { type: "string" },
+          priority: { type: "string", enum: ["low", "normal", "high", "urgent"] },
+          readRoots: { type: "array", items: { type: "string" } },
+          writeRoots: { type: "array", items: { type: "string" } },
+          requestedTools: { type: "array", items: { type: "string" } },
+          allowedCommands: { type: "array", items: { type: "string" } },
+          forbiddenOperations: { type: "array", items: { type: "string" } },
+          deliveryMode: { type: "string", enum: ["direct", "read_only", "mcp_structured_patch"] },
+          isolationProfile: { type: "string", enum: ISOLATION_PROFILES },
+          threadId: { type: "string" },
+          runtime: { type: "string", enum: ["agy-cli", "antigravity-ide", "codex-cli", "claude-cli"] },
+          contract: { type: "object" },
+          protocolVersion: { type: "integer", enum: [1, 2] },
+          metadata: { type: "object" },
+          waitForCompletion: { type: "boolean" },
+          timeoutMs: { type: "number" },
         },
         required: ["prompt"],
       },
@@ -721,36 +557,19 @@ export function registerBridgeTools(
   // ===========================================================================
   // 6. bridge_list_tasks
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_list_tasks",
-      description: "List tasks in the shared multi-agent task queue, including their unified phase ('Awaiting revision', 'Delivered / awaiting validation', 'Awaiting review', etc.) and model/session binding.",
+      description: "List tasks with lifecycle phase and binding metadata.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          assignedTo: {
-            type: "string",
-            description: "Filter by assigned agent ('antigravity', 'codex', 'claude-code', or '*' for all).",
-          },
-          fromAgent: {
-            type: "string",
-            description: "Filter by creator agent.",
-          },
-          status: {
-            type: "string",
-            enum: ["pending", "in_progress", "completed", "failed", "cancelled"],
-            description: "Filter by coarse task status.",
-          },
-          phase: {
-            type: "string",
-            enum: Object.keys(PHASE_LABELS),
-            description: "Filter by fine-grained lifecycle phase.",
-          },
-          limit: {
-            type: "number",
-            description: "Maximum tasks to return (default: 25).",
-          },
+          assignedTo: { type: "string" },
+          fromAgent: { type: "string" },
+          status: { type: "string", enum: ["pending", "in_progress", "completed", "failed", "cancelled"] },
+          phase: { type: "string", enum: Object.keys(PHASE_LABELS) },
+          limit: { type: "number" },
         },
       },
     },
@@ -773,31 +592,18 @@ export function registerBridgeTools(
   // ===========================================================================
   // 7. bridge_claim_task
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_claim_task",
-      description: `Claim a task assigned to '${callerAgent}' (or specified agent). Validates 'model' and 'conversationId' against the task's required binding and returns the active permission lease and tool compatibility guidance.`,
+      description: `Claim task for '${callerAgent}', checking model/session binding.`,
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Specific task ID to claim. If omitted, claims the highest-priority pending/active task for the agent.",
-          },
-          agent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Agent claiming the task (defaults to '${callerAgent}').`,
-          },
-          model: {
-            type: "string",
-            description: "Actual model ID of the claiming session (e.g. 'synthetic-model-high'). Validated against task.required_model.",
-          },
-          conversationId: {
-            type: "string",
-            description: "Conversation/session ID of the claiming agent. Validated and bound to the task.",
-          },
+          taskId: { type: "string" },
+          agent: { type: "string", enum: PEER_AGENT_ENUM },
+          model: { type: "string" },
+          conversationId: { type: "string" },
         },
       },
     },
@@ -844,72 +650,27 @@ export function registerBridgeTools(
   // ===========================================================================
   // 8. bridge_submit_patch [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_submit_patch",
-      description:
-        "Submit a structured patch attachment ('unified_diff' or 'baseline_copy') bound to a taskId and patchId. Preserves author's exact byte-for-byte original text, validates hunk line counts and authorized writeRoots paths, records dependencies/supersedes, updates task phase to 'Delivered / awaiting validation', and notifies the coordinator.",
+      description: "Submit task patch ('unified_diff' or 'baseline_copy') with path/hunk checks.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID this patch belongs to.",
-          },
-          patchId: {
-            type: "string",
-            description: "Unique patch identifier (e.g. 'example-001', 'example-001-fix').",
-          },
-          content: {
-            type: "string",
-            description: "Exact byte-for-byte unified diff text or baseline_copy JSON array.",
-          },
-          artifactKind: {
-            type: "string",
-            enum: ["unified_diff", "baseline_copy"],
-            description: "Patch artifact type (default: 'unified_diff').",
-          },
-          fromAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Author agent (defaults to '${callerAgent}').`,
-          },
-          toAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: "Recipient coordinator agent (defaults to the task's creator agent, e.g. 'codex').",
-          },
-          model: {
-            type: "string",
-            description: "Model ID that authored this patch (verified against task.required_model).",
-          },
-          conversationId: {
-            type: "string",
-            description: "Conversation ID that authored this patch (verified against task.required_conversation_id).",
-          },
-          dependsOn: {
-            type: "array",
-            items: { type: "string" },
-            description: "Optional list of prerequisite patchIds that must be applied before this patch.",
-          },
-          supersedes: {
-            type: "string",
-            description: "Optional previous patchId that this patch replaces (automatically marks the old patch as 'superseded').",
-          },
-          summary: {
-            type: "string",
-            description: "Short summary of files and changes in this patch.",
-          },
-          allowRecount: {
-            type: "boolean",
-            description:
-              "If true (default: false), allow storing a unified diff whose hunk header counts need `git apply --recount`, while flagging hunkCountValid=false in validation metadata.",
-          },
-          cwd: {
-            type: "string",
-            description: "Optional workspace root to run non-destructive `git apply --check`.",
-          },
+          taskId: { type: "string" },
+          patchId: { type: "string" },
+          content: { type: "string" },
+          artifactKind: { type: "string", enum: ["unified_diff", "baseline_copy"] },
+          fromAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          toAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          model: { type: "string" },
+          conversationId: { type: "string" },
+          dependsOn: { type: "array", items: { type: "string" } },
+          supersedes: { type: "string" },
+          summary: { type: "string" },
+          allowRecount: { type: "boolean", description: "Allow `git apply --recount` mismatch (default: false)." },
+          cwd: { type: "string" },
         },
         required: ["taskId", "patchId", "content"],
       },
@@ -1020,27 +781,17 @@ export function registerBridgeTools(
   // ===========================================================================
   // 9. bridge_list_patches [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_list_patches",
-      description:
-        "List structured patches submitted for a task, including dependency/supersedes relationships and the computed 'activeApplyOrder' excluding superseded patches.",
+      description: "List task patches and computed activeApplyOrder.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID to list patches for.",
-          },
-          activeOnly: {
-            type: "boolean",
-            description: "If true, exclude superseded patches (default: false).",
-          },
-          includeRawContent: {
-            type: "boolean",
-            description: "If true, include full raw diff content for each patch (default: false).",
-          },
+          taskId: { type: "string" },
+          activeOnly: { type: "boolean" },
+          includeRawContent: { type: "boolean" },
         },
         required: ["taskId"],
       },
@@ -1064,27 +815,17 @@ export function registerBridgeTools(
   // ===========================================================================
   // 10. bridge_get_patch [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_get_patch",
-      description:
-        "Retrieve a structured patch attachment by 'patchId', including its byte-for-byte original 'rawContent', SHA-256 digest, target files, and validation status. Optionally saves the exact original content to a file or runs `git apply --check`.",
+      description: "Fetch patch by patchId, optionally saving or running git apply --check.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          patchId: {
-            type: "string",
-            description: "Patch ID to retrieve (e.g. 'example-001-fix').",
-          },
-          saveToPath: {
-            type: "string",
-            description: "Optional file path to save the exact byte-for-byte rawContent.",
-          },
-          checkApplyCwd: {
-            type: "string",
-            description: "Optional working directory to run `git apply --check` (and `--recount` check).",
-          },
+          patchId: { type: "string" },
+          saveToPath: { type: "string" },
+          checkApplyCwd: { type: "string" },
         },
         required: ["patchId"],
       },
@@ -1135,64 +876,25 @@ export function registerBridgeTools(
   // ===========================================================================
   // 11. bridge_record_validation [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_record_validation",
-      description:
-        "Record patch application and/or server verification results for a task's patch set. Updates patch statuses, transitions the unified task state ('Awaiting revision' vs 'Awaiting review' vs 'Delivered / awaiting validation'), and sends a single consolidated notification message with cursor seq. Supports `waitForDelivery: true` to automatically wait and coalesce the passive party's next patch + receipt delivery.",
+      description: "Record validation outcome, advance phase, notify assignee, and emit escalation hints.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID being validated.",
-          },
-          patchIds: {
-            type: "array",
-            items: { type: "string" },
-            description: "List of patch IDs covered by this application/validation round.",
-          },
-          applied: {
-            type: "boolean",
-            description: "Whether the patches were mechanically applied to the working tree (default: true).",
-          },
-          passed: {
-            type: "boolean",
-            description: "Whether server verification/tests passed (true = awaiting_review, false = awaiting_revision, omit if only recording patch application).",
-          },
-          summary: {
-            type: "string",
-            description: "Consolidated validation report or failure feedback for the author session.",
-          },
-          validatorAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Agent recording the validation (defaults to '${callerAgent}').`,
-          },
-          details: {
-            type: "object",
-            description: "Optional structured test counts, log paths, or failure identifiers.",
-          },
-          notifyAssignee: {
-            type: "boolean",
-            description: "Whether to send a consolidated notification message to the task assignee (default: true).",
-          },
-          waitForDelivery: {
-            type: "boolean",
-            description:
-              "If true (recommended when `passed: false`), keep this tool call open until the assignee submits the next patch + receipt delivery, coalesced over `settleMs`.",
-          },
-          settleMs: {
-            type: "number",
-            description:
-              "Quiet-window coalescing duration in milliseconds when waitForDelivery is true (default: 2500).",
-          },
-          timeoutMs: {
-            type: "number",
-            description:
-              "Wait timeout in milliseconds when waitForDelivery is true (default: 600000 = 10 min).",
-          },
+          taskId: { type: "string" },
+          patchIds: { type: "array", items: { type: "string" } },
+          applied: { type: "boolean" },
+          passed: { type: "boolean" },
+          summary: { type: "string" },
+          validatorAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          details: { type: "object" },
+          notifyAssignee: { type: "boolean" },
+          waitForDelivery: { type: "boolean" },
+          settleMs: { type: "number" },
+          timeoutMs: { type: "number" },
         },
         required: ["taskId", "patchIds", "summary"],
       },
@@ -1211,6 +913,7 @@ export function registerBridgeTools(
       });
 
       const baseCursor = res.notificationReceipt?.seq || res.seq;
+      const jitExtra = res.jitGuidance ? { jitGuidance: res.jitGuidance } : {};
 
       if (args.waitForDelivery) {
         const delivery = await bridgeDb.waitForDelivery({
@@ -1230,6 +933,7 @@ export function registerBridgeTools(
           },
           binding: res.task.binding,
           receipt: res.notificationReceipt,
+          ...jitExtra,
           deliveryReceived: delivery.wokenUp,
           delivery,
         };
@@ -1245,6 +949,7 @@ export function registerBridgeTools(
         },
         binding: res.task.binding,
         receipt: res.notificationReceipt,
+        ...jitExtra,
       };
     }
   );
@@ -1252,32 +957,18 @@ export function registerBridgeTools(
   // ===========================================================================
   // 12. bridge_update_task_phase [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_update_task_phase",
-      description:
-        "Update the unified lifecycle phase of a task ('ready'/'Ready', 'in_progress'/'In progress', 'cli_turn_ended'/'CLI turn ended (delivery unconfirmed)', 'patch_delivered'/'Patch delivered', 'awaiting_validation'/'Delivered / awaiting validation', 'validation_failed'/'Validation failed', 'awaiting_revision'/'Awaiting revision', 'awaiting_review'/'Awaiting review', 'completed'/'Completed').",
+      description: "Update task lifecycle phase.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID to update.",
-          },
-          phase: {
-            type: "string",
-            enum: Object.keys(PHASE_LABELS),
-            description: "Target lifecycle phase.",
-          },
-          result: {
-            type: "string",
-            description: "Optional summary or result note.",
-          },
-          error: {
-            type: "string",
-            description: "Optional error note.",
-          },
+          taskId: { type: "string" },
+          phase: { type: "string", enum: Object.keys(PHASE_LABELS) },
+          result: { type: "string" },
+          error: { type: "string" },
         },
         required: ["taskId", "phase"],
       },
@@ -1302,19 +993,15 @@ export function registerBridgeTools(
   // ===========================================================================
   // 13. bridge_get_task_overview [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_get_task_overview",
-      description:
-        "Retrieve a unified, single-call overview of a task: current phase ('Awaiting revision', 'Delivered / awaiting validation', 'Awaiting review', 'Completed'), model & conversation binding, active permission lease, active patch stack in apply order, validation history, and current message cursor.",
+      description: "Get task phase, binding, lease, patches, validations, and cursor.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID to inspect.",
-          },
+          taskId: { type: "string" },
         },
         required: ["taskId"],
       },
@@ -1334,40 +1021,20 @@ export function registerBridgeTools(
   // ===========================================================================
   // 14. bridge_poll_updates [P1]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_poll_updates",
-      description:
-        "Incrementally poll for new messages, patch deliveries, and validation results since 'afterSeq' (cursor). Optionally waits up to 'waitMs' for new events and coalesces multi-step deliveries over 'settleMs'.",
+      description: "Poll events since afterSeq with optional waitMs and settleMs.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          afterSeq: {
-            type: "number",
-            description: "Cursor sequence number from previous read/poll (0 to fetch all).",
-          },
-          toAgent: {
-            type: "string",
-            description: `Filter events relevant to agent (defaults to '${callerAgent}', use '*' for all).`,
-          },
-          taskId: {
-            type: "string",
-            description: "Optional filter by task ID.",
-          },
-          markMessagesRead: {
-            type: "boolean",
-            description: "If true, mark returned messages as read (default: false).",
-          },
-          waitMs: {
-            type: "number",
-            description: "Optional long-poll wait duration in milliseconds (default: 0).",
-          },
-          settleMs: {
-            type: "number",
-            description:
-              "Optional quiet-window coalescing duration in milliseconds after first event arrives so consecutive messages (e.g. patch + receipt) are returned together (default: 0).",
-          },
+          afterSeq: { type: "number" },
+          toAgent: { type: "string" },
+          taskId: { type: "string" },
+          markMessagesRead: { type: "boolean" },
+          waitMs: { type: "number" },
+          settleMs: { type: "number" },
         },
         required: ["afterSeq"],
       },
@@ -1391,60 +1058,23 @@ export function registerBridgeTools(
   // ===========================================================================
   // 14b. bridge_wait_for_delivery [Active Wakeup & Quiet-Window Coalescing]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_wait_for_delivery",
-      description:
-        "Wait for task-scoped updates and coalesce nearby events. Reports updatesReceived, artifactDeliveryComplete, and confirmed host delivery separately. A quiet window or inbox update does not prove that the target chat resumed.",
+      description: "Wait for coalesced task updates; reports updatesReceived, artifacts, and host receipt separately.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID to watch for passive-party delivery.",
-          },
-          toAgent: {
-            type: "string",
-            enum: AGENT_ENUM,
-            description: `Active recipient agent waiting to be woken up (defaults to '${callerAgent}').`,
-          },
-          afterSeq: {
-            type: "number",
-            description:
-              "Optional cursor sequence number. If omitted, automatically starts right before the earliest unread message for (toAgent, taskId), or current cursor if none are unread.",
-          },
-          settleMs: {
-            type: "number",
-            description:
-              "Quiet-window coalescing window in milliseconds after the first event arrives (default: 2500ms so patch + receipt arriving 1-2s apart are bundled together).",
-          },
-          timeoutMs: {
-            type: "number",
-            description:
-              "Maximum wait duration in milliseconds (default: 600000 = 10 minutes).",
-          },
-          markMessagesRead: {
-            type: "boolean",
-            description:
-              "If true, mark delivered messages as read upon wakeup (default: false so main thread can also inspect if forwarded).",
-          },
-          deliverToHost: {
-            type: "boolean",
-            description:
-              "If true, actively execute the configured host wakeup driver (`codex_ipc` / `app_server_ws` / `custom_command`) to start a new turn on the target conversation and confirm delivery only upon receiving the host's acceptance receipt.",
-          },
-          confirmDelivery: {
-            type: "boolean",
-            description:
-              "If true (requires `receipt`), confirm that the caller has delivered the wakeup to the host and received an acceptance receipt, advancing `last_woken_seq`.",
-          },
-          receipt: {
-            type: "object",
-            additionalProperties: true,
-            description:
-              "Host acceptance receipt (`{ accepted: true, turnId, targetSessionId }`) when `confirmDelivery` is true.",
-          },
+          taskId: { type: "string" },
+          toAgent: { type: "string", enum: AGENT_ENUM },
+          afterSeq: { type: "number" },
+          settleMs: { type: "number" },
+          timeoutMs: { type: "number" },
+          markMessagesRead: { type: "boolean" },
+          deliverToHost: { type: "boolean" },
+          confirmDelivery: { type: "boolean" },
+          receipt: { type: "object", additionalProperties: true },
         },
       },
     },
@@ -1470,75 +1100,31 @@ export function registerBridgeTools(
   // ===========================================================================
   // 14c. bridge_configure_wakeup_route [Multi-Driver Wakeup Router]
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_configure_wakeup_route",
-      description:
-        "Configure, inspect, or trigger/confirm the active wakeup route for a task. Supports `codex_ipc` / `host_poll` (connects to `~/.codex/ipc/ipc.sock`, starts a new turn via `thread-follower-start-turn`, and confirms delivery ONLY upon receiving a `turn.id` receipt), `app_server_ws`, `custom_command`, `cli_resume`, and `manual`.",
+      description: "Configure, inspect, or confirm a task's wakeup route.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID to configure.",
-          },
-          threadId: {
-            type: "string",
-            description: "Bridge thread ID (defaults to `example-<taskId>`).",
-          },
-          toAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: "Active agent to wake up (default: 'codex').",
-          },
-          targetSessionId: {
-            type: "string",
-            description: "Target session/thread ID in the active host (e.g. '00000000-0000-4000-8000-000000000001').",
-          },
+          taskId: { type: "string" },
+          threadId: { type: "string" },
+          toAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          targetSessionId: { type: "string" },
           driver: {
             type: "string",
-            enum: [
-              "host_poll",
-              "codex_ipc",
-              "app_server_ws",
-              "custom_command",
-              "cli_resume",
-              "manual",
-            ],
-            description: "Wakeup delivery driver (default: 'host_poll').",
+            enum: ["host_poll", "codex_ipc", "app_server_ws", "custom_command", "cli_resume", "manual"],
           },
-          model: { type: "string", description: "Requested execution model for this route." },
-          effort: { type: "string", description: "Requested execution effort for this route." },
-          wakeupCommand: {
-            type: "string",
-            description: "Optional shell command template when driver is 'custom_command'.",
-          },
-          appServerUrl: {
-            type: "string",
-            description: "Optional WebSocket or Unix socket URL when driver is 'app_server_ws' or 'codex_ipc'.",
-          },
-          cwd: {
-            type: "string",
-            description: "Working directory for wakeup driver.",
-          },
-          enabled: {
-            type: "boolean",
-            description: "Whether the wakeup route is enabled (default: true).",
-          },
-          coalesceMs: {
-            type: "number",
-            description: "Optional quiet-window coalescing delay in milliseconds (default: 800).",
-          },
-          deliverPendingNow: {
-            type: "boolean",
-            description: "If true, immediately execute host wakeup delivery for any pending/dispatched unread messages on this task.",
-          },
-          confirmReceipt: {
-            type: "object",
-            additionalProperties: true,
-            description: "Optional host acceptance receipt (`{ accepted: true, turnId, targetSessionId }`) to confirm a previously dispatched wakeup.",
-          },
+          model: { type: "string" },
+          effort: { type: "string" },
+          wakeupCommand: { type: "string" },
+          appServerUrl: { type: "string" },
+          cwd: { type: "string" },
+          enabled: { type: "boolean" },
+          coalesceMs: { type: "number" },
+          deliverPendingNow: { type: "boolean" },
+          confirmReceipt: { type: "object", additionalProperties: true },
         },
         required: ["taskId"],
       },
@@ -1593,40 +1179,20 @@ export function registerBridgeTools(
   // ===========================================================================
   // 15. bridge_complete_task
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_complete_task",
-      description:
-        "Mark a task as completed, failed, or cancelled. Automatically revokes the task's temporary permission lease ('task_leases') so task-scoped permissions never leak after completion.",
+      description: "Complete/fail/cancel task and revoke its permission lease.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID to complete.",
-          },
-          status: {
-            type: "string",
-            enum: ["completed", "failed", "cancelled"],
-            description: "Final task status (default: 'completed').",
-          },
-          result: {
-            type: "string",
-            description: "Final result output or summary.",
-          },
-          error: {
-            type: "string",
-            description: "Error details if status is 'failed'.",
-          },
-          sessionId: {
-            type: "string",
-            description: "Optional session/conversation ID associated with the execution.",
-          },
-          model: {
-            type: "string",
-            description: "Optional model ID verification.",
-          },
+          taskId: { type: "string" },
+          status: { type: "string", enum: ["completed", "failed", "cancelled"] },
+          result: { type: "string" },
+          error: { type: "string" },
+          sessionId: { type: "string" },
+          model: { type: "string" },
         },
         required: ["taskId"],
       },
@@ -1656,7 +1222,7 @@ export function registerBridgeTools(
   );
 
   const registerWorkflow = (name, description, properties, required, method) => {
-    server.registerTool({ name, description, inputSchema: {
+    registerBridgeTool({ name, description, inputSchema: {
       type: "object", additionalProperties: false, properties, required,
       ...(name === "bridge_submit_task_receipt" ? { anyOf: [
         { properties: { operation: { const: "receipt" } }, required: ["receiptId", "attemptId", "contractVersion", "ownerEpoch", "outcome"] },
@@ -1670,11 +1236,11 @@ export function registerBridgeTools(
   };
   const taskIdField = { type: "string", minLength: 1 };
   const versionField = { type: "integer", minimum: 1 };
-  registerWorkflow("bridge_update_task_contract", "Revise a task contract using its expected version and original instruction sources.", {
+  registerWorkflow("bridge_update_task_contract", "Revise contract with expectedVersion and sourceRefs.", {
     taskId: taskIdField, eventId: taskIdField, expectedVersion: versionField,
     contract: { type: "object" }, sourceRefs: { type: "array", items: { type: "string" } },
   }, ["taskId", "eventId", "expectedVersion", "contract", "sourceRefs"], "updateTaskContract");
-  registerWorkflow("bridge_submit_task_receipt", "Submit a durable business receipt. Reuse receiptId when retrying; delivery and acceptance are separate facts.", {
+  registerWorkflow("bridge_submit_task_receipt", "Submit idempotent task receipt/signal.", {
     taskId: taskIdField, receiptId: taskIdField, attemptId: taskIdField,
     operation: { type: "string", enum: ["receipt", "signal"] },
     eventId: taskIdField, triggerEvent: taskIdField, sourceRef: taskIdField,
@@ -1684,47 +1250,31 @@ export function registerBridgeTools(
     completedSteps: { type: "array" }, remainingWork: { type: "array" },
     continuation: { type: ["object", "null"] }, incident: { type: "object" }, decision: { type: "object" }, handoff: { type: "object" },
   }, ["taskId"], "submitTaskReceipt");
-  registerWorkflow("bridge_accept_task_delivery", "Record the designated acceptor's delivery decision with evidence; scientific success remains a separate conclusion.", {
+  registerWorkflow("bridge_accept_task_delivery", "Record delivery acceptance with evidence.", {
     taskId: taskIdField, eventId: taskIdField, contractVersion: versionField, ownerEpoch: versionField,
     deliveryReceiptId: taskIdField,
     evidence: { type: "array" }, summary: { type: "string" },
   }, ["taskId", "eventId", "contractVersion", "ownerEpoch", "deliveryReceiptId", "evidence"], "acceptTaskDelivery");
-  registerWorkflow("bridge_answer_task_decision", "Answer precisely one pending decision and schedule only its authorized continuation.", {
+  registerWorkflow("bridge_answer_task_decision", "Answer pending decision and schedule continuation.", {
     taskId: taskIdField, decisionId: taskIdField, eventId: taskIdField, answer: { type: "string", minLength: 1 },
   }, ["taskId", "decisionId", "eventId", "answer"], "answerTaskDecision");
 
   // ===========================================================================
   // 16. bridge_set_context
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_set_context",
-      description:
-        "Store or update a shared context entry accessible by Antigravity, Codex, and Claude Code.",
+      description: "Set a shared context entry.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          key: {
-            type: "string",
-            description: "Unique context key.",
-          },
-          value: {
-            type: "string",
-            description: "Content to store.",
-          },
-          description: {
-            type: "string",
-            description: "Optional human-readable description.",
-          },
-          contentType: {
-            type: "string",
-            description: "MIME type (default: 'text/plain').",
-          },
-          updatedBy: {
-            type: "string",
-            description: `Agent updating the key (defaults to '${callerAgent}').`,
-          },
+          key: { type: "string" },
+          value: { type: "string" },
+          description: { type: "string" },
+          contentType: { type: "string" },
+          updatedBy: { type: "string" },
         },
         required: ["key", "value"],
       },
@@ -1747,19 +1297,15 @@ export function registerBridgeTools(
   // ===========================================================================
   // 17. bridge_get_context
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_get_context",
-      description:
-        "Retrieve a shared context entry by key, or list all available shared context keys if key is omitted.",
+      description: "Get shared context entry by key, or list keys.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          key: {
-            type: "string",
-            description: "Context key to retrieve. Omit to list all keys.",
-          },
+          key: { type: "string" },
         },
       },
     },
@@ -1781,11 +1327,10 @@ export function registerBridgeTools(
   // ===========================================================================
   // 18. bridge_status
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_status",
-      description:
-        "Get the overall status of the multi-agent bridge (current cursor seq, unread messages, tasks by phase, patches, active leases, and recent sessions).",
+      description: "Get overall bridge status (cursor, unread, tasks, leases, sessions).",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -1806,36 +1351,19 @@ export function registerBridgeTools(
   // ===========================================================================
   // 19. bridge_subscribe_thread (v1.0.0 Research Router)
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_subscribe_thread",
-      description:
-        "Manage or inspect Research Router thread subscriptions for a task (`direct` allows zero-LLM fan-out & wakeup within Mandate; `context` provides read-only thread visibility without wakeup). Strictly rejects `blind_analysis` and `blind_review` tasks.",
+      description: "Manage Router subscriptions ('direct'/'context'); rejects blind_* tasks.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          threadId: {
-            type: "string",
-            description: "Thread ID to subscribe to (or filter by when listOnly=true).",
-          },
-          taskId: {
-            type: "string",
-            description: "Task ID subscribing to the thread (or filter by when listOnly=true).",
-          },
-          mode: {
-            type: "string",
-            enum: SUBSCRIPTION_MODES,
-            description: "Subscription mode: 'direct' (default) or 'context'.",
-          },
-          active: {
-            type: "boolean",
-            description: "Set to false to unsubscribe/deactivate (default: true).",
-          },
-          listOnly: {
-            type: "boolean",
-            description: "If true, list existing subscriptions without modifying state.",
-          },
+          threadId: { type: "string" },
+          taskId: { type: "string" },
+          mode: { type: "string", enum: SUBSCRIPTION_MODES },
+          active: { type: "boolean" },
+          listOnly: { type: "boolean" },
         },
       },
     },
@@ -1867,55 +1395,26 @@ export function registerBridgeTools(
   // ===========================================================================
   // 20. bridge_handback (v1.0.0 Research Router Ownership Release & Escalation)
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_handback",
-      description:
-        "Release task/message ownership and escalate cleanly when an assigned request exceeds task Mandate (e.g. scientific ambiguity, mechanism formula change, write-root permission delta, or budget conflict). Prevents router loops and routes directly to Lead Researcher A or Workbench Human Attention.",
+      description: "Release task ownership and escalate to Lead or Human Attention.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          taskId: {
-            type: "string",
-            description: "Task ID handing back ownership.",
-          },
-          messageId: {
-            type: "string",
-            description: "Optional inbound message ID being handed back.",
-          },
-          fromAgent: {
-            type: "string",
-            enum: PEER_AGENT_ENUM,
-            description: `Agent performing the handback (defaults to '${callerAgent}').`,
-          },
-          reasonCode: {
-            type: "string",
-            enum: HANDOFF_REASON_CODES,
-            description: "Structured handback reason code.",
-          },
-          summary: {
-            type: "string",
-            description: "Concise factual evidence explaining why the work exceeds current Mandate.",
-          },
+          taskId: { type: "string" },
+          messageId: { type: "string" },
+          fromAgent: { type: "string", enum: PEER_AGENT_ENUM },
+          reasonCode: { type: "string", enum: HANDOFF_REASON_CODES },
+          summary: { type: "string" },
           humanAction: {
             type: "object",
             additionalProperties: false,
-            description: "Optional single structured decision prompt surfaced in Workbench Needs Human Attention.",
             properties: {
-              question: {
-                type: "string",
-                description: "Single clear decision question for the researcher.",
-              },
-              options: {
-                type: "array",
-                items: { type: "string" },
-                description: "Optional discrete choices (put recommended option first).",
-              },
-              blockingScope: {
-                type: "string",
-                description: "What is blocked until answered (default: 'task').",
-              },
+              question: { type: "string" },
+              options: { type: "array", items: { type: "string" } },
+              blockingScope: { type: "string" },
             },
             required: ["question"],
           },
@@ -1938,40 +1437,20 @@ export function registerBridgeTools(
   // ===========================================================================
   // 21. bridge_read_card (v1.0.0 Inline Cards & Spill Pagination)
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_read_card",
-      description:
-        "Read compact Inline Card metadata and paginated Spill content by `bridge://<kind>/<id>` URI (or explicit `kind` + `id`) using lossless Unicode code-point `offset`/`limit` paging.",
+      description: "Read Inline Card or paginated Spill content by `bridge://<kind>/<id>`.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          uri: {
-            type: "string",
-            description: "Spill pointer URI such as 'bridge://message/<id>', 'bridge://task/<id>', 'bridge://patch/<patchId>', or 'bridge://validation/<id>'.",
-          },
-          kind: {
-            type: "string",
-            enum: ["message", "task", "patch", "validation", "context", "decision"],
-            description: "Resource kind if `uri` is omitted.",
-          },
-          id: {
-            type: "string",
-            description: "Resource identifier if `uri` is omitted.",
-          },
-          field: {
-            type: "string",
-            description: "Optional sub-field (e.g. 'prompt', 'result', 'metadata', 'summary', 'details').",
-          },
-          offset: {
-            type: "number",
-            description: "0-based Unicode code-point offset (default: 0).",
-          },
-          limit: {
-            type: "number",
-            description: "Maximum code points to return in this page (default: 4000, max: 65536).",
-          },
+          uri: { type: "string" },
+          kind: { type: "string", enum: ["message", "task", "patch", "validation", "context", "decision"] },
+          id: { type: "string" },
+          field: { type: "string" },
+          offset: { type: "number" },
+          limit: { type: "number" },
         },
       },
     },
@@ -1994,19 +1473,15 @@ export function registerBridgeTools(
   // ===========================================================================
   // 22. bridge_watchdog_status (v1.0.0 Dual-Layer Watchdog & HealthBoard)
   // ===========================================================================
-  server.registerTool(
+  registerBridgeTool(
     {
       name: "bridge_watchdog_status",
-      description:
-        "Inspect HealthBoard component statuses, durable Effects queue depth, concurrency Slot load, Router mode/controlVersion, and current Needs Human Attention items. Optionally trigger an immediate L1/L2 watchdog sweep.",
+      description: "Inspect HealthBoard, effects, slots, router, and optional L1/L2 sweep.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
         properties: {
-          runSweep: {
-            type: "boolean",
-            description: "If true, execute a synchronous L1/L2 watchdog sweep before returning status (default: false).",
-          },
+          runSweep: { type: "boolean" },
         },
       },
     },
@@ -2044,4 +1519,10 @@ export function registerBridgeTools(
         limit: 50,
       })
   );
+
+  return {
+    toolProfile: resolvedProfile,
+    registeredBridgeTools,
+    researchMemoryMode,
+  };
 }

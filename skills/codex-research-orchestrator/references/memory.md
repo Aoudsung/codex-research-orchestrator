@@ -1,108 +1,46 @@
-# Research memory and task context
+# Research Memory & Deterministic Context Assembly
 
-Database-first projects use the five `research_*` tools or `research_memory.py --project ROOT api OP` with JSON on stdin. New bodies live in SQLite; origin paths describe provenance and do not require new documents. Only live user controls remain authoritative files. The older file-snapshot workflow below applies to existing file-backed records; do not create duplicate Markdown for direct database records. See `docs/memory-tool.md` for the direct-record contract. New working state and logs are generated views; imported originals remain historical until a researcher records a scoped judgment.
+`.research-memory/memory.sqlite3` (managed via `research_*` MCP tools or `scripts/research_memory.py`, Python 3.10+ SQLite FTS5) is the **single runtime source of truth** for sustained research records. Do **not** mirror every SQLite write into Markdown (`state.md` / `rounds/RNN/record.md`); generate Markdown snapshots via `research_export` only at checkpoints or delivery.
 
-Read this file when a project has enough history that repeated file reading or manual context selection becomes costly. The bundled `scripts/research_memory.py` provides local memory and task-context assembly. It requires Python 3.10 or later with SQLite FTS5; it makes no network or model calls.
+## Three Authority Layers
 
-## Three layers
+1. **Authoritative controls (`controls.md`):** Small verbatim project file holding user questions, constraints, permissions, and pause boundaries. Always read live at the start of assembled packets.
+2. **Working context (`research_context`):** Bounded, KV-cache-friendly packet assembled fresh per turn or handoff. Never replay raw chat logs as memory.
+3. **Typed SQLite records (`research_record`):** Versioned, source-backed entries:
+   - `source` / `evidence`: primary texts or direct measurements (no inherited judgments);
+   - `claim`: `conjecture | derived | supported | refuted`, with explicit conditions;
+   - `proposal`: complete candidate version submitted for review;
+   - `decision`: current mechanism choice or tombstone (`<=40` words for ruled-out routes);
+   - `evaluation`: participant review tied to a proposal version (not primary evidence);
+   - `checkpoint`: task ID, delivery revision, active cursor, and next action.
 
-1. **Authoritative controls:** small project files containing the current research question, confirmed constraints, permission and resource limits, and pause instructions. Read these live, even when the memory index has not changed.
-2. **Working context:** the current question, necessary materials, and the next decision. Assemble this for each task rather than replaying the full chat or reusing an old packet.
-3. **Persistent research records:** source-backed evidence, claims, decisions, evaluations, proposals, and checkpoints. Search their short indexes, then read selected original material.
+## Deterministic Compilation (`role`, `stance`, `recipient_profile`)
 
-The existing charter, project settings, state, and original sources remain authoritative. The database stores typed records and exact source snapshots for retrieval and version checking.
+Pass `role`, `stance`, `profile`, and `recipient_profile` to `research_context` (`memory.database_context`) so boilerplate contracts compile deterministically without consuming Lead output tokens:
 
-An optional collaboration bridge has a separate execution source of truth: task/session/model bindings, message cursors, permission leases, artifact deliveries, and validation status. Keep scientific requirements, claims, decisions, and accepted evidence in research files and memory.
+- **Static KV-cache prefix (`anchor_prefix_chars`):** `header` + verbatim `controls` + `=== Role & Stance Contract ===` + deterministic `anchor` records (`target` + `required` + closure) remain byte-identical across queries sharing the same anchor set.
+- **Dynamic tail (`=== JIT Recency Check ===`):** Appended at the packet end when non-default `profile`/`recipient_profile`/`role`/`stance` is active (`deductive_auditor` `<5%` cutoff + Coupling Razor, `gemini_panoramic` Five-Tuple Isomorphism, `pro_macro` first-principles prose, `zero_drift_executor` ambiguity handback).
 
-## What to remember
-
-Write records after a meaningful result or decision, not after every tool call. Each record identifies its kind, title, short search summary, source file, applicable conditions or version, and declared dependencies. Keep source cards small enough to inspect, with units, assumptions, contrary results, and qualifications intact.
-
-- `source` and `evidence`: primary material or direct observations, without inherited judgments.
-- `claim`: a conjecture, derived result, supported claim, or refuted claim, with its conditions.
-- `decision`: the current choice and its reason; it can change within authorization.
-- `evaluation`: a participant's assessment of a specified version. It is not primary evidence.
-- `proposal`: the complete version to be reviewed.
-- `checkpoint`: ongoing work, pending results, and a resumption pointer. It is not an instruction to repeat a job.
-
-Use the existing `checkpoint` kind for a task reference, delivery revision, accepted result location, and next action. Do not add a memory kind or schema merely for bridge IDs. Leave the full inbox and patch history in execution storage, retrieving exact artifacts only for a specific judgment. A lead assessment records what a result means before it becomes a scientific claim or decision in memory.
-
-Do not infer that a repeated statement is a fact. Do not turn a collaborator's confidence into evidence. A title or summary is a retrieval aid; inspect the source before relying on the claim.
-
-Confirmed user constraints remain in the live control files. Only update those constraints on the user's instruction.
-
-## Retrieve progressively
-
-First search for a bounded set of short entries, then read only selected records and their necessary evidence. Use the current scientific question, important terms, and alternate wording to construct queries. The built-in index uses lexical full-text search across permitted records.
-
-Use explicit required records when a counterexample, disputed source, or acceptance condition must be considered even if its query score is low. Read scope and source state before treating a result as usable.
-
-## Build context for the recipient
-
-| Profile | Eligible material | Material boundary |
+| `recipient_profile` | Intended Model / Mode | Default `max_chars` & Packing Behavior |
 |---|---|---|
-| `resume` | Current records, including decisions, claims, evaluations, and checkpoints | The lead may use the project's current history |
-| `analysis` | Explicitly allowed primary sources and direct evidence, plus live controls | Withhold prior decompositions, candidate choices, and evaluations |
-| `review` | Analysis material plus the complete designated proposal | Withhold prior reviews and the answer the lead expects |
+| `pro_macro` | ChatGPT Pro | `6,000` max (`8,000` hard cap); **hard-blocks** `checkpoint`/`evaluation`, fenced code blocks, unified diffs, and itemized ledgers |
+| `focused_curated` | Codex (`gpt_contract`) / opt-in Claude | `32,000` default; full target proposal + dependencies + linked counterevidence |
+| `gemini_panoramic` | Antigravity Gemini | `240,000` default (up to `400,000`); full raw `source`/`proposal`/`evidence` first for `1M+` recall |
+| `default` | Lead synthesis | `12,000` default in `database_context`; caller-specified otherwise |
 
-Choose the isolation `profile` (`resume`, `analysis`, `review`) by the assignment's independence boundary, and choose the optional `recipient_profile` (`default`, `pro_macro`, `focused_curated`, `gemini_panoramic`) by the [recipient model's cognitive profile](model-profiles.md):
+## Isolation Profiles & Completeness Tiers
 
-| `recipient_profile` | Intended recipient | Default `max_chars` & packing behavior |
-|---|---|---|
-| `pro_macro` | ChatGPT Pro (`pro_macro`) | `6,000` chars max; admits live controls and concise conceptual problem/question records only. Rejects fenced code blocks, unified diffs, and raw execution logs so technical clutter cannot suffocate macro reasoning. |
-| `focused_curated` | Codex (`gpt_contract`) / Claude (`claude_synthesis`) | `32,000` chars default; packs full target proposal, exact primary dependencies, and linked counterevidence within bounded focus. |
-| `gemini_panoramic` | Antigravity Gemini (`gemini_panoramic`) | `240,000` chars default (up to `400,000` via MCP/CLI); prioritizes complete primary `source` texts, full `proposal` bodies, and raw `evidence` snapshots in deterministic static-first prefix order for long-context recall and KV-cache reuse. |
-| `default` | Any participant with explicit `--max-chars` | Caller-supplied `max_chars` (`12,000` default in `database_context`) with standard whole-record packing. |
+- **`resume`:** Full admitted current history for Lead synthesis (`>=` includes counterevidence links `refutes|limits|conflicts`).
+- **`analysis`:** Allowlisted primary `source`/`evidence` + live controls; withholds evaluations and prior choices.
+- **`review`:** `analysis` inputs + designated `proposal` target; neutral labels (`Material N`), omits prior evaluations and lead manifest.
+- **Tiered packing:** (1) Required controls + `target` + `required` must fit intact or fail loudly (never truncate constraints); (2) query-ranked whole records (+ recent fill if enabled); (3) omission count + bounded index so nothing disappears silently.
 
-Independent construction by a researcher or brainstormer uses `analysis`; independent proposal assessment uses `review`. Joint discussion uses selected authorized current materials and may use `resume` when its full admitted scope is appropriate. A fact observer reads only the allowed new source ranges; a general lead packet can contain interpretations that are outside its fact-only task. These roles add no new isolation profiles or memory kinds.
+## Revision, Invalidation & CLI
 
-For independent work, the lead first curates an allowlist. Filtering happens before retrieval and ranking. The packet uses neutral material labels; private source mappings and omission details stay in a separate lead manifest. The participant should receive the packet in a context without inherited evaluations, not the memory database, manifest, or unrestricted project history.
-
-Inspect allowed source files and controls for embedded opinions before assigning independent work.
-
-Keep storage and access separate: even when identical content is stored once and referenced from several places, access is determined by each recipient's explicit allowlist.
-
-## Budget and completeness
-
-Stored is not the same as visible. The database keeps the full history; a recipient can use only what its packet and prompt contain. Two limits follow, and they are different:
-
-- **Packet budget:** set from the recipient's input window, minus task instructions, reasoning, tool results, and the answer. This is a strict Python character count, not a model-token estimate; no universal character-to-token conversion is assumed. Near the window limit, count the complete final prompt (packet plus instructions) with the recipient's actual tokenizer.
-- **Stored history:** has no packet limit. It reaches a recipient only through a new packet, an explicit `read`, or material the lead supplies.
-
-Fill the packet in tiers:
-
-1. **Required:** live controls, the designated full proposal, and `--require` records must fit in full. If they do not fit, generation fails rather than truncating conditions or quietly reducing review scope. Increase the budget, split the question with an explicit scope, or use a suitable context window.
-2. **Fill:** optional records enter whole, in permitted retrieval order. With `--fill-recent`, admitted records without a lexical match then fill the remaining budget, newest first. Without it, a query word that does not occur leaves those records out even when budget remains.
-3. **Index:** a closing section counts every admitted record that is not in the packet and indexes as many as still fit. The order is query matches over budget, then invalid records, then the rest, newest first. A `resume` index shows record IDs and titles; an independent index shows only neutral labels, sizes, reasons, and a short scope. The count is always present, so omitted material is never silently absent.
-
-The lead manifest records every selection and omission and which omissions were indexed. A packet is a dated snapshot: rebuild it after new instructions, changed evidence, or a new proposal version. Unchanging text comes first and the assembly time last. A model provider can reuse a cached prefix only when the leading tokens match exactly, the same model and settings are used, and the cache entry still exists.
-
-## Updates and invalidation
-
-The helper compares selected source text with the saved snapshot and checks declared dependencies. An edited or missing source makes the affected material unusable as current; dependent records require review. Explicit supersession or withdrawal also invalidates registered downstream conclusions. The prior record remains available as history.
-
-Record validity tracks source and dependency freshness separately from scientific status. When a record enters `needs_review` or a new entry arrives, the lead evaluates whether the new result supports, limits, conflicts with, or refutes the claim, and records that judgment with its evidence. Register explicit dependencies, preserve source versions, and refresh external evidence deliberately.
-
-## Resumption and compaction
-
-Before a handoff or context compaction, update the existing state with the next action, pending feedback, source pointers, running-job identifiers, and latest permissions. Store a checkpoint if it will aid retrieval.
-
-For incremental collaboration, retain a reference to the processed cursor and current artifact revision rather than replaying every message. A source read-set tracks unchanged file ranges for context reuse. Build a fresh recipient-specific packet when the question, evidence, or revision changes; independent participants must not receive the execution inbox or prior evaluations as general continuation context.
-
-On resumption, read live controls first, check active jobs through the actual environment, and assemble a fresh working context. Independent tasks start from curated materials and must not load the general resumption context.
-
-For CLI usage and concrete examples, see `scripts/research_memory.py --help` and the repository's memory-tool guide. The public design references are in `docs/memory-foundations.md`; they are background, not files a standalone skill needs at runtime.
-
-Minimal invocation pattern, with paths and IDs taken from the actual project:
-
-```sh
-python3 /path/to/skill/scripts/research_memory.py --project research/topic init --control controls.md
-python3 /path/to/skill/scripts/research_memory.py --project research/topic remember record.json
-python3 /path/to/skill/scripts/research_memory.py --project research/topic search "key research terms" --limit 5
-python3 /path/to/skill/scripts/research_memory.py --project research/topic read 1
-python3 /path/to/skill/scripts/research_memory.py --project research/topic context "key research terms" --profile analysis --recipient-profile gemini_panoramic --allow 1 --require 1 --output analysis-01.md
-```
-
-The record JSON contains `kind`, `title`, `summary`, `source`, and `scope`, with optional `claim_status`, `depends_on`, `supersedes`, and `reason`. Both JSON input and source paths are relative to the project. The project and its control/source files must already exist. Use returned IDs. Repeat `--allow` or give a quoted comma/space-separated list. For a review, use `--profile review` and a complete allowlisted `proposal` record as `--target`.
-
-The context command returns a compact receipt; the packet and a separate `.manifest.json` are written in the project. Read only the packet into the participant's context. Run `check` to inspect source drift or `withdraw ID --reason TEXT` to record a justified withdrawal.
+- Revisions must pass `supersedes` + `reason`; idempotent writes reuse `external_key`.
+- Changing a tracked source file or withdrawing an upstream record marks dependents `needs_review` automatically.
+- CLI fallback when MCP is unavailable:
+  ```sh
+  python3 /path/to/skill/scripts/research_memory.py --project DIR api context < query.json
+  python3 /path/to/skill/scripts/research_memory.py --project DIR context "terms" --profile review --role reviewer --stance deductive_auditor --allow 1 --target 2 --output pkt.md
+  ```

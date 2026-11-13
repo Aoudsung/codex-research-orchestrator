@@ -155,6 +155,8 @@ This requires **Node.js 24+**. The helper discovers real paths, generates a shar
 
 Claude Code project configuration and Antigravity CLI/IDE workspace configuration are also supported. Antigravity uses `.agents/mcp_config.json`; its export remains available for other supported settings interfaces. Select only the peers you intend to use.
 
+- **Finish-and-Exit Reactive Wakeup (Zero Busy-Wait):** Workers run under the 9-tool `worker` profile without poll/wait tools and exit as soon as their turn finishes; Lead turns exit immediately after recording `waiting_external` or binding a reactive wakeup route (`callerSessionId` / `autoWakeup`, supporting `codex_ipc`, `agy_cli`, `antigravity_desktop`, `claude_cli`, etc.) rather than holding turns open with sleep/poll loops.
+
 Provider execution requires the selected CLI and its normal login. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
 
 ## Check setup or upgrade

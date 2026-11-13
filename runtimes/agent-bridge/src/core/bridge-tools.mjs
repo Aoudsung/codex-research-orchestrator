@@ -6,7 +6,10 @@ import {
   HANDOFF_REASON_CODES,
   ISOLATION_PROFILES,
   SUBSCRIPTION_MODES,
+  WAKEUP_DRIVERS,
+  inferDefaultWakeupAgent,
 } from "../domain/model.mjs";
+import { resolveCodexIpcSocketPath } from "./codex-host-driver.mjs";
 import { messageCard } from "../domain/cards.mjs";
 import {
   validateUnifiedDiff,
@@ -466,6 +469,9 @@ export function registerBridgeTools(
           contract: { type: "object" },
           protocolVersion: { type: "integer", enum: [1, 2] },
           metadata: { type: "object" },
+          callerSessionId: { type: "string" },
+          wakeupDriver: { type: "string", enum: WAKEUP_DRIVERS },
+          autoWakeup: { type: "boolean" },
           waitForCompletion: { type: "boolean" },
           timeoutMs: { type: "number" },
         },
@@ -552,6 +558,38 @@ export function registerBridgeTools(
         preflight,
       }) : null;
 
+      let wakeupRoute = bridgeDb.getWakeupRoute(task.id, args.fromAgent || callerAgent);
+      const resolvedFromAgent = args.fromAgent || callerAgent;
+      const resolvedCallerSessionId =
+        args.callerSessionId ||
+        args.metadata?.callerSessionId ||
+        process.env.BRIDGE_CALLER_SESSION_ID ||
+        (args.autoWakeup === true && resolvedFromAgent === "codex"
+          ? process.env.CODEX_THREAD_ID || null
+          : null);
+      if (resolvedCallerSessionId && args.autoWakeup !== false && !wakeupRoute) {
+        const defaultDriver =
+          resolvedFromAgent === "codex"
+            ? process.env.BRIDGE_WAKEUP_DRIVER ||
+              (process.env.BRIDGE_CODEX_APP_SERVER_URL
+                ? "app_server_ws"
+                : fs.existsSync(resolveCodexIpcSocketPath())
+                  ? "codex_ipc"
+                  : "cli_resume")
+            : resolvedFromAgent === "antigravity"
+              ? "agy_cli"
+              : "claude_cli";
+        wakeupRoute = bridgeDb.configureWakeupRoute({
+          taskId: task.id,
+          threadId: args.threadId || null,
+          toAgent: resolvedFromAgent,
+          targetSessionId: resolvedCallerSessionId,
+          driver: args.wakeupDriver || defaultDriver,
+          cwd,
+          enabled: true,
+        });
+      }
+
       if (args.waitForCompletion) {
         const finalTask = await bridgeDb.waitForTask({
           taskId: task.id,
@@ -565,6 +603,7 @@ export function registerBridgeTools(
           binding: finalTask?.binding,
           preflight,
           lease,
+          ...(wakeupRoute ? { wakeupRoute } : {}),
         };
       }
 
@@ -574,6 +613,7 @@ export function registerBridgeTools(
         binding: task.binding,
         preflight,
         lease,
+        ...(wakeupRoute ? { wakeupRoute } : {}),
       };
     }
   );
@@ -1048,7 +1088,7 @@ export function registerBridgeTools(
   registerBridgeTool(
     {
       name: "bridge_poll_updates",
-      description: "Poll events since afterSeq with optional waitMs and settleMs.",
+      description: "One-shot cursor check; never loop—exit turn for wakeup.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -1085,7 +1125,7 @@ export function registerBridgeTools(
   registerBridgeTool(
     {
       name: "bridge_wait_for_delivery",
-      description: "Wait for coalesced task updates; reports updatesReceived, artifacts, and host receipt separately.",
+      description: "Bounded wait (default 30s); exit turn for wakeup when idle.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -1108,7 +1148,7 @@ export function registerBridgeTools(
         toAgent: args.toAgent || callerAgent,
         afterSeq: args.afterSeq ?? null,
         settleMs: args.settleMs ?? 2500,
-        timeoutMs: args.timeoutMs ?? 600_000,
+        timeoutMs: args.timeoutMs ?? 30_000,
         markMessagesRead: Boolean(args.markMessagesRead),
         deliverToHost: Boolean(args.deliverToHost),
         confirmDelivery: Boolean(args.confirmDelivery),
@@ -1117,6 +1157,12 @@ export function registerBridgeTools(
       return {
         ok: true,
         ...res,
+        ...(!res.hasUpdates
+          ? {
+              idleGuidance:
+                "No updates arrived within timeoutMs. Do NOT loop or busy-wait; persist receipt/checkpoint and end your turn so reactive wakeup or the next dispatch resumes work.",
+            }
+          : {}),
       };
     }
   );
@@ -1138,7 +1184,7 @@ export function registerBridgeTools(
           targetSessionId: { type: "string" },
           driver: {
             type: "string",
-            enum: ["host_poll", "codex_ipc", "app_server_ws", "custom_command", "cli_resume", "manual"],
+            enum: WAKEUP_DRIVERS,
           },
           model: { type: "string" },
           effort: { type: "string" },
@@ -1161,7 +1207,7 @@ export function registerBridgeTools(
         route = bridgeDb.configureWakeupRoute({
           taskId: args.taskId,
           threadId: args.threadId ?? route?.thread_id ?? null,
-          toAgent: args.toAgent ?? route?.to_agent ?? "codex",
+          toAgent: args.toAgent ?? route?.to_agent ?? inferDefaultWakeupAgent(args.driver, "codex"),
           targetSessionId: args.targetSessionId ?? route?.target_session_id ?? "",
           driver: args.driver ?? route?.driver ?? "manual",
           wakeupCommand: args.wakeupCommand ?? route?.wakeup_command ?? null,

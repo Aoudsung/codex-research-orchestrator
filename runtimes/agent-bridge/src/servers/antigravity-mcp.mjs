@@ -261,6 +261,11 @@ server.registerTool(
           description:
             "If true (default: false), mark the MCP task as 'completed' as soon as the CLI turn exits with RC0. Default false keeps the task in 'cli_turn_ended' or 'awaiting_validation' until patches are verified and reviewed.",
         },
+        autoWakeup: {
+          type: "boolean",
+          description:
+            "When true and completeTaskOnExit is false, bind the reported conversationId to an enabled agy_cli wakeup route for reactive follow-ups.",
+        },
         waitForCompletion: {
           type: "boolean",
           description:
@@ -534,6 +539,19 @@ server.registerTool(
             lastResponse: runtimeMeta.responseText || cliRes.stdout,
           });
 
+          const wakeupRoute =
+            args.autoWakeup === true && !args.completeTaskOnExit && actualConvId
+              ? bridgeDb.configureWakeupRoute({
+                  taskId: taskRecord.id,
+                  toAgent: "antigravity",
+                  targetSessionId: actualConvId,
+                  driver: "agy_cli",
+                  model: actualModel || null,
+                  cwd,
+                  enabled: true,
+                })
+              : null;
+
           // Crucial [P1]: CLI RC0 does NOT mean overall task is completed unless completeTaskOnExit is true!
           let finalTask;
           if (args.completeTaskOnExit) {
@@ -574,6 +592,7 @@ server.registerTool(
                 runtimeMeta.modelVerifiedBy || "unverified",
             },
             lease: bridgeDb.getTaskLease(taskRecord.id),
+            ...(wakeupRoute ? { wakeupRoute } : {}),
             response: runtimeMeta.responseText || cliRes.stdout,
             durationMs: cliRes.durationMs,
           };

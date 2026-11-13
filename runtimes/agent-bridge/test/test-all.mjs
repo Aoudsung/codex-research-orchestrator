@@ -66,7 +66,7 @@ class Client {
     return data;
   }
   async close() {
-    if (this.proc.exitCode !== null) return;
+    if (this.proc.exitCode !== null || this.proc.signalCode !== null) return;
     const exited = new Promise(resolve => this.proc.once('exit', resolve));
     this.proc.kill(); await exited;
   }
@@ -273,6 +273,17 @@ db.db.close();
   assert.equal(idle.hasUpdates, false);
   assert.equal(idle.nextCursor, beforeIdle);
   assert.equal(db.getCurrentSeq(), beforeIdle);
+  assert.match(idle.idleGuidance, /Do NOT loop or busy-wait/);
+
+  // Driver inference & expanded driver enum on bridge_configure_wakeup_route
+  const inferredRoute = await codex.call('bridge_configure_wakeup_route', {
+    taskId: 'stdio-task',
+    driver: 'agy_cli',
+    targetSessionId: 'synthetic-agy-conv',
+    enabled: false,
+  });
+  assert.equal(inferredRoute.route.to_agent, 'antigravity');
+  assert.equal(inferredRoute.route.driver, 'agy_cli');
 
   // A later artifact must not advance the cursor beyond a truncated message page.
   const bulkStart = db.getCurrentSeq();
@@ -449,6 +460,43 @@ console.log(JSON.stringify({ event: 'result', result: { conversation_id: 'agy-ar
     }, true);
     assert.equal(escalatedReuse.ok, false);
     assert.equal(escalatedReuse.errorCode, 'TASK_SCOPE_CONFLICT');
+
+    // Auto-wakeup binding from bridge_create_task (callerSessionId) + antigravity_exec (autoWakeup) without spawning live daemons
+    const autoCodex = new Client('codex', { BRIDGE_DISABLE_WAKEUP_DAEMON: '1' });
+    const autoAgy = new Client('antigravity', { AGY_BIN: agyArgsInspector, BRIDGE_DISABLE_WAKEUP_DAEMON: '1' });
+    try {
+      const autoTaskId = 'auto-wakeup-binding-task';
+      const autoCreated = await autoCodex.call('bridge_create_task', {
+        taskId: autoTaskId,
+        assignedTo: 'antigravity',
+        prompt: 'Bind bidirectional wakeup routes without polling',
+        cwd: tmp,
+        callerSessionId: 'codex-thread-synthetic',
+        wakeupDriver: 'codex_ipc',
+        requiredModel: 'synthetic-model',
+      });
+      assert.equal(autoCreated.ok, true);
+      assert.equal(autoCreated.wakeupRoute.to_agent, 'codex');
+      assert.equal(autoCreated.wakeupRoute.driver, 'codex_ipc');
+      assert.equal(autoCreated.wakeupRoute.target_session_id, 'codex-thread-synthetic');
+
+      const autoExec = await autoAgy.call('antigravity_exec', {
+        taskId: autoTaskId,
+        prompt: 'Run once and bind peer wakeup route',
+        model: 'synthetic-model',
+        autoWakeup: true,
+        cwd: tmp,
+      });
+      assert.equal(autoExec.ok, true);
+      assert.equal(autoExec.wakeupRoute.to_agent, 'antigravity');
+      assert.equal(autoExec.wakeupRoute.driver, 'agy_cli');
+      assert.equal(autoExec.wakeupRoute.target_session_id, 'agy-args-session');
+      const routes = db.getWakeupRoutes(autoTaskId);
+      assert.equal(routes.length, 2);
+    } finally {
+      await autoCodex.close();
+      await autoAgy.close();
+    }
   } finally {
     fs.rmSync(extraReadDir, { recursive: true, force: true });
   }

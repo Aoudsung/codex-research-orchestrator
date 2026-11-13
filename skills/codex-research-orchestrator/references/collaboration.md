@@ -34,4 +34,4 @@ Isolation covers prompts, inherited conversation history, attachments, and files
 
 ## Pausing, Acceptance & Resumption
 
-Accept work against final-revision receipts (commands, exit status, raw metrics, deviations), not confidence. Before pausing or ending a turn on pending independent work, verify any integrated `waitForDelivery` call has returned and save a resumption checkpoint (`state.md` exported from SQLite).
+Accept work against final-revision receipts (commands, exit status, raw metrics, deviations), not confidence. Never keep a finished turn open waiting or polling: save a `state.md` resumption checkpoint (exported from SQLite), ensure reactive wakeup or `waiting_external` receipt is recorded for any async work, and **end the turn immediately** so new peer replies resume work cleanly.

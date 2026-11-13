@@ -27,7 +27,9 @@ Use this guide when coordinating persistent peers (`Antigravity`, `Codex`, opt-i
   - `controlVersion` revalidates active tasks if `controls.md` changes mid-flight.
 - **Spill pagination & health:** Read long payloads via `bridge_read_card` (`bridge://<kind>/<id>`, `offset`/`limit`); inspect queue/watchdog health via `bridge_watchdog_status`.
 
-## 4. Integrated Wait & Two-World State Separation
+## 4. Finish-and-Exit, Reactive Wakeup & State Separation
 
-- Use `waitForDelivery` on `bridge_send_message` / `bridge_record_validation` (or `bridge_wait_for_delivery`) with configured `settleMs` / `timeoutMs` (`2500` / `600000` ms) to avoid redundant polling loops. On timeout, reconcile the bound task before retrying.
+- **Zero busy-waiting / finish-and-exit rule:**
+  - **Workers (`worker` profile)** intentionally omit `bridge_poll_updates` and `bridge_wait_for_delivery`; after submitting their patch or `bridge_submit_task_receipt` (or handing back via `bridge_handback`), exit immediately—never sleep or poll.
+  - **Lead (`codex`)** uses short `waitForDelivery` / `bridge_wait_for_delivery` (`timeoutMs <= 15000–30000` ms) **only** to coalesce an immediate automated reply already in flight. When your own phase work is complete—or while waiting on long async peer work or ChatGPT Web `Pro`—bind reactive wakeup (`callerSessionId` / `autoWakeup: true` on `bridge_create_task` / `antigravity_exec`, or `bridge_configure_wakeup_route` with `codex_ipc`, `agy_cli`, `antigravity_desktop`, `claude_cli`, etc.), persist receipt/checkpoint, and **end your turn immediately**. Never loop on `bridge_poll_updates` or shell `sleep`.
 - Keep execution cursors, leases, and raw inboxes inside `agent-bridge`, and store scientific conclusions and versioned claims in SQLite (`research_record`).

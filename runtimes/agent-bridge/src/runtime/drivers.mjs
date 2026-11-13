@@ -6,7 +6,7 @@ import {
 } from "../core/codex-host-driver.mjs";
 import { deliverViaPeerCli } from "../core/peer-wakeup.mjs";
 import { messageCard } from "../domain/cards.mjs";
-import { stanceWakeupGuidance } from "../domain/model.mjs";
+import { ALLOWED_WAKEUP_DRIVERS_BY_AGENT, stanceWakeupGuidance } from "../domain/model.mjs";
 import { deliverViaClaudeDesktopInbox } from "../core/claude-desktop-wakeup.mjs";
 import { deliverViaAntigravityDesktop } from "../core/antigravity-desktop-wakeup.mjs";
 
@@ -123,12 +123,7 @@ export async function executeTaskWakeupDriver(
       (process.env.CODEX_BIN ? "cli_resume" : null) ||
       "codex_ipc";
 
-    const allowed = {
-      codex: ["host_poll", "codex_ipc", "app_server_ws", "cli_resume", "custom_command", "manual"],
-      "claude-code": ["claude_cli", "claude_desktop", "custom_command", "manual"],
-      antigravity: ["agy_cli", "antigravity_desktop", "custom_command", "manual"],
-    };
-    const invalidDriver = !allowed[route.to_agent]?.includes(driver);
+    const invalidDriver = !ALLOWED_WAKEUP_DRIVERS_BY_AGENT[route.to_agent]?.includes(driver);
     const unsupportedModel = ["host_poll", "codex_ipc", "app_server_ws"].includes(driver) &&
       Boolean(route.model || route.effort);
     if (invalidDriver || unsupportedModel) {

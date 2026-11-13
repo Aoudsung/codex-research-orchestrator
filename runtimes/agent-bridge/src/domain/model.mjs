@@ -740,3 +740,28 @@ export function areTaskPermissionsCompatible(
 
   return conflicts;
 }
+
+export const WAKEUP_DRIVERS = Object.freeze([
+  "host_poll",
+  "codex_ipc",
+  "app_server_ws",
+  "cli_resume",
+  "agy_cli",
+  "antigravity_desktop",
+  "claude_cli",
+  "claude_desktop",
+  "custom_command",
+  "manual",
+]);
+
+export const ALLOWED_WAKEUP_DRIVERS_BY_AGENT = Object.freeze({
+  codex: ["host_poll", "codex_ipc", "app_server_ws", "cli_resume", "custom_command", "manual"],
+  "claude-code": ["claude_cli", "claude_desktop", "custom_command", "manual"],
+  antigravity: ["agy_cli", "antigravity_desktop", "custom_command", "manual"],
+});
+
+export function inferDefaultWakeupAgent(driver, fallback = "codex") {
+  if (driver === "agy_cli" || driver === "antigravity_desktop") return "antigravity";
+  if (driver === "claude_cli" || driver === "claude_desktop") return "claude-code";
+  return fallback;
+}

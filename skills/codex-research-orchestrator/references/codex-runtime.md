@@ -12,4 +12,4 @@ Use native Codex capabilities first without requiring external frameworks or aut
 | Persistent external peers | Optional `runtimes/agent-bridge` MCP when configured (`mcp-collaboration.md`) | Export self-contained handoff packet |
 
 - **Subagent isolation:** When delegating independent review or `blind_analysis`, disable conversation history inheritance and pass only the curated `research_context` packet. Route subagent receipts back to Lead for serial `research_record` writes.
-- **Automation boundary:** Distinguish in-turn `waitForDelivery` from cross-turn schedules (cross-turn scheduling requires explicit user request and host support). Save a `state.md` resumption checkpoint whenever pending work moves off-turn.
+- **Automation boundary:** Never hold a turn open with `sleep` or poll loops after phase work completes. Use short `waitForDelivery` (`<=30s`) only for immediate in-flight replies; for async peers or Web `Pro`, configure `wakeup_route` / `waiting_external` receipt, export a `state.md` resumption checkpoint, and end the turn immediately so reactive wakeup resumes work on arrival.

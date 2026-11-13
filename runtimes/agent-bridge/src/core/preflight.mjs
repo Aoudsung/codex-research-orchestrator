@@ -466,6 +466,126 @@ export function findZeroByteFiles(rootDir, maxDepth = 5) {
 }
 
 /**
+ * Build ephemeral session settings for non-interactive `agy -p` execution.
+ * Avoids interactive `request-review` confirmation hangs/soft-denials while honoring
+ * task read/write boundaries and forbidden operations.
+ */
+export function buildAgySessionSettings({
+  cwd = process.cwd(),
+  deliveryMode = "direct",
+  readRoots = [],
+  writeRoots = [],
+  forbiddenOperations = [],
+} = {}) {
+  const absCwd = path.resolve(cwd);
+  const allow = [`read_file(${absCwd})`];
+  for (const root of [...(readRoots || []), ...(writeRoots || [])]) {
+    if (typeof root === "string" && root.trim()) {
+      allow.push(`read_file(${path.resolve(absCwd, root)})`);
+    }
+  }
+
+  const forbiddenSet = new Set(
+    (Array.isArray(forbiddenOperations) ? forbiddenOperations : []).map((op) =>
+      String(op).toLowerCase()
+    )
+  );
+
+  allow.push(
+    "mcp(cro_codex/*)",
+    "mcp(cro_antigravity/*)",
+    "mcp(codex_bridge/*)",
+    "mcp(antigravity_bridge/*)",
+    "mcp(research_memory/*)"
+  );
+  if (!forbiddenSet.has("claude-code")) {
+    allow.push("mcp(cro_claude_code/*)", "mcp(claude_code_bridge/*)");
+  }
+
+  const deny = [];
+  if (deliveryMode !== "direct") {
+    deny.push("write_file(*)", "edit_file(*)");
+  }
+  if (forbiddenSet.has("ssh")) {
+    deny.push("command(ssh)", "command(scp)", "command(sftp)");
+  }
+
+  const permissions = {
+    allow: [...new Set(allow)],
+  };
+  if (deny.length > 0) {
+    permissions.deny = [...new Set(deny)];
+  }
+
+  return {
+    toolPermission: "proceed-in-sandbox",
+    permissions,
+  };
+}
+
+/**
+ * Build `agy` CLI argument array for headless `--output-format stream-json` execution.
+ */
+export function buildAgyCliArgs({
+  prompt,
+  model = null,
+  conversationId = null,
+  effort = null,
+  sandbox = true,
+  cwd = process.cwd(),
+  deliveryMode = "direct",
+  readRoots = [],
+  writeRoots = [],
+  forbiddenOperations = [],
+} = {}) {
+  const absCwd = path.resolve(cwd);
+  const cliArgs = ["--output-format", "stream-json"];
+  if (sandbox !== false) {
+    cliArgs.push("--sandbox");
+  }
+
+  const extraDirs = new Set();
+  const dirCandidates = [
+    ...(Array.isArray(readRoots) ? readRoots : []),
+    ...(deliveryMode === "direct" && Array.isArray(writeRoots) ? writeRoots : []),
+  ];
+  for (const root of dirCandidates) {
+    if (typeof root !== "string" || !root.trim()) continue;
+    const absRoot = path.resolve(absCwd, root);
+    if (absRoot === absCwd || extraDirs.has(absRoot)) continue;
+    try {
+      if (fs.existsSync(absRoot) && fs.statSync(absRoot).isDirectory()) {
+        extraDirs.add(absRoot);
+        cliArgs.push("--add-dir", absRoot);
+      }
+    } catch {
+      // ignore unreachable candidate dir; preflight checks readRoots separately
+    }
+  }
+
+  const settings = buildAgySessionSettings({
+    cwd: absCwd,
+    deliveryMode,
+    readRoots,
+    writeRoots,
+    forbiddenOperations,
+  });
+  cliArgs.push("--settings", JSON.stringify(settings));
+
+  if (model) {
+    cliArgs.push("--model", model);
+  }
+  if (conversationId) {
+    cliArgs.push("--conversation", conversationId);
+  }
+  if (effort) {
+    cliArgs.push("--effort", effort);
+  }
+  cliArgs.push("-p", prompt);
+  return cliArgs;
+}
+
+/**
  * Classify runtime/CLI errors into distinct, non-overlapping categories [P0 & P2]:
  * - UNSUPPORTED_TOOL_DETERMINISTIC (e.g. `unsupported_tool: write_file`)
  * - LOCAL_SANDBOX_BIND_RESTRICTED (e.g. local callback port bind/listen EPERM/EACCES in sandbox)

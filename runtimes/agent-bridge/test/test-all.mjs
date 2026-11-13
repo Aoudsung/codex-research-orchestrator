@@ -349,6 +349,54 @@ process.stdin.on('end', () => {
   assert.equal(noFallback.errorCode, 'CLI_UNAVAILABLE');
   assert.equal(noFallback.backend, 'cli');
   assert.equal(db.getTaskById(noFallback.taskId).phase, 'awaiting_revision');
+
+  const sandboxConflict = await nativeAgy.call('antigravity_exec', {
+    prompt: 'Sandbox disabled on read_only task',
+    model: 'synthetic-model',
+    deliveryMode: 'read_only',
+    readRoots: [tmp],
+    sandbox: false,
+    cwd: tmp,
+  }, true);
+  assert.equal(sandboxConflict.ok, false);
+  assert.equal(sandboxConflict.errorCode, 'SANDBOX_MODE_CONFLICT');
+
+  const extraReadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-bridge-extra-read-'));
+  try {
+    const agyArgsInspector = path.join(tmp, 'agy-args-inspector');
+    fs.writeFileSync(agyArgsInspector, `#!${process.execPath}
+const args = process.argv.slice(2);
+const modelIdx = args.indexOf('--model');
+const model = modelIdx >= 0 ? args[modelIdx + 1] : null;
+console.log(JSON.stringify({ event: 'init', conversation_id: 'agy-args-session', init: { model } }));
+console.log(JSON.stringify({ event: 'result', result: { conversation_id: 'agy-args-session', status: 'SUCCESS', response: JSON.stringify(args) } }));
+`);
+    fs.chmodSync(agyArgsInspector, 0o755);
+    const argsClient = new Client('antigravity', { AGY_BIN: agyArgsInspector });
+    const argsRes = await argsClient.call('antigravity_exec', {
+      prompt: 'Inspect headless flags',
+      model: 'synthetic-model',
+      deliveryMode: 'read_only',
+      readRoots: [tmp, extraReadDir],
+      forbiddenOperations: ['ssh', 'claude-code'],
+      cwd: tmp,
+    });
+    const recordedArgs = JSON.parse(argsRes.response);
+    assert.ok(recordedArgs.includes('--sandbox'));
+    const addDirIdx = recordedArgs.indexOf('--add-dir');
+    assert.ok(addDirIdx >= 0 && recordedArgs[addDirIdx + 1] === path.resolve(extraReadDir));
+    const settingsIdx = recordedArgs.indexOf('--settings');
+    assert.ok(settingsIdx >= 0);
+    const parsedSettings = JSON.parse(recordedArgs[settingsIdx + 1]);
+    assert.equal(parsedSettings.toolPermission, 'proceed-in-sandbox');
+    assert.ok(parsedSettings.permissions.deny.includes('write_file(*)'));
+    assert.ok(parsedSettings.permissions.deny.includes('edit_file(*)'));
+    assert.ok(parsedSettings.permissions.deny.includes('command(ssh)'));
+    assert.ok(!parsedSettings.permissions.allow.some(rule => rule.includes('claude_code')));
+  } finally {
+    fs.rmSync(extraReadDir, { recursive: true, force: true });
+  }
+
   console.log('PASS: core contracts, three-server stdio collaboration, synthetic provider adapters, and mocked receipt evidence. No live provider or Desktop wakeup was tested.');
 }
 

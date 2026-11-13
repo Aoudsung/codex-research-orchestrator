@@ -57,10 +57,21 @@ export function validateProMacroPrompt(
     );
   }
 
+  if (metadata?.proGrounding !== undefined && metadata?.proGrounding !== null) {
+    const channel = metadata.proGrounding?.channel;
+    if (!["github_repo", "upload_bundle"].includes(channel)) {
+      throw new BridgeUserError(
+        REASONS.PRO_MACRO_PROMPT_CLUTTER,
+        `Invalid proGrounding channel '${String(channel)}': expected 'github_repo' or 'upload_bundle'.`,
+        { proGrounding: metadata.proGrounding }
+      );
+    }
+  }
+
   if (violations.length > 0) {
     throw new BridgeUserError(
       REASONS.PRO_MACRO_PROMPT_CLUTTER,
-      `pro_macro prompt guard rejected technical clutter that restricts deep macro-reasoning: ${violations.join("; ")}. Distill into <= 3 conceptual prose paragraphs (Object & Invariants, Core Structural Paradox, One Open High-Horizon Question).`,
+      `pro_macro prompt guard rejected inline technical clutter that restricts deep macro-reasoning: ${violations.join("; ")}. Keep inline chat prompts to <= 3 conceptual prose paragraphs (referencing exact repo/bundle file paths if needed) and attach code/diffs via a synced 'github_repo' or secret-scrubbed 'upload_bundle' (.zip from pack_pro_bundle.py).`,
       { violations, words, chars }
     );
   }

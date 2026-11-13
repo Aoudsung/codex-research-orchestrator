@@ -10,6 +10,7 @@ import {
   parseCliRuntimeMetadata,
   runTaskPreflight,
   classifyExecutionError,
+  buildAgyCliArgs,
 } from "../core/preflight.mjs";
 
 const server = new McpStdioServer({
@@ -244,6 +245,11 @@ server.registerTool(
           type: "boolean",
           description: "Enable write tools when using Python SDK (default: false).",
         },
+        sandbox: {
+          type: "boolean",
+          description:
+            "Run agy CLI inside terminal sandbox (default: true). Cannot be false when deliveryMode is 'read_only' or 'mcp_structured_patch'.",
+        },
         fromAgent: {
           type: "string",
           enum: ["codex", "claude-code", "antigravity"],
@@ -323,6 +329,15 @@ server.registerTool(
     }
 
     if (!preflight.ok) return { ok: false, errorCode: "PREFLIGHT_FAILED", preflight };
+    if (preflight.deliveryMode !== "direct" && args.sandbox === false) {
+      return {
+        ok: false,
+        fatal: true,
+        errorCode: "SANDBOX_MODE_CONFLICT",
+        error: `Sandbox cannot be disabled when deliveryMode is '${preflight.deliveryMode}'.`,
+        retryable: false,
+      };
+    }
     if (taskRecord) bridgeDb.createTask({ taskId: taskRecord.id, fromAgent: caller, assignedTo: "antigravity", cwd: args.cwd, requiredModel, requiredConversationId: args.conversationId,
       metadata: { deliveryMode: preflight.deliveryMode }, permissions: Object.fromEntries(
         ["readRoots", "writeRoots", "requestedTools", "allowedCommands", "forbiddenOperations"]
@@ -387,15 +402,19 @@ server.registerTool(
           conversationId: effectiveConvId,
         });
 
-        const cliArgs = ["--output-format", "stream-json"];
-        if (effectiveReqModel) {
-          cliArgs.push("--model", effectiveReqModel);
-        }
-        if (effectiveConvId) {
-          cliArgs.push("--conversation", effectiveConvId);
-        }
-        if (args.effort) cliArgs.push("--effort", args.effort);
-        cliArgs.push("-p", args.prompt);
+        const cliArgs = buildAgyCliArgs({
+          prompt: args.prompt,
+          model: effectiveReqModel,
+          conversationId: effectiveConvId,
+          effort: args.effort || null,
+          sandbox: args.sandbox !== false,
+          cwd,
+          deliveryMode: preflight.deliveryMode,
+          readRoots: effectiveReadRoots,
+          writeRoots: effectiveWriteRoots,
+          forbiddenOperations:
+            preflight.consolidatedPermissionChecklist.forbiddenOperations,
+        });
 
         const cliRes = await runCommand({
           command: agyBin,

@@ -1,5 +1,5 @@
 {
-  "releaseId": "bridge-1.1.0-75277f1bad0c",
+  "releaseId": "bridge-1.1.0-1764aec81f29",
   "version": "1.1.0",
   "protocolVersion": 2,
   "supportedProtocols": [
@@ -7,7 +7,7 @@
     2
   ],
   "schemaVersion": 3,
-  "createdAt": "2026-11-13T06:11:47.746711+00:00",
+  "createdAt": "2026-11-13T07:55:15.485677+00:00",
   "files": {
     "LICENSE": "c3de707fd46e376080088278e09f160784b06ff8a636e0c4670c17e13a4adca8",
     "README.md": "221a6babe4dec7f2fb6ad079d08e05f37a4f096d87dcca298cb44a0d4e3b258a",
@@ -21,8 +21,8 @@
     "src/core/codex-host-driver.mjs": "62090f0936c7733b53b6d5d87f17a4ffb7d523e7c191c1302e96c2e539246038",
     "src/core/mcp-server.mjs": "8dfae2707f0762d5ec5a0f944c502cbe87b106c88278d11d0c0d522f9d822548",
     "src/core/patch-validator.mjs": "34c583728764ae2760e48e208ad638a0a389b1925679f8a0398302020c67016d",
-    "src/core/peer-wakeup.mjs": "95b7a5bbff79470d5da4151cfd576b709c3e9b280ccbbee17ee6d5b9d1b6cc27",
-    "src/core/preflight.mjs": "39d8ff25623005ab769f18312fbe4adfddaad60c0b762aaaebb68c67c2c8d214",
+    "src/core/peer-wakeup.mjs": "6706ec3c8efd0aad974b50df10d8fcfec5bf237ebc4d0832d717d6f7b1f6bde1",
+    "src/core/preflight.mjs": "92292655c001e917d41c604ad5f0ded5f6741a2f5869dd03cc63b575f305a6d0",
     "src/core/process-runner.mjs": "ee40167207d480500c2f5ebb49c371453d3e033f3d5988e1e9f8e475cbbbf812",
     "src/core/project-workflow.mjs": "a39ff758c930b2f579dbd56871a6c07c654cfe5aeea9237dbf2b06e0e294e6f2",
     "src/core/research-memory-tools.mjs": "d7366ca46e3d7e0669dee69918f578a0eb1ae667345ae57cc52c9e4e4b414b09",
@@ -30,7 +30,7 @@
     "src/core/wakeup-policy.mjs": "45fbe4ccdfd4b4a5630beb506b7b607e706f699f217bf5f4903f0b0f0e23b0b5",
     "src/domain/cards.mjs": "574e420c4bff1f747e15dde7c7131a02ff46067b4a64373a4b006def75f1be9f",
     "src/domain/engine.mjs": "f5877cdaf76b5f475efa373922e27a01a0226ef66452bdad67a6c6df215b26e3",
-    "src/domain/intake.mjs": "a668bef7134d48101619ed238f4ab2c414613b5a0f29d0cc59655eaaf59bcb70",
+    "src/domain/intake.mjs": "f825304c1db1153311abfbce81150e9d8ff53ad872ba718f27e645aa5b5fd0ff",
     "src/domain/memory-repos.mjs": "b240577a3ee3f5668682de93c462232c58eb720c4118ecda268fd28076e54e5f",
     "src/domain/model.mjs": "7095734f5f099a44cf4dbc99afaa949cf2304e7244f3c8ad1f0defe2b9b72ac4",
     "src/domain/policy.mjs": "c75be8ec2e4fa3a21bc53558cf9d771055b2d41056eb8018db5d2e2103e78b8a",
@@ -44,7 +44,7 @@
     "src/runtime/slot-scheduler.mjs": "f9f661aa86457a1317357614933bc781a0a7056dc4ff83e7748033f65cd42ada",
     "src/runtime/superagent-daemon.mjs": "36f2a3b85c9631c3dd7da97ac04cae23a10cc922b0305a93572e347fda3cd101",
     "src/runtime/watchdog-service.mjs": "3935829b46f409184e3e7e849a0348b2400fa049e38a3d738f1cb06dfc0723f8",
-    "src/servers/antigravity-mcp.mjs": "77ce9a29407cee44862cae9dfee7d86d6df31174c2019b4b952d8ced373bfcc0",
+    "src/servers/antigravity-mcp.mjs": "4fc854e98790f087dab0d573e9a618f0b55ced829fa3a291abd2212f9ccb4f88",
     "src/servers/claude-code-mcp.mjs": "d1c26da9e4837e43e4a7fc1f833110375d6f0200da4ad4b49fc12eda4f09424a",
     "src/servers/codex-mcp.mjs": "1c5ec11f88fe633faeb8c3ca38058a64bb3c600d9c2f9d183d90ba3e220a9c5a",
     "src/servers/research-memory-mcp.mjs": "5fdb5dbdce94e8f93b57cd96cc4639bb31a5c7eb3e32f51d97889431fdc76788",
@@ -58,7 +58,7 @@
     "src/workbench/public/styles.css": "45ccc4646c3b25875c36f7cc06737fb9d6e958c383b20eef359ff33ab51aa3a8",
     "src/workbench/reader.mjs": "d56c64d1833e3887736abe78a8c49a4ad661c6e149bd420c13d485be25c8058d",
     "src/workbench/server.mjs": "77780cdc71660f4a91f8b4e1e43aafe5265f7dc1f890c8a388a3a19a13cb38bb",
-    "test/test-all.mjs": "b2b9bbfd786c3fcc236bba5761b0e27b022eb5ca5a49e2480b26da1ab7e86250",
+    "test/test-all.mjs": "42ef581c5c42bb32905dc61e47187ac0610a82b74c7dea6b78063d1c18504e99",
     "test/test-domain-engine.mjs": "d0334040ac7cfcdfed60f1c1ef369cbcdb5d9cb2e3e4440c3d89f7b44c5a36ce",
     "test/test-research-memory-tools.mjs": "01728cb80ba282f4f0e79ac71f75394ec70344f9c39c259586c05e0fe8e96b5e",
     "test/test-workbench.mjs": "bec10a298fc67767ded802dc8e701e803db2b27b27e44d8252befd457cf0f9b9"

@@ -94,7 +94,7 @@ def compile_jit_recency_card(profile="resume", recipient_profile="default", role
         )
     if recipient_profile == "pro_macro":
         return (
-            "[1] First-Principles Prose: answer in continuous paragraphs focused on core invariants and structural trade-offs; state explicit assumptions and derive 2-3 testable steps."
+            "[1] First-Principles Prose & Grounding: ground every claim against the attached GitHub repo (branch, commit SHA, target paths) or uploaded bundle (BUNDLE_MANIFEST.md), answer in continuous paragraphs focused on core invariants and structural trade-offs, state explicit assumptions, and derive 2-3 testable steps."
         )
     if role == "implementer" or stance == "zero_drift_executor":
         return (

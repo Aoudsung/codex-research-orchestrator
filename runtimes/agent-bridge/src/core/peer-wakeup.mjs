@@ -1,5 +1,5 @@
 import { parseJsonLines, resolveBinary, runCommand } from "./process-runner.mjs";
-import { normalizeModelId, verifyModelMatch } from "./preflight.mjs";
+import { buildAgySessionSettings, normalizeModelId, verifyModelMatch } from "./preflight.mjs";
 
 const peers = {
   "claude-code": { binary: "claude", env: "CLAUDE_BIN" },
@@ -27,7 +27,20 @@ export async function deliverViaPeerCli({ agent, targetSessionId, prompt, cwd, m
   const claude = agent === "claude-code";
   const args = claude
     ? ["-p", "--resume", targetSessionId, "--output-format", "json"]
-    : ["--conversation", targetSessionId, "--output-format", "stream-json"];
+    : [
+        "--conversation",
+        targetSessionId,
+        "--output-format",
+        "stream-json",
+        "--sandbox",
+        "--settings",
+        JSON.stringify(
+          buildAgySessionSettings({
+            cwd: cwd || process.cwd(),
+            deliveryMode: "mcp_structured_patch",
+          })
+        ),
+      ];
   if (model != null) args.push("--model", model);
   if (effort != null) args.push("--effort", effort);
   if (!claude) args.push("-p", prompt);

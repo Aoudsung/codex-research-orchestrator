@@ -23,7 +23,7 @@ Pass `role`, `stance`, `profile`, and `recipient_profile` to `research_context` 
 
 | `recipient_profile` | Intended Model / Mode | Default `max_chars` & Packing Behavior |
 |---|---|---|
-| `pro_macro` | ChatGPT Pro | `6,000` max (`8,000` hard cap); **hard-blocks** `checkpoint`/`evaluation`, fenced code blocks, unified diffs, and itemized ledgers |
+| `pro_macro` | ChatGPT Web `Pro` | `6,000` max (`8,000` hard cap); **hard-blocks** `checkpoint`/`evaluation`, fenced code blocks, unified diffs, and itemized ledgers in the text packet (attach code/traces via `github_repo` or `pack_pro_bundle.py` `.zip`) |
 | `focused_curated` | Codex (`gpt_contract`) / opt-in Claude | `32,000` default; full target proposal + dependencies + linked counterevidence |
 | `gemini_panoramic` | Antigravity Gemini | `240,000` default (up to `400,000`); full raw `source`/`proposal`/`evidence` first for `1M+` recall |
 | `default` | Lead synthesis | `12,000` default in `database_context`; caller-specified otherwise |

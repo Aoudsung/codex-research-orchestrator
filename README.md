@@ -88,7 +88,7 @@ State your exact research question or bottleneck here.
 ## Collaboration & Model Routing Policy
 - Participants: codex, antigravity
 - forbid claude-code
-- Lead PI: `codex` (`BRIDGE_TOOL_PROFILE=lead`), invokes ChatGPT Pro autonomously via `pro_macro` pure prose (<850 words; zero code, diffs, or ledger tags).
+- Lead PI: `codex` (`BRIDGE_TOOL_PROFILE=lead`), prepares ChatGPT Web `Pro` (`pro_macro`) consults by pairing a zero-bureaucracy <850-word structural prompt (no pasted code/diffs/ledgers in chat) with primary grounding via a synced GitHub repository or secret-scrubbed `.zip` bundle (`pack_pro_bundle.py`).
 - Collaborator: `antigravity` (`gemini_panoramic`, `BRIDGE_TOOL_PROFILE=worker`), runs cross-repo audits, isolated `blind_review` (`deductive_auditor`), and `zero_drift_executor` patches.
 
 ## Hard Execution & Archive Boundaries
@@ -108,8 +108,8 @@ Recommended Round 1 division of labor and model/effort routing:
 
 | Role in Round 1 | Model / Adapter | Thinking Effort | Responsibility |
 |---|---|---|---|
-| **Active Lead PI (interactive / CLI)** | `gpt-6.1-sol` (`gpt_contract`, `lead`) | **`high`** (default diagnosis/synthesis); **`xhigh`** (deductive falsification or after >=2 failed patches); **`medium`** (locked dispatch/export) | Orchestrates MCP tasks, translates prose into math/code specs, enforces invariants, accepts deliveries. Avoid running `gpt-6-astra` as the resident tool-calling Lead—MCP schemas and multi-step tool plumbing dilute its deep search tree and add high latency. |
-| **First-Principles Macro Consult (invoked on-demand by Lead)** | `gpt-6-astra` / ChatGPT Pro (`pro_macro`, stateless `-C /tmp`) | **`high`** (`xhigh` only on severe theoretical deadlocks; add `web_search="disabled"` when pure derivation) | Receives a clean <850-word 3-paragraph structural prompt stripped of paths/code/ledgers; surfaces underlying failure mechanisms without heuristic band-aids. |
+| **Active Lead PI (interactive / CLI)** | `gpt-6.1-sol` (`gpt_contract`, `lead`) | **`high`** (default diagnosis/synthesis); **`xhigh`** (deductive falsification or after >=2 failed patches); **`medium`** (locked dispatch/export) | Orchestrates MCP tasks, translates prose into math/code specs, enforces invariants, prepares `github_repo` / `upload_bundle` packets for Web `Pro`, and accepts deliveries. |
+| **First-Principles Macro Consult (Web interactive lane)** | **ChatGPT Web `Pro`** (`chatgpt.com` `Pro` thinking mode, `pro_macro`) | **`Pro`** (`pro_max`) | Inspects the attached synced GitHub repo (`branch` + `commit SHA` + target paths) or secret-scrubbed `.zip` (`pack_pro_bundle.py`) alongside a clean <850-word 3-paragraph structural prompt (no inline code/diff/ledger clutter) to surface underlying failure mechanisms. |
 | **Panoramic Audit, Blind Review & Implementation** | Antigravity Gemini (`gemini_panoramic`, `worker` 9 tools) | Adaptive (`medium` / `high`) | Scans full codebases, logs, and diagnostics first; runs isolated `blind_review` (`deductive_auditor`); delivers scoped diffs under `zero_drift_executor`. |
 
 ## What to ask

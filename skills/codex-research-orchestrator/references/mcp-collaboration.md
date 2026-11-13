@@ -22,7 +22,7 @@ Use this guide when coordinating persistent peers (`Antigravity`, `Codex`, opt-i
 - **Two-phase consumption (`consumed_at`):** Reading via `bridge_read_messages` marks actual turn ingestion separately from socket `delivered` status. Unconsumed crash recoveries receive a `RecoveryNote` pointing to the latest patch `sha256`.
 - **Out-of-scope handback (`bridge_handback`):** Releases ownership immediately (`scientific_ambiguity`, `permission_delta`, `budget_exceeded`, `humanAction`) instead of looping or guessing.
 - **Escalation & Safeguards:**
-  - `validateProMacroPrompt` hard-blocks code/diffs/ledgers sent to `pro_macro`.
+  - `validateProMacroPrompt` hard-blocks inline code/diffs/ledgers sent to `pro_macro` (attach raw code/traces via `github_repo` or `upload_bundle` from `pack_pro_bundle.py`).
   - `bridge_record_validation` emits `jitGuidance` (`recommendedEffort: 'high' | 'xhigh'` + Two-Patch Escape reminder) on `>=2` consecutive failures or `>=2` stacked patches.
   - `controlVersion` revalidates active tasks if `controls.md` changes mid-flight.
 - **Spill pagination & health:** Read long payloads via `bridge_read_card` (`bridge://<kind>/<id>`, `offset`/`limit`); inspect queue/watchdog health via `bridge_watchdog_status`.

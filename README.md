@@ -39,6 +39,79 @@ Codex checks the current goal, evidence, pending work, and next action before pr
 
 If the skill is not listed, start a new turn in the target workspace; restart the client if necessary. See [the first-run guide](docs/getting-started.md) for manual setup and troubleshooting.
 
+## Tutorial: onboard an existing active codebase
+
+To attach `codex-research-orchestrator` to a repository that already has source code, active feature branches, `AGENTS.md`, or historical logs without touching tracked files or migrating legacy archives, follow these four steps.
+
+**Step 1 — Isolate orchestrator files via `.git/info/exclude`** (leaves your working tree and `.gitignore` clean):
+
+```sh
+cat >> /path/to/existing-repo/.git/info/exclude <<'EOF'
+# codex-research-orchestrator local collaboration state
+.agents/skills/codex-research-orchestrator/
+.agents/mcp_config.json
+.research-orchestrator/
+.research-memory/
+.agent-bridge/
+.codex/
+controls.md
+charter.md
+project.md
+state.md
+EOF
+```
+
+**Step 2 — Probe, install, initialize, and connect with tiered MCP tool profiles.** `init` never overwrites existing `AGENTS.md`, `rules.md`, code, or legacy databases. Pass `--node /path/to/node24` explicitly if Node 24+ is not on your default `PATH`:
+
+```sh
+python3 setup.py probe --project /path/to/existing-repo --json
+python3 setup.py install --project /path/to/existing-repo
+python3 setup.py init --project /path/to/existing-repo \
+  --title "Your Project Title" \
+  --question "State your exact research question or failure-diagnosis target here."
+
+# Connect Codex (lead profile; deduplicates schemas across peers) and Antigravity (9-tool worker profile).
+# Omit `claude-code` unless explicitly authorized in controls.md.
+python3 setup.py connect --project /path/to/existing-repo --client codex --peers antigravity --node /path/to/node24 --tool-profile auto --apply
+python3 setup.py connect --project /path/to/existing-repo --client antigravity --peers codex --node /path/to/node24 --tool-profile worker --apply
+python3 setup.py doctor --project /path/to/existing-repo --client codex --peers antigravity
+```
+
+**Step 3 — Lock hard boundaries in `controls.md` and `charter.md`.** Every `research_context` call injects `controls.md` verbatim into the deterministic KV-cached prefix so rules do not decay mid-session. Keep `controls.md` concise (~20–30 lines):
+
+```markdown
+# Authoritative Controls
+
+## Question (verbatim)
+State your exact research question or bottleneck here.
+
+## Collaboration & Model Routing Policy
+- Participants: codex, antigravity
+- forbid claude-code
+- Lead PI: `codex` (`BRIDGE_TOOL_PROFILE=lead`), invokes ChatGPT Pro autonomously via `pro_macro` pure prose (<850 words; zero code, diffs, or ledger tags).
+- Collaborator: `antigravity` (`gemini_panoramic`, `BRIDGE_TOOL_PROFILE=worker`), runs cross-repo audits, isolated `blind_review` (`deductive_auditor`), and `zero_drift_executor` patches.
+
+## Hard Execution & Archive Boundaries
+- Obey `AGENTS.md` execution rules (for example, static edits only on laptop; run training/benchmarks only on remote servers).
+- Keep legacy experiment databases read-only; write new reasoning and decisions exclusively to `.research-memory/memory.sqlite3`, exporting `state.md` only at milestones.
+```
+
+Record the observed baseline vs. candidate contrast and key file paths in `charter.md`.
+
+**Step 4 — Seed compact SQLite pointer records and launch Round 1.** Rather than copying megabytes of historical logs into `.research-memory/memory.sqlite3`, insert 2–3 lightweight `source`, `evidence`, and `question` pointers via `.agents/skills/codex-research-orchestrator/scripts/research_memory.py --project /path/to/existing-repo api record`, export an initial `state.md` snapshot once, then open Codex in `/path/to/existing-repo` and send:
+
+```text
+Use $codex-research-orchestrator to resume from controls.md, charter.md, project.md and state.md.
+```
+
+Recommended Round 1 division of labor and model/effort routing:
+
+| Role in Round 1 | Model / Adapter | Thinking Effort | Responsibility |
+|---|---|---|---|
+| **Active Lead PI (interactive / CLI)** | `gpt-6.1-sol` (`gpt_contract`, `lead`) | **`high`** (default diagnosis/synthesis); **`xhigh`** (deductive falsification or after >=2 failed patches); **`medium`** (locked dispatch/export) | Orchestrates MCP tasks, translates prose into math/code specs, enforces invariants, accepts deliveries. Avoid running `gpt-6-astra` as the resident tool-calling Lead—MCP schemas and multi-step tool plumbing dilute its deep search tree and add high latency. |
+| **First-Principles Macro Consult (invoked on-demand by Lead)** | `gpt-6-astra` / ChatGPT Pro (`pro_macro`, stateless `-C /tmp`) | **`high`** (`xhigh` only on severe theoretical deadlocks; add `web_search="disabled"` when pure derivation) | Receives a clean <850-word 3-paragraph structural prompt stripped of paths/code/ledgers; surfaces underlying failure mechanisms without heuristic band-aids. |
+| **Panoramic Audit, Blind Review & Implementation** | Antigravity Gemini (`gemini_panoramic`, `worker` 9 tools) | Adaptive (`medium` / `high`) | Scans full codebases, logs, and diagnostics first; runs isolated `blind_review` (`deductive_auditor`); delivers scoped diffs under `zero_drift_executor`. |
+
 ## What to ask
 
 | You want to… | Say this to Codex |
@@ -71,14 +144,14 @@ For a real project, use the installed helper's `workbench --project . --open` co
 
 The shared MCP bridge enables reciprocal information exchange and task collaboration: participants can send requests, ask questions, return evidence and patches, and continue an authorized task with less manual relay.
 
-For Codex to connect to Claude Code and Antigravity, run this **from the installed research workspace**:
+For Codex to connect to Antigravity (or opt-in Claude Code), run this **from the installed research workspace**:
 
 ```sh
 python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py connect \
-  --project . --client codex --peers claude-code antigravity --apply
+  --project . --client codex --peers antigravity --tool-profile auto --apply
 ```
 
-This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, and updates only its project-local Codex entries. It preserves unrelated settings and backs up changed configuration. Omit `--apply` to prepare the config without registering it.
+This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, updates only project-local entries, preserves unrelated settings, and backs up changed configuration. Use `--tool-profile auto` on the Lead (`lead` for primary peer, `exec_only` for extra peers so 33-tool schemas are never duplicated) and `--tool-profile worker` on peer workers (9-tool surface). Claude (`claude-code`) is opt-in and remains blocked by `PEER_DISALLOWED` when `forbid claude-code` is declared in `controls.md`. Omit `--apply` to prepare the config without registering it.
 
 Claude Code project configuration and Antigravity CLI/IDE workspace configuration are also supported. Antigravity uses `.agents/mcp_config.json`; its export remains available for other supported settings interfaces. Select only the peers you intend to use.
 
@@ -125,6 +198,8 @@ The framework is designed to:
 Its contribution is a practical collaboration protocol for Codex, source-backed research memory, and optional cross-agent coordination. The [design rationale](docs/design.md) explains the mechanisms; [related work](docs/related-work.md) gives direct comparisons with existing automation projects.
 
 ## How the parts fit
+
+Version 1.2 introduces a 4-cut context and token-efficiency overhaul alongside L0–L4 dynamic effort routing: tiered and deduplicated MCP schemas (`BRIDGE_TOOL_PROFILE` `full | lead | worker | exec_only`), zero-copy deterministic `role`/`stance` headers plus tail-injected JIT recency checks anchored to a KV-cached `controls.md` prefix, automatic L0–L4 effort guidance with `>=2`-failure escalation (`jitGuidance`), and single-write SQLite research memory with on-demand `state.md` export.
 
 Version 1.0 separates pure zero-I/O coordination rules from a durable SQLite effects queue, adds a deterministic Research Router (`off | observe | auto`) with thread subscriptions and out-of-scope `bridge_handback`, introduces a Dual-Layer Watchdog (`HealthBoard`, `+1` human-priority slot, two-phase `consumed_at` recovery, and `.optimizer/watchdog-events.jsonl` anti-spin probes), upgrades the workbench to an Attention-First overview, and protects customized project templates via `builtInBase` 3-way baselines.
 

@@ -12,6 +12,7 @@ import { EffectsQueue, Later } from "../src/store/effects-queue.mjs";
 import { HealthBoard } from "../src/runtime/health-board.mjs";
 import { SlotScheduler } from "../src/runtime/slot-scheduler.mjs";
 import { WatchdogService } from "../src/runtime/watchdog-service.mjs";
+import { buildDriverWakeupPrompt } from "../src/runtime/drivers.mjs";
 
 function makeMemoryFixture(initialMs = Date.parse("2026-11-01T00:00:00.000Z")) {
   let nowMs = initialMs;
@@ -580,12 +581,13 @@ test("10. Watchdog L1 reaps orphaned in_flight locks, recovers unconsumed delive
   assert.equal(sweep.reapedRoutes[0].taskId, "wd-task-a");
   assert.equal(repos.getRoute("wd-task-a").in_flight, 0);
 
-  // Only the unconsumed message is recovered with a RecoveryNote referencing latest patch SHA-256!
-  assert.equal(sweep.recoveredMessages.length, 1);
-  assert.equal(sweep.recoveredMessages[0].messageId, unconsumedMsg.id);
-  const recovered = repos.getMessage(unconsumedMsg.id);
-  assert.equal(recovered.wakeup_status, "pending");
-  assert.match(recovered.metadata.recoveryNote, /sha256=/i);
+  // Only the unconsumed message raises a consumption alert with a RecoveryNote referencing latest patch SHA-256!
+  assert.equal(sweep.consumptionAlerts.length, 1);
+  assert.equal(sweep.consumptionAlerts[0].messageId, unconsumedMsg.id);
+  assert.match(sweep.consumptionAlerts[0].recoveryNote, /sha256=/i);
+  const taskAfterSweep = engine.getTaskById("wd-task-a");
+  assert.equal(taskAfterSweep.metadata.stallAlert.kind, "message_unconsumed");
+  assert.deepEqual(taskAfterSweep.metadata.stallAlert.messageIds, [unconsumedMsg.id]);
 
   // Circuit breaker tripped on wd-task-breaker and surfaced in Attention Queue
   assert.deepEqual(sweep.trippedBreakers, ["wd-task-breaker"]);
@@ -676,4 +678,88 @@ test("12. Inline Cards + Spill Pointers paginate non-BMP Unicode losslessly and 
   assert.equal(reconstructed, unicodeBody);
   assert.equal(sha256Hex(reconstructed), cardMeta.sha256);
   assert.ok(Array.from(cardMeta.preview).length <= 200);
+});
+
+test("13. Cognitive Profiles, Wakeup Stance Guidance, and pro_macro Zero-Clutter Prompt Guard", () => {
+  const { engine } = makeMemoryFixture();
+
+  // 1) Invalid stance/adapter is rejected deterministically
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-cog",
+        fromAgent: "codex",
+        assignedTo: "claude-code",
+        prompt: "Review mechanism",
+        metadata: { cognitiveProfile: { stance: "unknown_stance" } },
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.INVALID_COGNITIVE_PROFILE
+  );
+
+  // 2) pro_macro rejects code fences, unified diffs, ledger dumps, and status checklists
+  for (const clutteredPrompt of [
+    "Inspect this code:\n```python\ndef loss(x): return x\n```",
+    "Patch:\n--- a/train.py\n+++ b/train.py\n@@ -1 +1 @@\n-old\n+new",
+    "Current ledger:\n- D1: freeze encoder\n- C1: bound holds under Gaussian noise",
+    "Use complete, partial, or blocked on the first line and fill table.",
+  ]) {
+    assert.throws(
+      () =>
+        engine.createTask({
+          fromAgent: "codex",
+          assignedTo: "codex",
+          requiredModel: "chatgpt-pro",
+          prompt: clutteredPrompt,
+        }),
+      (err) => err instanceof BridgeUserError && err.code === REASONS.PRO_MACRO_PROMPT_CLUTTER
+    );
+  }
+
+  // 3) Clean 3-paragraph macro-directional inquiry for ChatGPT Pro succeeds and defaults to abductive_pioneer
+  const proTask = engine.createTask({
+    taskId: "pro-macro-1",
+    fromAgent: "codex",
+    assignedTo: "codex",
+    requiredModel: "chatgpt-pro",
+    prompt: [
+      "We study a closed-loop decision system whose own policy-improvement signals must remain on the causal path of subsequent behavior.",
+      "Existing approaches face a fundamental structural tension: stabilizing credit assignment via stationary replay severs sensitivity to non-stationary representation shifts, whereas online updates collapse under variance.",
+      "From first principles, what unified representation and feedback operator allow stability and online plasticity to emerge from one coupled dynamics rather than opposing regularizers?",
+    ].join("\n\n"),
+  });
+  assert.deepEqual(proTask.metadata.cognitiveProfile, {
+    stance: "abductive_pioneer",
+    adapter: "pro_macro",
+    auditTrack: null,
+  });
+  assert.deepEqual(engine.getMandate("pro-macro-1").scope.cognitiveProfile, {
+    stance: "abductive_pioneer",
+    adapter: "pro_macro",
+    auditTrack: null,
+  });
+
+  // 4) Zero-drift implementation task binds cognitiveProfile in workflow v2 contract and injects wakeup guidance
+  const implTask = engine.createTask({
+    taskId: "impl-zero-drift",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    prompt: "Implement verified operator update",
+    protocolVersion: 2,
+    contract: {
+      objective: "Implement operator update within src/operator.py",
+      allowedContinuation: ["run_validation"],
+      cognitiveProfile: {
+        stance: "zero_drift_executor",
+        adapter: "gemini_panoramic",
+      },
+    },
+  });
+
+  const wakeupText = buildDriverWakeupPrompt({
+    route: { task_id: "impl-zero-drift", thread_id: "example-impl-zero-drift", to_agent: "antigravity" },
+    claim: { messageIds: ["m1"], maxSeq: 5, messages: [] },
+    task: implTask,
+  });
+  assert.match(wakeupText, /stance=zero_drift_executor, adapter=gemini_panoramic/);
+  assert.match(wakeupText, /bridge_handback\(reasonCode='scientific_ambiguity'\)/);
 });

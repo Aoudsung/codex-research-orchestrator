@@ -6,14 +6,15 @@ import {
 } from "../core/codex-host-driver.mjs";
 import { deliverViaPeerCli } from "../core/peer-wakeup.mjs";
 import { messageCard } from "../domain/cards.mjs";
+import { stanceWakeupGuidance } from "../domain/model.mjs";
 import { deliverViaClaudeDesktopInbox } from "../core/claude-desktop-wakeup.mjs";
 import { deliverViaAntigravityDesktop } from "../core/antigravity-desktop-wakeup.mjs";
 
 /**
  * Format compact wakeup prompt combining backwards-compatible header with v1.0.0 Inline Cards,
- * Spill `bridge://message/<id>` pointers, and optional Watchdog `RecoveryNote`.
+ * Spill `bridge://message/<id>` pointers, optional Cognitive Profile stance reminder, and Watchdog `RecoveryNote`.
  */
-export function buildDriverWakeupPrompt({ route, claim }) {
+export function buildDriverWakeupPrompt({ route, claim, task = null }) {
   const messages = claim.messages || [];
   const recoveryNotes = [
     ...new Set(
@@ -39,6 +40,11 @@ export function buildDriverWakeupPrompt({ route, claim }) {
       route.task_id
     }, threadId=${route.thread_id}.`,
   ];
+
+  const stanceLine = stanceWakeupGuidance(task?.metadata?.cognitiveProfile);
+  if (stanceLine) {
+    lines.push(stanceLine);
+  }
 
   for (const note of recoveryNotes) {
     lines.push(`[Watchdog RecoveryNote] ${note}`);
@@ -164,7 +170,11 @@ export async function executeTaskWakeupDriver(
       };
     }
 
-    const prompt = buildDriverWakeupPrompt({ route, claim });
+    const prompt = buildDriverWakeupPrompt({
+      route,
+      claim,
+      task: engine.getTaskById?.(taskId) || null,
+    });
 
     if (driver === "claude_desktop" || driver === "antigravity_desktop") {
       let submitted = false;

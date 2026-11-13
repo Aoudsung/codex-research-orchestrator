@@ -23,6 +23,22 @@ export const PHASE_LABELS = {
 export const ROUTER_MODES = ["off", "observe", "auto"];
 export const ISOLATION_PROFILES = ["shared", "blind_analysis", "blind_review"];
 export const SUBSCRIPTION_MODES = ["direct", "context"];
+export const EPISTEMIC_STANCES = [
+  "abductive_pioneer",
+  "deductive_auditor",
+  "zero_drift_executor",
+];
+export const MODEL_ADAPTERS = [
+  "pro_macro",
+  "gpt_contract",
+  "claude_synthesis",
+  "gemini_panoramic",
+];
+export const AUDIT_TRACKS = [
+  "formal_falsification",
+  "mechanistic_reconstruction",
+  "prior_art_isomorphism",
+];
 export const EFFECT_KINDS = [
   "wakeup",
   "launch",
@@ -78,6 +94,8 @@ export const REASONS = Object.freeze({
   CARD_NOT_FOUND: "CARD_NOT_FOUND",
   DECISION_NOT_FOUND: "DECISION_NOT_FOUND",
   DELIVERY_CIRCUIT_OPEN: "DELIVERY_CIRCUIT_OPEN",
+  INVALID_COGNITIVE_PROFILE: "INVALID_COGNITIVE_PROFILE",
+  PRO_MACRO_PROMPT_CLUTTER: "PRO_MACRO_PROMPT_CLUTTER",
 });
 
 export class BridgeUserError extends Error {
@@ -223,6 +241,138 @@ export function resolveIsolationProfile(target) {
 export function isBlindIsolated(mandateOrTask) {
   const profile = resolveIsolationProfile(mandateOrTask);
   return profile === "blind_analysis" || profile === "blind_review";
+}
+
+/**
+ * Infer default model cognitive adapter from agent / requiredModel when not explicitly specified.
+ * @param {{ assignedTo?: string | null, requiredModel?: string | null }} [input]
+ * @returns {'pro_macro' | 'gpt_contract' | 'claude_synthesis' | 'gemini_panoramic' | null}
+ */
+export function inferModelAdapter({ assignedTo = null, requiredModel = null } = {}) {
+  const normModel = normalizeModelId(requiredModel);
+  if (
+    normModel &&
+    /(^|-)(chatgpt-pro|gpt-[0-9.a-z]*-pro|o1-pro|o3-pro)(-|$)/.test(normModel)
+  ) {
+    return "pro_macro";
+  }
+  if (normModel.includes("gemini") || assignedTo === "antigravity") {
+    return "gemini_panoramic";
+  }
+  if (normModel.includes("claude") || assignedTo === "claude-code") {
+    return "claude_synthesis";
+  }
+  if (
+    normModel.includes("gpt") ||
+    normModel.includes("codex") ||
+    assignedTo === "codex"
+  ) {
+    return "gpt_contract";
+  }
+  return null;
+}
+
+/**
+ * Validate and normalize an optional `cognitiveProfile` (`{ stance, adapter, auditTrack }`)
+ * from task, contract, or metadata.
+ * @param {object | null | undefined} target
+ */
+export function resolveCognitiveProfile(target) {
+  if (!target || typeof target !== "object") return null;
+  const raw =
+    target.cognitiveProfile ||
+    target.cognitive_profile ||
+    target.metadata?.cognitiveProfile ||
+    target.metadata?.cognitive_profile ||
+    target.contract?.cognitiveProfile ||
+    null;
+
+  const assignedTo =
+    target.assignedTo ||
+    target.assigned_to ||
+    target.scope?.assignedTo ||
+    null;
+  const requiredModel =
+    target.requiredModel ||
+    target.required_model ||
+    target.metadata?.requiredModel ||
+    target.metadata?.model ||
+    target.scope?.requiredModel ||
+    null;
+  const inferredAdapter = inferModelAdapter({ assignedTo, requiredModel });
+
+  if (!raw && inferredAdapter !== "pro_macro") {
+    return null;
+  }
+  if (raw !== null && typeof raw !== "object") {
+    throw new BridgeUserError(
+      REASONS.INVALID_COGNITIVE_PROFILE,
+      "cognitiveProfile must be an object when provided."
+    );
+  }
+
+  const adapter = raw?.adapter ?? inferredAdapter ?? null;
+  if (adapter !== null && !MODEL_ADAPTERS.includes(adapter)) {
+    throw new BridgeUserError(
+      REASONS.INVALID_COGNITIVE_PROFILE,
+      `Invalid cognitiveProfile.adapter '${adapter}'. Expected one of: ${MODEL_ADAPTERS.join(", ")}.`,
+      { adapter }
+    );
+  }
+
+  let stance = raw?.stance ?? null;
+  if (stance !== null && !EPISTEMIC_STANCES.includes(stance)) {
+    throw new BridgeUserError(
+      REASONS.INVALID_COGNITIVE_PROFILE,
+      `Invalid cognitiveProfile.stance '${stance}'. Expected one of: ${EPISTEMIC_STANCES.join(", ")}.`,
+      { stance }
+    );
+  }
+  if (!stance && adapter === "pro_macro") {
+    stance = "abductive_pioneer";
+  }
+
+  const auditTrack = raw?.auditTrack ?? null;
+  if (auditTrack !== null && !AUDIT_TRACKS.includes(auditTrack)) {
+    throw new BridgeUserError(
+      REASONS.INVALID_COGNITIVE_PROFILE,
+      `Invalid cognitiveProfile.auditTrack '${auditTrack}'. Expected one of: ${AUDIT_TRACKS.join(", ")}.`,
+      { auditTrack }
+    );
+  }
+
+  return {
+    stance,
+    adapter,
+    auditTrack,
+  };
+}
+
+/**
+ * Compact one-line behavioral reminder injected into wakeup prompts when a task binds a cognitiveProfile.
+ * @param {object | null | undefined} profile
+ */
+export function stanceWakeupGuidance(profile) {
+  if (!profile || typeof profile !== "object") return null;
+  const tags = [
+    profile.stance ? `stance=${profile.stance}` : null,
+    profile.adapter ? `adapter=${profile.adapter}` : null,
+    profile.auditTrack ? `auditTrack=${profile.auditTrack}` : null,
+  ].filter(Boolean);
+  if (tags.length === 0) return null;
+
+  let rule = "";
+  if (profile.stance === "zero_drift_executor") {
+    rule =
+      "Fix routine engineering errors within writeRoots; NEVER make silent assumptions on scientific semantics—call bridge_handback(reasonCode='scientific_ambiguity') on semantic ambiguity.";
+  } else if (profile.stance === "deductive_auditor") {
+    rule =
+      "Enforce strict burden of proof; hunt <5% boundary degeneracies, hidden leaks, and silent object substitution.";
+  } else if (profile.stance === "abductive_pioneer") {
+    rule =
+      "Operate in cohesive continuous prose; amplify structural positive signals and bridge gaps constructively without listicle fragmentation.";
+  }
+  return `[Cognitive Profile: ${tags.join(", ")}]${rule ? ` ${rule}` : ""}`;
 }
 
 /**

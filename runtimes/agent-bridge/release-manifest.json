@@ -1,5 +1,5 @@
 {
-  "releaseId": "bridge-1.1.0-37d952de8b5e",
+  "releaseId": "bridge-1.1.0-43ead93932cb",
   "version": "1.1.0",
   "protocolVersion": 2,
   "supportedProtocols": [
@@ -7,7 +7,7 @@
     2
   ],
   "schemaVersion": 3,
-  "createdAt": "2026-11-05T02:04:22.096006+00:00",
+  "createdAt": "2026-11-13T03:02:09.893236+00:00",
   "files": {
     "LICENSE": "c3de707fd46e376080088278e09f160784b06ff8a636e0c4670c17e13a4adca8",
     "README.md": "221a6babe4dec7f2fb6ad079d08e05f37a4f096d87dcca298cb44a0d4e3b258a",
@@ -25,19 +25,19 @@
     "src/core/preflight.mjs": "39d8ff25623005ab769f18312fbe4adfddaad60c0b762aaaebb68c67c2c8d214",
     "src/core/process-runner.mjs": "ee40167207d480500c2f5ebb49c371453d3e033f3d5988e1e9f8e475cbbbf812",
     "src/core/project-workflow.mjs": "a39ff758c930b2f579dbd56871a6c07c654cfe5aeea9237dbf2b06e0e294e6f2",
-    "src/core/research-memory-tools.mjs": "2a3bb7c90c006ca3fc22328a5def3eb2febdf7ab26c2a0620c3ac63b4caff04d",
+    "src/core/research-memory-tools.mjs": "558bd847ff9c4bb8cdcdd4dac0f584bebbd3c6e045a6f65411a00ee46919ada2",
     "src/core/wakeup-daemon.mjs": "26f01198a73d9ffe954e3744a1465b73083ac080c128d614507911d79e10d164",
     "src/core/wakeup-policy.mjs": "45fbe4ccdfd4b4a5630beb506b7b607e706f699f217bf5f4903f0b0f0e23b0b5",
     "src/domain/cards.mjs": "574e420c4bff1f747e15dde7c7131a02ff46067b4a64373a4b006def75f1be9f",
-    "src/domain/engine.mjs": "97734b950988bf99d5b375d95b81d3956555038a319fe3cec663a41f2655c71f",
-    "src/domain/intake.mjs": "999a6cf93733faac611c782ac8e716169ac50d0476819ec224b89f7ce7756aa4",
+    "src/domain/engine.mjs": "e83c4137e50985742b17e0c723948158600def5a09407087d691c52e0913560f",
+    "src/domain/intake.mjs": "a668bef7134d48101619ed238f4ab2c414613b5a0f29d0cc59655eaaf59bcb70",
     "src/domain/memory-repos.mjs": "b240577a3ee3f5668682de93c462232c58eb720c4118ecda268fd28076e54e5f",
-    "src/domain/model.mjs": "942c2b6238f29887ce8663e16cf37ba947c696f89ae2b59dcdf33ef19fbc2127",
-    "src/domain/policy.mjs": "5f2b80f7f18f4189f7bdaa15c2e7ce23709f7013ba58798cbf88f58983207783",
+    "src/domain/model.mjs": "d927ddd5814a387838168ce35955eecce5af159b7a3bceb4f5de5c5fe9f22bd4",
+    "src/domain/policy.mjs": "f81ebcdac9111ac81950499747d1ffd29a0f1f49c4a4431fd0d8f101e843dec5",
     "src/domain/router-eval.mjs": "c50edc7be29e67d002a0897ff53310149d18e5da901652819c95aa2eedb40480",
-    "src/domain/task-workflow.mjs": "4d3e952e94fdb06e4b076fd49fd1774123495bbae0010c9f3f889769635c51f5",
+    "src/domain/task-workflow.mjs": "056a07ce298022c4c653e0c765bab9d591452da4ed42997ae5dbf2e837d56c15",
     "src/domain/watchdog-rules.mjs": "614f5d421b76cfa072297bac1c4b7554be8f642cb5c8106ca5967d03190c7af5",
-    "src/runtime/drivers.mjs": "7b86108f70ccb18818b5eacf49d0004ce9dc026bfabb137e5e8244d87951688f",
+    "src/runtime/drivers.mjs": "0c18fdb8ccbfe4e922becbdada6eec4468cde4989b1bc3b6792a12e9ff0420b7",
     "src/runtime/health-board.mjs": "a4b271d6847744057fd2869a74dce4e587ff88546c88ee220556caf6c095fec1",
     "src/runtime/passes.mjs": "4822f719c4032958483ccbc850d576beefebb8ba493175b233a0fd1e4c2f4622",
     "src/runtime/router-service.mjs": "8f281d598e2dc736ab18b473e600cce888b74c81181a246e1097ce36d4eb8173",
@@ -59,8 +59,8 @@
     "src/workbench/reader.mjs": "d56c64d1833e3887736abe78a8c49a4ad661c6e149bd420c13d485be25c8058d",
     "src/workbench/server.mjs": "77780cdc71660f4a91f8b4e1e43aafe5265f7dc1f890c8a388a3a19a13cb38bb",
     "test/test-all.mjs": "b2b9bbfd786c3fcc236bba5761b0e27b022eb5ca5a49e2480b26da1ab7e86250",
-    "test/test-domain-engine.mjs": "6f813d76adc20f2d5bb31bcc6747940e6059d3b1ef7bfd50cf982fa1a9515991",
-    "test/test-research-memory-tools.mjs": "3244c89ad612f1227551f65804e18bcf74b24856567a2028972519741f823b9f",
+    "test/test-domain-engine.mjs": "c8bc881f240794bd59a61f74f84f97cc64d8ca8c50b8a71e6e63e445cf6d7a8e",
+    "test/test-research-memory-tools.mjs": "5a3d247eb17e639541a9c459570f812fb1aa9e92c1e44703aa02beaca0c02520",
     "test/test-workbench.mjs": "bec10a298fc67767ded802dc8e701e803db2b27b27e44d8252befd457cf0f9b9"
   }
 }

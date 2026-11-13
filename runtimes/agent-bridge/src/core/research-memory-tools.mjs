@@ -7,6 +7,7 @@ const string = { type: 'string' };
 const ids = { type: 'array', items: { type: 'integer', minimum: 1 } };
 const kinds = ['source', 'evidence', 'claim', 'decision', 'evaluation', 'checkpoint', 'proposal', 'question'];
 const profiles = { type: 'string', enum: ['resume', 'analysis', 'review'] };
+const recipientProfiles = { type: 'string', enum: ['default', 'pro_macro', 'focused_curated', 'gemini_panoramic'] };
 const filters = Object.fromEntries(['topic', 'round', 'author', 'state', 'claim_status', 'object_key'].map(key => [key, string]));
 const schemas = {
   record: {
@@ -23,7 +24,7 @@ const schemas = {
   search: { properties: { query: string, limit: { type: 'integer', minimum: 1, maximum: 100 },
     kind: { type: 'string', enum: kinds }, ...filters, include_history: { type: 'boolean' }, profile: profiles, allow: ids, target: { type: 'integer', minimum: 1 } } },
   read: { required: ['id'], properties: { id: { type: 'integer', minimum: 1 }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 20000 } } },
-  context: { properties: { query: string, profile: profiles, max_chars: { type: 'integer', minimum: 1, maximum: 100000 }, allow: ids, required: ids, target: { type: 'integer', minimum: 1 } } },
+  context: { properties: { query: string, profile: profiles, recipient_profile: recipientProfiles, max_chars: { type: 'integer', minimum: 1, maximum: 400000 }, allow: ids, required: ids, target: { type: 'integer', minimum: 1 } } },
   export: { required: ['format', 'output'], properties: { format: { type: 'string', enum: ['jsonl', 'markdown'] }, ids,
     output: { type: 'string', description: 'New project-relative output path; the response returns its location instead of the exported body.' } } },
 };
@@ -93,7 +94,12 @@ export function registerResearchMemoryTools(server, {
         payload.limit = bounded(payload.limit, 6000, 1, 20000, 'limit');
       }
       if (operation === 'search') payload.limit = bounded(payload.limit, 10, 1, 100, 'limit');
-      if (operation === 'context') payload.max_chars = bounded(payload.max_chars, 12000, 1, 100000, 'max_chars');
+      if (operation === 'context') {
+        const hasPreset = payload.recipient_profile && payload.recipient_profile !== 'default';
+        if (payload.max_chars !== undefined || !hasPreset) {
+          payload.max_chars = bounded(payload.max_chars, 12000, 1, 400000, 'max_chars');
+        }
+      }
       if (operation === 'export' && (typeof payload.output !== 'string' || !payload.output.trim())) throw new Error('A project-relative export output path is required');
       return invoke(python, helper, project, operation, payload);
     });

@@ -2,6 +2,7 @@ import {
   REASONS,
   ROUTER_MODES,
   isBlindIsolated,
+  resolveCognitiveProfile,
   resolveIsolationProfile,
   sha256Hex,
 } from "./model.mjs";
@@ -91,6 +92,7 @@ export function createMandate({
       ? [...task.permissions.writeRoots]
       : [],
     requiredModel: task.required_model || task.requiredModel || null,
+    cognitiveProfile: resolveCognitiveProfile(task),
     controlsHash: controlsHash || task.metadata?.controlsHash || "",
   };
 

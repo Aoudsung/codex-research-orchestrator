@@ -3,14 +3,14 @@ name: codex-research-orchestrator
 description: Coordinate sustained research in Codex with independent construction, focused authorship, constructive review, and source-backed continuation. Use to start or resume research or coordinate authorized work across Codex, Claude Code, and Antigravity. For a bounded contribution, load only the relevant role and guidance.
 license: MIT
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Codex Research Orchestrator
 
 Keep the scientific question, evidence, and next action connected. Protect the user's research object and authorization; revise mechanisms, current decisions, and candidate claims when evidence warrants it. The user can begin with one goal. Handle ordinary setup and records without requiring a completed form or a fixed agent team.
 
-Roles are responsibilities, not provider or model assignments. Use the project's actual participants and permissions. Codex can work alone; the optional bridge supports reciprocal collaboration with Claude Code, Antigravity, and other configured participants.
+Roles are responsibilities, not rigid provider lock-ins. Codex can work alone; when external participants (ChatGPT Pro, Claude Code, Antigravity Gemini, or additional Codex lanes) are available, compile each assignment through **Role × [Epistemic Stance](references/epistemic-stances.md) × [Model Cognitive Adapter](references/model-profiles.md)** so each model operates in its peak cognitive regime.
 
 ## Identify the task and role
 
@@ -40,8 +40,8 @@ A temporary contributor operates within its delegated scope. Instantiate only th
 
 - **Install, start, connect, or diagnose setup:** use [getting started](references/getting-started.md). Keep routine writes in the chosen project.
 - **Resume or report status:** read live user controls, project settings, current state, and relevant recent evidence. Check pauses, active jobs, and pending results before restarting anything.
-- **Construct or evaluate a research approach:** use [research methods](references/method.md). Arrange participants and independent inputs through [collaboration](references/collaboration.md).
-- **Hand off or record results:** use [purpose-specific prompts](references/prompts.md) and [recordkeeping](references/records.md).
+- **Construct or evaluate a research approach:** use [research methods](references/method.md). Arrange participants, model-specific cognitive routing, and independent inputs through [collaboration](references/collaboration.md) and [model profiles](references/model-profiles.md).
+- **Hand off or record results:** pair [epistemic stances](references/epistemic-stances.md) (`abductive_pioneer`, `deductive_auditor`, `zero_drift_executor`) with [purpose-specific prompts](references/prompts.md) and [recordkeeping](references/records.md). For ChatGPT Pro, use the zero-clutter `pro_macro` inquiry protocol instead of ledger-heavy templates.
 - **Retrieve growing history:** use [memory](references/memory.md). Independent analysis and review receive curated materials, not general state or the lead's inbox.
 - **Use an external channel or await a result:** follow [MCP collaboration](references/mcp-collaboration.md), which maintains session reuse, delivery waiting, timeout reconciliation, and continuation rules. Check [Codex integration](references/codex-runtime.md) when host capabilities matter.
 - **Observe collaboration:** use [observation](references/observer.md) only within the user's requested scope.
@@ -66,7 +66,7 @@ Use this loop when assigned research construction. Other roles follow their assi
 1. **Choose the judgment to change.** Connect an unresolved difficulty to the original goal, available information, and evidence that could decide the next step.
 2. **Construct and investigate.** Resolve what reasoning, original sources, or implementation checks can settle. When direction is unclear or blocked, form short independent proposals with different core relationships before comparison. Select a main author to deepen the supported direction; give other contributors complementary questions.
 3. **Test the argument.** Trace the mechanism or explanation to the claimed outcome. Examine decisive counterexamples, transfer conditions, closest predecessors, and necessary observations. Early candidates may have open conditions; do not replace exploration with a demand for a finished proof at every round.
-4. **Handle findings constructively.** Locate the smallest failing condition and repair the core relationship within the research object. If a route is ruled out, preserve the evidence and reconstruct the approach. Repeated patches without a coherent explanation are a reason to reconsider the representation or feedback relationship.
+4. **Handle findings constructively.** Locate the smallest failing condition and repair the core relationship within the research object. If a route is ruled out, preserve the evidence and reconstruct the approach. If surviving counterexamples requires more than two consecutive local patches or auxiliary regularizers without simplifying the core explanation, trigger a bottleneck escape: freeze local patching, distill the structural paradox, and re-architect the representation or feedback relationship from first principles (using `abductive_pioneer` / `pro_macro` when available).
 5. **Record what changed and continue.** Distinguish a handled finding, a resolved original difficulty, and an established contribution. Reuse unchanged review and validation coverage. The lead updates shared state serially and continues the next necessary authorized action.
 
 For original research, a diagnosis of limited novelty or a remaining error is an intermediate result; continue concrete construction within the active scope and resources until the deliverable's criteria are met, and preserve negative results and local corrections as evidence.

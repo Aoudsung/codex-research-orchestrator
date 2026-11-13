@@ -1,6 +1,6 @@
 # Researcher
 
-Read this page when leading research or contributing a delegated construction. Use the common task rules in `SKILL.md` and [research methods](../method.md).
+Read this page when leading research or contributing a delegated construction. Use the common task rules in `SKILL.md`, [research methods](../method.md), [epistemic stances](../epistemic-stances.md), and [model cognitive profiles](../model-profiles.md).
 
 ## Identity and authority
 
@@ -13,7 +13,8 @@ Ordinary resumption uses current project records. Independent construction start
 - When direction is unclear or blocked, organize short independent proposals that differ in information, representation, operations, or feedback relationships. Compare their mechanisms and evidence before choosing a main author to deepen one. Other contributors supply focused sources, counterexamples, or cost evidence rather than repeating the whole investigation.
 - Use a [brainstormer](brainstormer.md) when another construction perspective would help. It is optional and remains within the project's existing contact and resource authorization.
 - Combine the core difference from the closest work, the information actually available, the mechanism's effect on the target outcome, and full relevant cost in the decision. Do not reduce the lead to forwarding opinions or redo an external author's supported work in full.
-- Locate the minimum condition behind a counterexample and attempt a justified reconstruction. If the route is ruled out, retain the result and pursue a different route within the original object. If novelty is weak, investigate the problem's distinctive structure and a mechanism difference with nontrivial consequences.
+- Locate the minimum condition behind a counterexample and attempt a justified reconstruction. If the route is ruled out, retain the result and pursue a different route within the original object. If surviving counterexamples requires more than two consecutive local patches without simplifying the core relationship, freeze local patching, distill the underlying structural paradox, and trigger an `abductive_pioneer` reframing inquiry (using zero-clutter `pro_macro` for ChatGPT Pro and `gemini_panoramic` for cross-domain / prior-art checks when available). If novelty is weak, investigate the problem's distinctive structure and a mechanism difference with nontrivial consequences.
+- When assimilating a macro-inquiry reply from ChatGPT Pro (`pro_macro`), translate its cohesive conceptual mechanism into concrete variables/operators and run a strict `deductive_auditor` object-invariant check before promoting claims to implementation.
 - Treat feedback as accepted, rebutted, or unresolved with evidence. Adding a condition may close a finding while leaving the original difficulty open. Repeated patches require a reason to retain the underlying representation or learning relationship.
 
 ## Handoff and completion

@@ -45,7 +45,16 @@ Use explicit required records when a counterexample, disputed source, or accepta
 | `analysis` | Explicitly allowed primary sources and direct evidence, plus live controls | Withhold prior decompositions, candidate choices, and evaluations |
 | `review` | Analysis material plus the complete designated proposal | Withhold prior reviews and the answer the lead expects |
 
-Choose the profile by the assignment, not the provider or role name. Independent construction by a researcher or brainstormer uses `analysis`; independent proposal assessment uses `review`. Joint discussion uses selected authorized current materials and may use `resume` when its full admitted scope is appropriate. A fact observer reads only the allowed new source ranges; a general lead packet can contain interpretations that are outside its fact-only task. These roles add no context profiles or memory kinds.
+Choose the isolation `profile` (`resume`, `analysis`, `review`) by the assignment's independence boundary, and choose the optional `recipient_profile` (`default`, `pro_macro`, `focused_curated`, `gemini_panoramic`) by the [recipient model's cognitive profile](model-profiles.md):
+
+| `recipient_profile` | Intended recipient | Default `max_chars` & packing behavior |
+|---|---|---|
+| `pro_macro` | ChatGPT Pro (`pro_macro`) | `6,000` chars max; admits live controls and concise conceptual problem/question records only. Rejects fenced code blocks, unified diffs, and raw execution logs so technical clutter cannot suffocate macro reasoning. |
+| `focused_curated` | Codex (`gpt_contract`) / Claude (`claude_synthesis`) | `32,000` chars default; packs full target proposal, exact primary dependencies, and linked counterevidence within bounded focus. |
+| `gemini_panoramic` | Antigravity Gemini (`gemini_panoramic`) | `240,000` chars default (up to `400,000` via MCP/CLI); prioritizes complete primary `source` texts, full `proposal` bodies, and raw `evidence` snapshots in deterministic static-first prefix order for long-context recall and KV-cache reuse. |
+| `default` | Any participant with explicit `--max-chars` | Caller-supplied `max_chars` (`12,000` default in `database_context`) with standard whole-record packing. |
+
+Independent construction by a researcher or brainstormer uses `analysis`; independent proposal assessment uses `review`. Joint discussion uses selected authorized current materials and may use `resume` when its full admitted scope is appropriate. A fact observer reads only the allowed new source ranges; a general lead packet can contain interpretations that are outside its fact-only task. These roles add no new isolation profiles or memory kinds.
 
 For independent work, the lead first curates an allowlist. Filtering happens before retrieval and ranking. The packet uses neutral material labels; private source mappings and omission details stay in a separate lead manifest. The participant should receive the packet in a context without inherited evaluations, not the memory database, manifest, or unrestricted project history.
 
@@ -91,7 +100,7 @@ python3 /path/to/skill/scripts/research_memory.py --project research/topic init 
 python3 /path/to/skill/scripts/research_memory.py --project research/topic remember record.json
 python3 /path/to/skill/scripts/research_memory.py --project research/topic search "key research terms" --limit 5
 python3 /path/to/skill/scripts/research_memory.py --project research/topic read 1
-python3 /path/to/skill/scripts/research_memory.py --project research/topic context "key research terms" --profile analysis --allow 1 --require 1 --max-chars 12000 --output analysis-01.md
+python3 /path/to/skill/scripts/research_memory.py --project research/topic context "key research terms" --profile analysis --recipient-profile gemini_panoramic --allow 1 --require 1 --output analysis-01.md
 ```
 
 The record JSON contains `kind`, `title`, `summary`, `source`, and `scope`, with optional `claim_status`, `depends_on`, `supersedes`, and `reason`. Both JSON input and source paths are relative to the project. The project and its control/source files must already exist. Use returned IDs. Repeat `--allow` or give a quoted comma/space-separated list. For a review, use `--profile review` and a complete allowlisted `proposal` record as `--target`.

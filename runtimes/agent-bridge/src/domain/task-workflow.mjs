@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { resolveCognitiveProfile } from './model.mjs';
 
 const peers = new Set(['codex', 'antigravity', 'claude-code']);
 const outcomes = new Set(['progress', 'waiting_external', 'waiting_user', 'retryable_failure', 'delivered', 'cancelled', 'blocked']);
@@ -61,7 +62,7 @@ export function initialWorkflow(task, input = {}) {
 }
 function normalizeContract(task, input, version) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('contract must be an object');
-  const allowed = new Set(['objective','scope','sourceRefs','deliveryCriteria','successCriteria','acceptor','notificationPolicy','resourceLimits','allowedContinuation']);
+  const allowed = new Set(['objective','scope','sourceRefs','deliveryCriteria','successCriteria','acceptor','notificationPolicy','resourceLimits','allowedContinuation','cognitiveProfile']);
   for (const key of Object.keys(input)) if (!allowed.has(key)) fail(`Unknown contract field: ${key}`);
   const acceptor = agent(input.acceptor ?? task.from_agent);
   const notificationPolicy = input.notificationPolicy ?? ['decision_required','blocked','task_completed'];
@@ -69,7 +70,10 @@ function normalizeContract(task, input, version) {
   if (notificationPolicy.some(x => !['decision_required','blocked','task_completed'].includes(x))) fail('Unsupported user notification category');
   const actions = array(input.allowedContinuation ?? [], 'allowedContinuation');
   if (actions.some(x => typeof x !== 'string' || !x.trim())) fail('allowedContinuation must contain action names');
-  return { version, objective: required(input.objective ?? task.prompt, 'objective'), scope: structuredClone(input.scope ?? {}), sourceRefs: array(input.sourceRefs ?? [], 'sourceRefs'), deliveryCriteria: array(input.deliveryCriteria ?? [], 'deliveryCriteria'), successCriteria: array(input.successCriteria ?? [], 'successCriteria'), acceptor, notificationPolicy, resourceLimits: structuredClone(input.resourceLimits ?? {}), allowedContinuation: actions, permissions: structuredClone(task.permissions ?? {}) };
+  const cognitiveProfile = input.cognitiveProfile !== undefined
+    ? resolveCognitiveProfile({ ...task, cognitiveProfile: input.cognitiveProfile })
+    : resolveCognitiveProfile(task);
+  return { version, objective: required(input.objective ?? task.prompt, 'objective'), scope: structuredClone(input.scope ?? {}), sourceRefs: array(input.sourceRefs ?? [], 'sourceRefs'), deliveryCriteria: array(input.deliveryCriteria ?? [], 'deliveryCriteria'), successCriteria: array(input.successCriteria ?? [], 'successCriteria'), acceptor, notificationPolicy, resourceLimits: structuredClone(input.resourceLimits ?? {}), allowedContinuation: actions, permissions: structuredClone(task.permissions ?? {}), ...(cognitiveProfile ? { cognitiveProfile } : {}) };
 }
 export function updateTaskContract(engine, args) {
   return transact(engine, args, 'contract', args.eventId, (task, w) => {
@@ -79,7 +83,7 @@ export function updateTaskContract(engine, args) {
     const { version, permissions, ...old } = w.contract;
     w.contract = normalizeContract(task, { ...old, ...args.contract, sourceRefs: args.sourceRefs }, version + 1);
     // Preserve a pending action only when its semantics remain unchanged.
-    const semanticKeys = ['objective','scope','permissions','resourceLimits','allowedContinuation','deliveryCriteria'];
+    const semanticKeys = ['objective','scope','permissions','resourceLimits','allowedContinuation','deliveryCriteria','cognitiveProfile'];
     const changed = semanticKeys.some(k => canonical(k === 'permissions' ? permissions : old[k]) !== canonical(w.contract[k]));
     if (changed) { w.continuation = null; w.pendingHandoff = null; }
     else if (w.continuation) {

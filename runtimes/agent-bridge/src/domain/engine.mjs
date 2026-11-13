@@ -10,6 +10,7 @@ import {
   attentionStage,
   computePatchApplyOrder,
   isBlindIsolated,
+  resolveCognitiveProfile,
   sha256Hex,
   verifyModelMatch,
 } from "./model.mjs";
@@ -20,6 +21,7 @@ import {
 } from "./policy.mjs";
 import {
   defaultTaskThreadId,
+  validateProMacroPrompt,
   validateRoutingNote,
   validateThreadSubscription,
 } from "./intake.mjs";
@@ -444,6 +446,17 @@ export class BridgeEngine {
       const now = this._nowIso();
       const reqModel =
         requiredModel || metadata?.requiredModel || metadata?.model || null;
+      const cognitiveProfile = resolveCognitiveProfile({
+        assignedTo,
+        requiredModel: reqModel,
+        metadata,
+        contract,
+      });
+      validateProMacroPrompt(prompt, {
+        cognitiveProfile,
+        requiredModel: reqModel,
+        metadata,
+      });
       const reqConv =
         requiredConversationId ||
         metadata?.requiredConversationId ||
@@ -487,7 +500,10 @@ export class BridgeEngine {
         result: null,
         error: null,
         session_id: boundConv,
-        metadata: { ...(metadata || {}) },
+        metadata: {
+          ...(metadata || {}),
+          ...(cognitiveProfile ? { cognitiveProfile } : {}),
+        },
         created_at: now,
         updated_at: now,
         completed_at: null,

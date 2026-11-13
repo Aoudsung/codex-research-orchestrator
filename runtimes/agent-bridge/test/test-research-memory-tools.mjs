@@ -86,3 +86,20 @@ test('independent context excludes prior evaluations and fails instead of trunca
   assert.equal(context.text.includes('SECRET_PRIOR_REVIEW'), false);
   await assert.rejects(f.call('context', { profile: 'review', allow: [evidence.id, proposal.id], target: proposal.id, required: [evidence.id], max_chars: 10 }), /exceed/);
 });
+
+test('recipient_profile supports pro_macro clutter filtering and gemini_panoramic large budgets', async t => {
+  const f = fixture(t);
+  const macro = await f.call('record', { kind: 'question', title: 'Core Tension', summary: 'Macro tension', scope: 'Conceptual', body: 'tension between plasticity and credit stability' });
+  const code = await f.call('record', { kind: 'evidence', title: 'Impl Snippet', summary: 'Code', scope: 'Local', body: 'tension ```js\nconst x = 1;\n```' });
+  const paper = await f.call('record', { kind: 'source', title: 'Primary Paper', summary: 'Full text', scope: 'Global', body: 'Complete primary control theory paper.' });
+
+  const proCtx = await f.call('context', { query: 'tension', recipient_profile: 'pro_macro' });
+  assert.equal(proCtx.manifest.max_chars, 6000);
+  assert.deepEqual(proCtx.manifest.selected_ids, [macro.id]);
+  assert.ok(proCtx.manifest.filtered_clutter_ids.includes(code.id));
+  assert.equal(proCtx.text.includes('```js'), false);
+
+  const gemCtx = await f.call('context', { query: 'tension', recipient_profile: 'gemini_panoramic', max_chars: 250000 });
+  assert.equal(gemCtx.manifest.max_chars, 250000);
+  assert.ok(gemCtx.manifest.selected_ids.includes(paper.id));
+});

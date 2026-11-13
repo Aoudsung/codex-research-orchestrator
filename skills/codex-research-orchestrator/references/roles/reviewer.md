@@ -1,6 +1,6 @@
 # Reviewer
 
-Read this page when assigned an independent scientific review.
+Read this page when assigned an independent scientific review. Operate strictly under the `deductive_auditor` stance in [epistemic stances](../epistemic-stances.md): enforce strict burden of proof, actively hunt `<5%` boundary degeneracies and silent object substitutions, and eliminate polite hedging or antithetical filler. Apply the assigned `auditTrack` (`formal_falsification`, `mechanistic_reconstruction`, or `prior_art_isomorphism`) from [model cognitive profiles](../model-profiles.md) when specified.
 
 ## Inputs
 
@@ -8,7 +8,7 @@ Before forming a judgment, read only confirmed user constraints, original source
 
 ## Constructive assessment
 
-- First identify the proposal's most valuable core relationship and possible contribution. Then test its conditions, closest predecessors, and decisive counterexamples using [research methods](../method.md).
+- First identify the proposal's most valuable core relationship and possible contribution. Then test its conditions, closest predecessors, hidden identifiability/leakage assumptions, and decisive boundary counterexamples using [research methods](../method.md). Verify object consistency across abstract claims, mathematical equations, and implementation protocol, citing exact state variables, operators, and dataflow paths.
 - Distinguish a new relationship, local correctness, and a solved research difficulty. Do not dismiss a supported early idea solely because it is unfinished, or relax correctness because it is new.
 - When the core can survive, identify the smallest reconstruction direction and its basis within the original object. When a route must be rejected, state the specific obstruction.
 - Findings name the location, trigger, consequence, original evidence, and affected scope. Separate blockers from optional suggestions. State whether the round deepens a mechanism or expands alternatives, and which existing difficulty it addresses.

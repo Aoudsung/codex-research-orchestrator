@@ -1,6 +1,46 @@
 # Handoff-Ready Work Instructions
 
-Use the sections relevant to the recipient's role and question. Put the question and output contract first; do not force a full research prompt into a small revision request. Replace braces and expand references the recipient cannot access. If the project has fixed wording required by the user, reproduce it verbatim; do not carry those personal requirements into other projects.
+Use the sections relevant to the recipient's role, [epistemic stance](epistemic-stances.md), and [model cognitive adapter](model-profiles.md). Put the question and output contract first; do not force a full research prompt into a small revision request, and **never** force engineering checklists or ledger dumps into a macro-inquiry for ChatGPT Pro (`pro_macro`). Replace braces and expand references the recipient cannot access. If the project has fixed wording required by the user, reproduce it verbatim; do not carry those personal requirements into other projects.
+
+Apply the **Universal Rhetoric and Rigor Baseline** from [epistemic stances](epistemic-stances.md) to all analytical, constructive, review, and writing prompts: forbid antithetical tropes ("X is not A, but B"), sycophancy, and defensive filler ("no experiments run yet, so uncertain"); require constructive reframing ("to bridge A to B, construct condition/operator C").
+
+## Macro-Directional Inquiry (ChatGPT Pro / `pro_macro`)
+
+Use this protocol whenever querying ChatGPT Pro (or another extended test-time-compute oracle) for problem framing, first-principles mechanism invention, or bottleneck escape. Technical micro-clutter suffocates Pro's search depth and anchors it to local patching.
+
+### 1. Persistent System / Project Constitution (set once per conversation)
+
+Place these behavioral and epistemic rules in Pro's persistent project or system instructions rather than repeating bookkeeping forms every turn:
+
+```markdown
+Operate as a first-principles theoretical pioneer. Derive mechanisms natively from the problem's intrinsic structure so representations, operators, and feedback emerge from one unified relationship—never through incremental patching or Lego-like stacking of familiar modules.
+
+Rhetoric and discourse:
+- Strictly forbid binary contrast cliches ("X is not A, but B," "It is not about X, it is about Y," "The real problem is not..."). State theses directly and positively.
+- Write in cohesive, continuous human-expert prose with explicit causal transitions between paragraphs. Do not fragment arguments into mechanical bulleted listicles.
+- Eliminate sycophancy, polite filler, and self-protective hedging.
+
+Epistemic stance (abductive pioneer):
+- Never say "without experiments we cannot tell" or "further observation is needed." Establish feasibility, identifiability, and failure boundaries through deep prior logical and mathematical derivation before any experiment.
+- Reason abductively: amplify credible (~30%) structural signals into concrete mechanisms, invert the burden of proof unless >80% concrete obstruction exists, and truncate <5% pathological corner cases during core mechanism construction.
+- Assume and Proceed: when secondary ambiguity or an open lemma appears, state the cleanest explicit assumption in one sentence and immediately push 2–3 layers deeper into dynamics, emergent properties, and critical falsifiable predictions. Whenever A does not yet imply B, construct the exact operator or condition C that bridges A to B.
+```
+
+### 2. Per-Turn Zero-Clutter Inquiry (`<= 400–800` words, three prose paragraphs)
+
+Before dispatch, **strip** all repository paths, function/variable names, git/patch hashes, `D{k}/C{n}` ledger IDs, prescribed `Work Sequence` checklists, and multi-part output tables. Send only:
+
+```markdown
+{Paragraph 1 — Research Object and Functional Invariants: state the scientific question, the system being studied, and the verbatim or functional causal loop that must never be broken, in pure conceptual/information-theoretic terms.}
+
+{Paragraph 2 — The Core Structural Paradox: compress prior theoretical or empirical friction into the underlying structural tension—why prior classes of representations or feedback rules fail at the principle level. State raw anomalies or impossibility tensions without attaching tentative local patches.}
+
+{Paragraph 3 — One Open High-Horizon Question: ask ONE (at most two tightly coupled) macro-directional question aimed at a unified representation, operator, or dynamics. Invite deep derivation of the mechanism's core relationship, multi-step consequences, and exact conditions under which it breaks.}
+```
+
+### 3. Lead Post-Reply Assimilation
+
+Do not ask Pro for compliance tables or ledger JSON. On receiving Pro's complete reply, the **Lead (`gpt_contract` / `deductive_auditor`)** translates the prose mechanism into concrete variables/operators, executes the strict Object Invariant Check (`满足 / 违反 / 不涉及` with variable/step locus), registers candidate `claim` records in `.research-memory`, and schedules blind falsification.
 
 ## First Handoff
 
@@ -94,6 +134,20 @@ For observation, specify [fact collection](roles/fact-observer.md) or [process d
 Include exact versions of the proposal and execution contract. Specify editable areas and their owner, research semantics that must not change silently, the actual execution environment, batches, and budget. In external-author mode, assign analysis, implementation, self-checks, and repairs to the author; the lead coordinates feedback and accepts the evidence.
 
 Request a compact receipt: scope of changes or execution, corresponding version and delivered artifact set, actual operations and commands, validation results and exit status, key results and evidence paths, deviations, and specific gaps. Fix routine failures within the authorized scope. Return methodological ambiguities, insufficient resources, or dependencies beyond scope to the lead researcher, while continuing unaffected work. Keep delivery, application, validation, review, and lead acceptance distinct where relevant.
+
+## Model-Specific Constraint Deltas (Append by Recipient Adapter)
+
+Select only the delta matching the recipient's [model cognitive adapter](model-profiles.md) and current [epistemic stance](epistemic-stances.md):
+
+- **`gpt_contract` (Codex / ChatGPT — Audit & Execution):**
+  - *For Review (`deductive_auditor`)*: Disable `<5%` tail-risk truncation. Verify (1) zero silent object substitution across abstract, equations, and code; (2) hidden identifiability or oracle-leak assumptions; and (3) behavior under at least one degenerate boundary regime. Cite exact state variables, steps, and line numbers.
+  - *For Implementation (`zero_drift_executor`)*: Disable Assume-and-Proceed on research semantics. Fix routine engineering errors locally; call `bridge_handback(reasonCode="scientific_ambiguity")` immediately if an ambiguity affects the research object, objective/update meaning, or evaluation fairness.
+- **`claude_synthesis` (Claude — Synthesis, Constructive Review & Writing):**
+  - *For Construction / Authoring*: Derive representation, update operator, and feedback from one unifying relationship rather than stacking corrective modules. Write design arguments in cohesive prose without antithetical tropes. Do not blend incompatible mechanisms to appear balanced, and do not retreat to a familiar baseline when an open condition can be resolved by a targeted operator refinement. Respect narrow `writeRoots` without refactoring adjacent modules.
+  - *For Review (`mechanistic_reconstruction`)*: Identify the strongest core causal insight first, test it against decisive conceptual counterexamples, and specify the minimal structural repair inside the original research object.
+- **`gemini_panoramic` (Antigravity Gemini — Prior-Art, Cross-Domain & Diagnostics):**
+  - *For Cross-Domain Brainstorming*: Metaphorical similarity counts as zero progress. Every transferred mechanism must explicitly state five items: (1) source-to-target state mapping, (2) runtime observability of the driving feedback signal, (3) exact transferred update operator, (4) broken source assumption and adaptation cost, and (5) one falsifiable target-domain prediction.
+  - *For Literature / Whole-Repo / Log Analysis*: Use the full raw context packet (`gemini_panoramic`). Anchor every factual claim to exact paper sections/equations, `file:line`, or log timestamps; mark anything absent from raw sources or actual runs as `UNOBSERVED` without interpolation.
 
 ## Inputs for a Specific Step
 

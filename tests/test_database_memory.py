@@ -137,4 +137,31 @@ class DatabaseTests(unittest.TestCase):
         self.assertNotIn('Not shown:',pkt_a['text'][:prefix_len])
         self.assertTrue(pkt_a['text'].rstrip().endswith('admitted records.'))
 
+    def test_recipient_profiles_pro_macro_clutter_guard_and_gemini_panoramic(self):
+        conceptual=self.save(kind='question',title='Core Paradox',body='Why does feedback loop collapse under non-stationary horizon?')
+        code_clutter=self.save(kind='evidence',title='Code Dump',body=' collapse ```python\ndef step(x):\n    return x\n```')
+        ledger_clutter=self.save(kind='decision',title='Ledger Dump',body='collapse\n- D1: use Adam\n- C1: bound holds')
+        checkpoint=self.save(kind='checkpoint',title='Run Cursor',body='collapse cursor seq=42')
+        extra_paper=self.save(kind='source',title='Unmatched Primary Paper',body='Complete primary ergodic control paper without query keyword.')
+
+        pro_pkt=m.dispatch('context',self.root,{'query':'collapse','recipient_profile':'pro_macro'})
+        self.assertEqual(6000,pro_pkt['manifest']['max_chars'])
+        self.assertEqual([conceptual['id']],pro_pkt['manifest']['selected_ids'])
+        self.assertCountEqual([code_clutter['id'],ledger_clutter['id'],checkpoint['id']],pro_pkt['manifest']['filtered_clutter_ids'])
+        self.assertIn('Research context | resume | pro_macro',pro_pkt['text'])
+        self.assertNotIn('```python',pro_pkt['text'])
+
+        with self.assertRaises(m.MemoryError):
+            self.mem.database_context('collapse',recipient_profile='pro_macro',max_chars=9000)
+        with self.assertRaises(m.MemoryError):
+            self.mem.database_context('collapse',recipient_profile='pro_macro',required=[code_clutter['id']])
+
+        curated=m.dispatch('context',self.root,{'query':'collapse','recipient_profile':'focused_curated'})
+        self.assertEqual(32000,curated['manifest']['max_chars'])
+
+        panoramic=m.dispatch('context',self.root,{'query':'collapse','recipient_profile':'gemini_panoramic'})
+        self.assertEqual(240000,panoramic['manifest']['max_chars'])
+        self.assertIn(extra_paper['id'],panoramic['manifest']['selected_ids'])
+        self.assertIn('Complete primary ergodic control paper',panoramic['text'])
+
 if __name__=='__main__':unittest.main()

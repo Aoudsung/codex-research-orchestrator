@@ -3,10 +3,70 @@ import {
   REASONS,
   SUBSCRIPTION_MODES,
   isBlindIsolated,
+  resolveCognitiveProfile,
 } from "./model.mjs";
 
 export const MAX_ROUTING_NOTE_WORDS = 60;
 export const MAX_ROUTING_NOTE_CHARS = 180;
+export const MAX_PRO_MACRO_WORDS = 850;
+export const MAX_PRO_MACRO_CHARS = 6000;
+
+/**
+ * Zero-Clutter Macro-Inquiry Lint Guard for ChatGPT Pro (`pro_macro`):
+ * Rejects technical clutter (fenced code blocks, unified diffs, itemized ledger dumps,
+ * rigid deliverable status checklists, or oversized framing) when dispatching a `pro_macro` task.
+ */
+export function validateProMacroPrompt(
+  prompt,
+  { cognitiveProfile = null, requiredModel = null, metadata = {} } = {}
+) {
+  const resolved =
+    cognitiveProfile ||
+    resolveCognitiveProfile({ requiredModel, metadata }) ||
+    null;
+  if (resolved?.adapter !== "pro_macro" || metadata?.allowTechnicalPrompt === true) {
+    return { ok: true, enforced: false };
+  }
+
+  const text = String(prompt ?? "").trim();
+  const chars = text.length;
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const violations = [];
+
+  if (chars > MAX_PRO_MACRO_CHARS || words > MAX_PRO_MACRO_WORDS) {
+    violations.push(
+      `prompt exceeds macro-inquiry budget (${words} words / ${chars} chars; limit <= ${MAX_PRO_MACRO_WORDS} words and <= ${MAX_PRO_MACRO_CHARS} chars)`
+    );
+  }
+  if (text.includes("```")) {
+    violations.push("contains fenced code block ('```')");
+  }
+  if (/^(---\s+a\/|\+\+\+\s+b\/|@@\s+-\d+)/m.test(text)) {
+    violations.push("contains unified diff hunk");
+  }
+  const ledgerLines =
+    text.match(/^\s*[-*]?\s*(?:[DC]\d+|W\d{4})\s*[:：]/gm) || [];
+  if (ledgerLines.length >= 2) {
+    violations.push(
+      `contains itemized internal ledger dump (${ledgerLines.length} D/C/W entries)`
+    );
+  }
+  if (/complete,\s*partial,\s*or\s*blocked/i.test(text)) {
+    violations.push(
+      "contains rigid status-header output checklist ('complete, partial, or blocked')"
+    );
+  }
+
+  if (violations.length > 0) {
+    throw new BridgeUserError(
+      REASONS.PRO_MACRO_PROMPT_CLUTTER,
+      `pro_macro prompt guard rejected technical clutter that restricts deep macro-reasoning: ${violations.join("; ")}. Distill into <= 3 conceptual prose paragraphs (Object & Invariants, Core Structural Paradox, One Open High-Horizon Question).`,
+      { violations, words, chars }
+    );
+  }
+
+  return { ok: true, enforced: true, words, chars };
+}
 
 /**
  * Anti-Paraphrase Guard:

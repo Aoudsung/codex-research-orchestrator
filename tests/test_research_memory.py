@@ -418,6 +418,50 @@ class MemoryTests(unittest.TestCase):
                 self.assertEqual(terminal, result[0]["state"])
                 self.assertNotIn("Source text differs", result[0]["reason"])
 
+    def test_cli_recipient_profiles_pro_macro_and_gemini_panoramic(self):
+        clean_source = self.remember("alpha structural tension in representation dynamics", kind="source")
+        diff_clutter = self.remember("alpha\n--- a/model.py\n+++ b/model.py\n@@ -1 +1 @@\n-x\n+y\n", kind="evidence")
+        unmatched_primary = self.remember("Complete primary paper on control Lyapunov stability.", kind="source")
+
+        # Default recipient_profile without --max-chars fails cleanly
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rc = memory_module.main(["--project", str(self.project), "context", "alpha", "--output", "fail-default.txt"])
+        self.assertEqual(2, rc)
+
+        # pro_macro uses preset budget (6000) and filters out unified diff clutter
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = memory_module.main([
+                "--project", str(self.project), "context", "alpha",
+                "--profile", "analysis", "--recipient-profile", "pro_macro",
+                "--allow", f"{clean_source},{diff_clutter}",
+                "--output", "pro-packet.txt",
+            ])
+        self.assertEqual(0, rc)
+        pro_res = json.loads(out.getvalue())
+        self.assertEqual("pro_macro", pro_res["recipient_profile"])
+        self.assertEqual(6000, pro_res["max_chars"])
+        self.assertEqual(1, pro_res["selected_count"])
+        self.assertIn("structural tension", self.packet("pro-packet.txt"))
+        self.assertNotIn("--- a/model.py", self.packet("pro-packet.txt"))
+
+        # gemini_panoramic uses panoramic preset (240000) and packs unmatched primary sources automatically
+        out2 = io.StringIO()
+        with contextlib.redirect_stdout(out2):
+            rc2 = memory_module.main([
+                "--project", str(self.project), "context", "alpha",
+                "--profile", "analysis", "--recipient-profile", "gemini_panoramic",
+                "--allow", f"{clean_source},{unmatched_primary}",
+                "--output", "gemini-packet.txt",
+            ])
+        self.assertEqual(0, rc2)
+        gem_res = json.loads(out2.getvalue())
+        self.assertEqual("gemini_panoramic", gem_res["recipient_profile"])
+        self.assertEqual(240000, gem_res["max_chars"])
+        self.assertEqual(2, gem_res["selected_count"])
+        self.assertIn("control Lyapunov stability", self.packet("gemini-packet.txt"))
+
 
 if __name__ == "__main__":
     unittest.main()

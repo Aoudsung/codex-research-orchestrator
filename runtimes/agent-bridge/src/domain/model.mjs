@@ -617,3 +617,126 @@ export function computePatchApplyOrder(patches = []) {
   }
   return order;
 }
+
+const canonicalStringSet = (values) =>
+  [...new Set((Array.isArray(values) ? values : []).map(String))].sort();
+
+/**
+ * Derive default filesystem inspection/creation shell commands from readRoots and writeRoots.
+ * Single source of truth shared between preflight generation and task-reuse scope verification.
+ * @param {string[]} [readRoots]
+ * @param {string[]} [writeRoots]
+ * @returns {string[]}
+ */
+export function deriveRootRecommendedCommands(readRoots = [], writeRoots = []) {
+  const recommended = [];
+  for (const r of Array.isArray(readRoots) ? readRoots : []) {
+    recommended.push(`find ${r} -type f`);
+  }
+  for (const w of Array.isArray(writeRoots) ? writeRoots : []) {
+    recommended.push(`mkdir -p ${w}`);
+    recommended.push(`find ${w} -type f`);
+  }
+  return recommended;
+}
+
+/**
+ * Verify that incoming task-reuse `permissions` do not conflict with the original task's scope.
+ * Handles order/duplicate differences in array fields and preflight-derived root commands in `allowedCommands`.
+ * @param {Record<string, any>} [incomingPermissions]
+ * @param {Record<string, any>} [existingPermissions]
+ * @returns {string[]} Conflicting permission field keys (prefixed with `permissions.`)
+ */
+export function areTaskPermissionsCompatible(
+  incomingPermissions = {},
+  existingPermissions = {}
+) {
+  const conflicts = [];
+  const incoming = incomingPermissions || {};
+  const existing = existingPermissions || {};
+  const effectiveReadRoots = Array.isArray(incoming.readRoots)
+    ? incoming.readRoots
+    : Array.isArray(existing.readRoots)
+      ? existing.readRoots
+      : [];
+  const effectiveWriteRoots = Array.isArray(incoming.writeRoots)
+    ? incoming.writeRoots
+    : Array.isArray(existing.writeRoots)
+      ? existing.writeRoots
+      : [];
+
+  for (const key of Object.keys(incoming)) {
+    const value = incoming[key];
+    if (value === null || value === undefined || value === "") continue;
+    const original = existing[key];
+
+    if (key === "mcpTools") {
+      if (original === undefined) continue;
+      if (
+        !Array.isArray(value) ||
+        !Array.isArray(original) ||
+        JSON.stringify(canonicalStringSet(value)) !==
+          JSON.stringify(canonicalStringSet(original))
+      ) {
+        conflicts.push(`permissions.${key}`);
+      }
+      continue;
+    }
+
+    if (key === "allowedCommands") {
+      if (!Array.isArray(value)) {
+        conflicts.push(`permissions.${key}`);
+        continue;
+      }
+      const existingList = Array.isArray(original) ? original : [];
+      const incomingCanon = canonicalStringSet(value);
+      const existingCanon = canonicalStringSet(existingList);
+      if (JSON.stringify(incomingCanon) === JSON.stringify(existingCanon)) {
+        continue;
+      }
+      const derived = deriveRootRecommendedCommands(
+        effectiveReadRoots,
+        effectiveWriteRoots
+      );
+      const incomingWithDerived = canonicalStringSet([...value, ...derived]);
+      const existingWithDerived = canonicalStringSet([
+        ...existingList,
+        ...derived,
+      ]);
+      if (
+        JSON.stringify(incomingWithDerived) !== JSON.stringify(existingCanon) &&
+        JSON.stringify(incomingCanon) !== JSON.stringify(existingWithDerived)
+      ) {
+        conflicts.push(`permissions.${key}`);
+      }
+      continue;
+    }
+
+    if (
+      [
+        "readRoots",
+        "writeRoots",
+        "requestedTools",
+        "allowedTools",
+        "forbiddenOperations",
+      ].includes(key) ||
+      (Array.isArray(value) && Array.isArray(original))
+    ) {
+      const existingList = Array.isArray(original) ? original : [];
+      if (
+        !Array.isArray(value) ||
+        JSON.stringify(canonicalStringSet(value)) !==
+          JSON.stringify(canonicalStringSet(existingList))
+      ) {
+        conflicts.push(`permissions.${key}`);
+      }
+      continue;
+    }
+
+    if (JSON.stringify(value) !== JSON.stringify(original)) {
+      conflicts.push(`permissions.${key}`);
+    }
+  }
+
+  return conflicts;
+}

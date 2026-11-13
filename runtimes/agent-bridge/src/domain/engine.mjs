@@ -7,6 +7,7 @@ import {
   PHASE_LABELS,
   REASONS,
   ROUTER_MODES,
+  areTaskPermissionsCompatible,
   attentionStage,
   buildValidationEscalationGuidance,
   computePatchApplyOrder,
@@ -423,9 +424,11 @@ export class BridgeEngine {
               conflicts.push(name);
             }
           };
+          const normCwd = (v) =>
+            typeof v === "string" && v.length > 1 ? v.replace(/\/+$/, "") : v;
           check("fromAgent", fromAgent, existing.from_agent);
           check("assignedTo", assignedTo, existing.assigned_to);
-          check("cwd", cwd, existing.cwd);
+          check("cwd", normCwd(cwd), normCwd(existing.cwd));
           check(
             "requiredModel",
             requiredModel || metadata?.requiredModel || metadata?.model,
@@ -443,13 +446,9 @@ export class BridgeEngine {
             metadata?.deliveryMode,
             existing.metadata?.deliveryMode || "direct"
           );
-          for (const key of Object.keys(permissions || {})) {
-            check(
-              `permissions.${key}`,
-              permissions[key],
-              existing.permissions[key]
-            );
-          }
+          conflicts.push(
+            ...areTaskPermissionsCompatible(permissions, existing.permissions || {})
+          );
           if (conflicts.length) {
             throw new BridgeUserError(
               REASONS.TASK_SCOPE_CONFLICT,

@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { normalizeModelId, verifyModelMatch } from "../domain/model.mjs";
+import {
+  deriveRootRecommendedCommands,
+  normalizeModelId,
+  verifyModelMatch,
+} from "../domain/model.mjs";
 
 export { normalizeModelId, verifyModelMatch };
 
@@ -260,14 +264,7 @@ export function runTaskPreflight({
   );
 
   // Concrete shell commands derived from readRoots and writeRoots
-  const recommendedCommands = [];
-  for (const r of readRoots) {
-    recommendedCommands.push(`find ${r} -type f`);
-  }
-  for (const w of writeRoots) {
-    recommendedCommands.push(`mkdir -p ${w}`);
-    recommendedCommands.push(`find ${w} -type f`);
-  }
+  const recommendedCommands = deriveRootRecommendedCommands(readRoots, writeRoots);
   const explicitCommands = Array.isArray(permissions.allowedCommands)
     ? permissions.allowedCommands
     : [];
@@ -665,4 +662,34 @@ export function classifyExecutionError(stderrOrError = "", stdout = "") {
     retryable: true,
     message: stderrOrError || "Command execution failed",
   };
+}
+
+/**
+ * Extract explicit permission fields from a tool call reusing an existing task,
+ * preserving creation-time workflow default forbiddenOperations when present.
+ * @param {Record<string, any>} [args]
+ * @param {object | null | undefined} [existingTask]
+ */
+export function buildTaskReusePermissions(args = {}, existingTask = null) {
+  const workflowDefaults = Array.isArray(
+    existingTask?.metadata?.workflowDefaultForbiddenOperations
+  )
+    ? existingTask.metadata.workflowDefaultForbiddenOperations
+    : [];
+  const entries = [];
+  for (const key of [
+    "readRoots",
+    "writeRoots",
+    "requestedTools",
+    "allowedCommands",
+    "forbiddenOperations",
+  ]) {
+    if (!Object.hasOwn(args, key)) continue;
+    if (key === "forbiddenOperations" && Array.isArray(args[key])) {
+      entries.push([key, [...new Set([...workflowDefaults, ...args[key]])]]);
+    } else {
+      entries.push([key, args[key]]);
+    }
+  }
+  return Object.fromEntries(entries);
 }

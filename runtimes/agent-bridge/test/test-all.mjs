@@ -393,6 +393,62 @@ console.log(JSON.stringify({ event: 'result', result: { conversation_id: 'agy-ar
     assert.ok(parsedSettings.permissions.deny.includes('edit_file(*)'));
     assert.ok(parsedSettings.permissions.deny.includes('command(ssh)'));
     assert.ok(!parsedSettings.permissions.allow.some(rule => rule.includes('claude_code')));
+
+    // Regression: two-step bridge_create_task -> bridge_preflight_task -> antigravity_exec with readRoots + allowedCommands + forbiddenOperations
+    const twoStepTaskId = 'two-step-readonly-reuse';
+    const callerCommands = ['rg', 'cat', 'sed', 'git diff', 'git show', 'git status --short'];
+    const callerForbidden = ['ssh', 'local_tests', 'claude-code'];
+    const createdTwoStep = await codex.call('bridge_create_task', {
+      taskId: twoStepTaskId,
+      assignedTo: 'antigravity',
+      prompt: 'Inspect primary evidence in read_only mode',
+      cwd: tmp,
+      protocolVersion: 2,
+      deliveryMode: 'read_only',
+      readRoots: [tmp],
+      writeRoots: [],
+      allowedCommands: callerCommands,
+      forbiddenOperations: callerForbidden,
+      requiredModel: 'synthetic-model',
+    });
+    assert.equal(createdTwoStep.ok, true);
+    const preflightReuse = await codex.call('bridge_preflight_task', {
+      taskId: twoStepTaskId,
+      runtime: 'agy-cli',
+      deliveryMode: 'read_only',
+      cwd: tmp,
+      readRoots: [tmp],
+      writeRoots: [],
+      allowedCommands: callerCommands,
+      forbiddenOperations: callerForbidden,
+    });
+    assert.equal(preflightReuse.ok, true);
+    const execReuse = await argsClient.call('antigravity_exec', {
+      taskId: twoStepTaskId,
+      prompt: 'Execute two-step bound read_only task',
+      model: 'synthetic-model',
+      deliveryMode: 'read_only',
+      cwd: tmp,
+      readRoots: [tmp],
+      writeRoots: [],
+      allowedCommands: callerCommands,
+      forbiddenOperations: callerForbidden,
+    });
+    assert.equal(execReuse.ok, true);
+    assert.equal(execReuse.taskId, twoStepTaskId);
+    const escalatedReuse = await argsClient.call('antigravity_exec', {
+      taskId: twoStepTaskId,
+      prompt: 'Attempt unauthorized command escalation',
+      model: 'synthetic-model',
+      deliveryMode: 'read_only',
+      cwd: tmp,
+      readRoots: [tmp],
+      writeRoots: [],
+      allowedCommands: [...callerCommands, 'rm -rf'],
+      forbiddenOperations: callerForbidden,
+    }, true);
+    assert.equal(escalatedReuse.ok, false);
+    assert.equal(escalatedReuse.errorCode, 'TASK_SCOPE_CONFLICT');
   } finally {
     fs.rmSync(extraReadDir, { recursive: true, force: true });
   }

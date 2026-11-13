@@ -14,7 +14,10 @@ import {
   checkGitApply,
   checkPathWithinRoots,
 } from "./patch-validator.mjs";
-import { runTaskPreflight } from "./preflight.mjs";
+import {
+  buildTaskReusePermissions,
+  runTaskPreflight,
+} from "./preflight.mjs";
 import { registerResearchMemoryTools } from "./research-memory-tools.mjs";
 import { projectWorkflowDefaults } from "./project-workflow.mjs";
 
@@ -404,10 +407,13 @@ export function registerBridgeTools(
         permissions: mergedPermissions,
       });
 
-      if (existingTask) bridgeDb.createTask({ taskId: existingTask.id,
-        permissions: Object.fromEntries(["readRoots", "writeRoots", "requestedTools", "allowedCommands", "forbiddenOperations"]
-          .filter((key) => Object.hasOwn(args, key)).map((key) => [key, args[key]])),
-        metadata: { deliveryMode: preflight.deliveryMode } });
+      if (existingTask) {
+        bridgeDb.createTask({
+          taskId: existingTask.id,
+          permissions: buildTaskReusePermissions(args, existingTask),
+          metadata: { deliveryMode: preflight.deliveryMode },
+        });
+      }
 
       let lease = null;
       if (preflight.ok && args.taskId && existingTask) {
@@ -472,12 +478,27 @@ export function registerBridgeTools(
       const cwd = args.cwd || original?.cwd || process.cwd();
       const defaults = original ? { contract: {}, forbiddenOperations: [] } : projectWorkflowDefaults(cwd);
       const protocolVersion = args.protocolVersion ?? (original ? original.metadata?.protocolVersion || 1 : 2);
+      const workflowDefaults = Array.isArray(defaults.forbiddenOperations)
+        ? defaults.forbiddenOperations
+        : [];
+      const reuseForbiddenDefaults = Array.isArray(
+        original?.metadata?.workflowDefaultForbiddenOperations
+      )
+        ? original.metadata.workflowDefaultForbiddenOperations
+        : [];
       const permissions = {
         readRoots: args.readRoots || args.metadata?.readRoots || original?.permissions?.readRoots || [],
         writeRoots: args.writeRoots || args.metadata?.writeRoots || original?.permissions?.writeRoots || [],
         requestedTools: args.requestedTools || original?.permissions?.requestedTools || [],
         allowedCommands: args.allowedCommands || original?.permissions?.allowedCommands || [],
-        forbiddenOperations: [...new Set([...defaults.forbiddenOperations, ...(args.forbiddenOperations || original?.permissions?.forbiddenOperations || [])])],
+        forbiddenOperations: [
+          ...new Set([
+            ...workflowDefaults,
+            ...(args.forbiddenOperations
+              ? [...reuseForbiddenDefaults, ...args.forbiddenOperations]
+              : original?.permissions?.forbiddenOperations || []),
+          ]),
+        ],
       };
 
       const runtime =
@@ -514,6 +535,9 @@ export function registerBridgeTools(
         metadata: {
           ...args.metadata,
           deliveryMode: preflight.deliveryMode,
+          ...(workflowDefaults.length > 0
+            ? { workflowDefaultForbiddenOperations: workflowDefaults }
+            : {}),
           ...(args.isolationProfile
             ? { isolationProfile: args.isolationProfile }
             : {}),

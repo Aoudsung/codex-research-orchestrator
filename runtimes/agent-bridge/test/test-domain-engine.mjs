@@ -973,3 +973,89 @@ test("15. L0-L4 effort/risk cognitive profile preservation and recordValidation 
   assert.ok(patchFail2.jitGuidance);
   assert.equal(patchFail2.jitGuidance.recommendedEffort, "xhigh");
 });
+
+test("Task reuse permission compatibility handles derived root commands & rejects escalation", () => {
+  const { engine } = makeMemoryFixture();
+  const repoRoot = "/tmp/synthetic-research-repo";
+
+  engine.createTask({
+    taskId: "reuse-compat-task",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    cwd: repoRoot,
+    prompt: "Read-only evidence task",
+    requiredModel: "synthetic-model",
+    permissions: {
+      mcpTools: ["bridge_claim_task", "bridge_send_message"],
+      readRoots: [repoRoot],
+      writeRoots: [],
+      allowedCommands: ["rg", "cat", "sed", `find ${repoRoot} -type f`],
+      forbiddenOperations: ["ssh", "local_tests"],
+    },
+    metadata: { deliveryMode: "read_only" },
+  });
+
+  // Same explicit caller allowedCommands (without derived `find ... -type f`), reordered/trailing slash cwd
+  const reusedRaw = engine.createTask({
+    taskId: "reuse-compat-task",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    cwd: `${repoRoot}/`,
+    requiredModel: "synthetic-model",
+    permissions: {
+      readRoots: [repoRoot],
+      writeRoots: [],
+      allowedCommands: ["sed", "cat", "rg", "rg"],
+      forbiddenOperations: ["local_tests", "ssh"],
+    },
+    metadata: { deliveryMode: "read_only" },
+  });
+  assert.equal(reusedRaw.id, "reuse-compat-task");
+
+  // Escalating allowedCommands must still throw TASK_SCOPE_CONFLICT
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "reuse-compat-task",
+        fromAgent: "codex",
+        assignedTo: "antigravity",
+        permissions: {
+          readRoots: [repoRoot],
+          writeRoots: [],
+          allowedCommands: ["rg", "cat", "sed", "python3 train.py"],
+        },
+        metadata: { deliveryMode: "read_only" },
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.TASK_SCOPE_CONFLICT
+  );
+
+  // Dropping an explicit command or mutating readRoots/forbiddenOperations must still throw TASK_SCOPE_CONFLICT
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "reuse-compat-task",
+        permissions: {
+          readRoots: [repoRoot],
+          writeRoots: [],
+          allowedCommands: ["rg", "cat"],
+        },
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.TASK_SCOPE_CONFLICT
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "reuse-compat-task",
+        permissions: { readRoots: ["/tmp/other-repo"], writeRoots: [] },
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.TASK_SCOPE_CONFLICT
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "reuse-compat-task",
+        permissions: { forbiddenOperations: ["ssh"] },
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.TASK_SCOPE_CONFLICT
+  );
+});

@@ -11,6 +11,7 @@ import {
   runTaskPreflight,
   classifyExecutionError,
   buildAgyCliArgs,
+  buildTaskReusePermissions,
 } from "../core/preflight.mjs";
 
 const server = new McpStdioServer({
@@ -338,10 +339,18 @@ server.registerTool(
         retryable: false,
       };
     }
-    if (taskRecord) bridgeDb.createTask({ taskId: taskRecord.id, fromAgent: caller, assignedTo: "antigravity", cwd: args.cwd, requiredModel, requiredConversationId: args.conversationId,
-      metadata: { deliveryMode: preflight.deliveryMode }, permissions: Object.fromEntries(
-        ["readRoots", "writeRoots", "requestedTools", "allowedCommands", "forbiddenOperations"]
-          .filter((key) => Object.hasOwn(args, key)).map((key) => [key, args[key]])) });
+    if (taskRecord) {
+      bridgeDb.createTask({
+        taskId: taskRecord.id,
+        fromAgent: caller,
+        assignedTo: "antigravity",
+        cwd: args.cwd,
+        requiredModel,
+        requiredConversationId: args.conversationId,
+        metadata: { deliveryMode: preflight.deliveryMode },
+        permissions: buildTaskReusePermissions(args, taskRecord),
+      });
+    }
 
     if (!taskRecord) {
       taskRecord = bridgeDb.createTask({

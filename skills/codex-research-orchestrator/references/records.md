@@ -7,7 +7,7 @@ Read this file when creating records or submitting work with substantive results
 - `charter.md` holds the question, authoritative verbatim user constraints, and their confirmation status.
 - `project.md` holds participants, tools, execution environments, authorizations, and resource bindings.
 - Keep the overall task type, current assignment's completion boundary, assigned main author, and optional observation roles in those existing records. Add detail only when it changes the work; no new ledger is needed.
-- `state.md` holds current judgments, revisable decisions, candidate claims, unresolved issues, and next actions.
+- `state.md` holds current judgments, revisable decisions, candidate claims (including controlled two-branch hypothesis forks when a deep trade-off awaits real-scale resolution), compact one-line tombstones for ruled-out routes, unresolved issues, and next actions.
 - `rounds/RNN/` holds actual prompts, attachment lists, complete replies, and the round's assessment.
 - `implementation/` or the existing execution directory holds implementations, experimental protocols, run results, and acceptance evidence.
 - `worklog.jsonl` optionally indexes work that has produced results; it does not replace original materials.

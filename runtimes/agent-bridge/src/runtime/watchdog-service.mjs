@@ -11,6 +11,7 @@ import {
   detectNeedsReviewEvidenceUsage,
   detectRepeatedValidationSpin,
   detectStaleHandbacks,
+  detectZeroDeltaDiscussionSpin,
   findOrphanedInFlightRoutes,
   findUnconsumedDeliveredMessages,
   shouldScheduleExternalChannelCheck,
@@ -375,10 +376,21 @@ export class WatchdogService {
         flaggedRecordIds,
         { nowIso }
       );
+      const recentMessages = repos.queryMessages({
+        toAgent: "*",
+        unreadOnly: false,
+        limit: 500,
+      });
+      const zeroDeltaAlerts = detectZeroDeltaDiscussionSpin(
+        tasks,
+        recentMessages,
+        { nowIso }
+      );
       const l2Alerts = [
         ...spinAlerts,
         ...staleHbAlerts,
         ...staleEvidenceAlerts,
+        ...zeroDeltaAlerts,
       ];
 
       for (const alert of l2Alerts) {

@@ -7,7 +7,53 @@ import {
   sha256Hex,
 } from "./model.mjs";
 
+export const CORE_DEFAULT_PEERS = Object.freeze(["antigravity", "codex"]);
+export const OPT_IN_PEERS = Object.freeze(["claude-code"]);
 const DEFAULT_PEERS = ["antigravity", "codex", "claude-code"];
+
+/**
+ * Resolve active peers when `controls.md` declares a participant policy or when
+ * strict Claude opt-in mode (`optInClaudeOnly`) is enabled.
+ * Claude (`claude-code`) is included ONLY when explicitly declared in `controlsText`.
+ *
+ * @param {string} controlsText
+ * @param {{ optInClaudeOnly?: boolean }} [options]
+ * @returns {string[] | null} Explicit allowed peer list, or `null` when unspecified and `optInClaudeOnly` is false.
+ */
+export function resolveDeclaredPeersFromControls(
+  controlsText = "",
+  { optInClaudeOnly = false } = {}
+) {
+  const text = String(controlsText ?? "");
+  const hasExplicitParticipantDirective =
+    /(?:^|\n)\s*(?:[-*]\s*)?(?:allowed[_\s-]*peers|active[_\s-]*peers|participants|启用协作者|允许协作者|可用智能体)\s*[:：]/i.test(
+      text
+    );
+  const claudeExplicitlyDisabled =
+    /(?:disable|forbid|exclude|no)\s+claude(?:-code)?|(?:禁用|不启用|不使用|排除)\s*claude/i.test(
+      text
+    );
+  const claudeExplicitlyEnabled =
+    !claudeExplicitlyDisabled &&
+    /(?:\bclaude-code\b|(?:enable|allow|include|with)\s+claude\b|(?:启用|允许|纳入|使用)\s*claude\b)/i.test(
+      text
+    );
+
+  if (!optInClaudeOnly && !hasExplicitParticipantDirective && !claudeExplicitlyDisabled) {
+    return null;
+  }
+
+  const peers = new Set(CORE_DEFAULT_PEERS);
+  if (hasExplicitParticipantDirective) {
+    if (/(?:disable|exclude|no)\s+antigravity|(?:禁用|排除)\s*antigravity/i.test(text)) {
+      peers.delete("antigravity");
+    }
+  }
+  if (claudeExplicitlyEnabled) {
+    peers.add("claude-code");
+  }
+  return [...peers].sort();
+}
 
 export function normalizePolicyInput({
   controlsText = "",

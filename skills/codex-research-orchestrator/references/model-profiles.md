@@ -2,11 +2,23 @@
 
 Roles define **what responsibility** an assignment carries; model cognitive adapters define **how instructions, context packets, and constraints are shaped** so each model family operates at peak reasoning capability rather than fighting its post-training priors.
 
-Codex can execute every role alone when external providers are not connected. When ChatGPT Pro, Codex / ChatGPT, Claude Code, and Antigravity (Gemini) are available, compile assignments along three orthogonal axes:
+Codex can execute every role alone when external providers are not connected. **Claude (`claude-code`) is strictly opt-in**: never assume, suggest, or route tasks to Claude unless the user explicitly declares Claude available in the current prompt, `controls.md`, or `project.md`. By default, multi-agent collaboration forms a complete, zero-gap system using **`Codex` + `Antigravity (Gemini)` (+ `ChatGPT Pro` when authorized)**.
+
+Compile assignments along three orthogonal axes:
 
 $$\text{Assignment} = \text{Role Responsibility} \times \text{Epistemic Stance} \times \text{Model Adapter}$$
 
 See [epistemic stances](epistemic-stances.md) for stance rules and [purpose-specific prompts](prompts.md) for prompt assembly.
+
+## Adaptive Participant Topology (Default Without Claude vs. Opt-In Claude)
+
+| Scientific responsibility | Default complete topology (`Codex` + `Antigravity` [+ `ChatGPT Pro`]) | Optional overlay (ONLY when user explicitly declares `Claude` available) |
+|---|---|---|
+| **First-principles framing & bottleneck escape** | **ChatGPT Pro** (`pro_macro`), or isolated **Codex** (`abductive_pioneer`) if Pro is unavailable | Unchanged (**ChatGPT Pro** retains macro-paradigm framing) |
+| **Latest SOTA ceiling mapping, operator collision & cross-domain scan** | **Antigravity Gemini** (`gemini_panoramic`: full-text latest primary papers + cross-field search) | Unchanged (**Antigravity Gemini** retains panoramic recall & multimodal diagnostics) |
+| **Main-author mechanism derivation & cohesive writing** | **Codex** (derives unified operator, runs coupling/deletion checks, authors trope-free prose) | **Claude** (`claude_synthesis`) may take `Main Author` mechanism deepening and narrative drafting |
+| **Tier-0/Tier-1 diagnostics & zero-drift execution** | **Codex** (core math-to-code & diagnostic probes) + **Antigravity** (benchmark pipelines & full-log diagnostics) | **Claude** may own clean-sheet modular sub-packages within narrow `writeRoots` |
+| **Dual-track independent blind review (`blind_review`)** | **Isolated Codex** (`formal_falsification` + `subtractive_razor`) $\parallel$ **Isolated Antigravity** (`prior_art_isomorphism` + `sota_breakthrough`) | Add or substitute **Isolated Claude** (`mechanistic_reconstruction`: minimal structural repair) |
 
 ## Capability, Failure-Mode, and Routing Matrix
 
@@ -14,7 +26,7 @@ See [epistemic stances](epistemic-stances.md) for stance rules and [purpose-spec
 |---|---|---|---|---|
 | **ChatGPT Pro**<br>`pro_macro` | Deepest internal test-time search tree; holds abstract mathematical/functional invariants simultaneously; discovers first-principles unifications | **Micro-constraint suffocation:** code paths, symbol names, `D{k}/C{n}` ledgers, and rigid output tables consume search depth and anchor Pro to local patching | Macro Problem Framing, First-Principles Mechanism Genesis, Bottleneck Escape (`>=2` patches), Fundamental Ceiling Analysis | `pro_macro`<br>(`<=6,000` chars; zero code, diffs, or ledger dumps) |
 | **ChatGPT / Codex**<br>`gpt_contract` | Exact multi-constraint satisfaction; formal proof and boundary auditing; surgical edits; deterministic tool/state discipline | **Checklist module-stacking:** open-ended ideation under heavy checklists favors safe modular combinations over native conceptual leaps | `Research Lead` State Arbiter, Formal Blind `Reviewer` (`formal_falsification`), Precision `Implementer` & Verification Harness | `focused_curated`<br>(`16,000–48,000` chars; exact contracts & line pointers) |
-| **Claude (Opus / Sonnet)**<br>`claude_synthesis` | Strongest concept-to-architecture isomorphism; turns macro sketches into cohesive end-to-end algorithms; constructive critique; fluid academic prose | **Polite compromise & scope creep:** default tendency to hedge, blend incompatible mechanisms, or over-refactor adjacent modules if `writeRoots` are loose | `Main Author` Mechanism Deepener, Constructive Blind `Reviewer` (`mechanistic_reconstruction`), Greenfield Module Architect, Scientific Prose Author | `focused_curated`<br>(`24,000–64,000` chars; full proposal + primary sources) |
+| **Claude (Opus / Sonnet)** *(Opt-in only)*<br>`claude_synthesis` | Strongest concept-to-architecture isomorphism; turns macro sketches into cohesive end-to-end algorithms; constructive critique; fluid academic prose | **Polite compromise & scope creep:** default tendency to hedge, blend incompatible mechanisms, or over-refactor adjacent modules if `writeRoots` are loose | *(Active only when user-declared)*: `Main Author` Mechanism Deepener, Constructive Blind `Reviewer` (`mechanistic_reconstruction`), Scientific Prose Author | `focused_curated`<br>(`24,000–64,000` chars; full proposal + primary sources) |
 | **Antigravity (Gemini)**<br>`gemini_panoramic` | Native `1M+` long-context global recall across dozens of full papers, repos, or logs; widest cross-disciplinary breadth; multimodal plot/trace diagnostics | **Premature convergence & surface metaphor:** cross-field analogies risk staying metaphorical without exact operator bijection; proof hand-waving; silent config tweaks | Panoramic Closest-Predecessor Scout, Cross-Domain Isomorphism `Brainstormer`, Whole-Repo / Multi-Log Empirical Diagnostician, `Fact Observer`, Rapid Pipeline Builder | `gemini_panoramic`<br>(`150,000–400,000+` chars; raw full texts, static-first) |
 
 ## Adapter 1: `pro_macro` (ChatGPT Pro — Extended Deep-Reasoning Oracle)
@@ -75,10 +87,11 @@ Never ask Pro to maintain `state.md` or format ledger updates. After collecting 
 
 ## Multi-Model Research Lifecycle Routing
 
-When all participants are available, prefer this division of labor:
+By default (without Claude), coordinate the research lifecycle across **Codex**, **Antigravity (Gemini)**, and authorized **ChatGPT Pro** (attaching **Claude** only when explicitly declared by the user):
 
-1. **Divergent Genesis (`blind_analysis`):** Dispatch isolated problem framing in parallel—**ChatGPT Pro** (`pro_macro` first-principles inquiry), **Antigravity Gemini** (`gemini_panoramic` 20-paper closest-predecessor & cross-field isomorphism scan), and **Claude** (`claude_synthesis` concrete mechanism sketch). Compare only after independent outputs are saved.
-2. **Focused Mechanism Construction:** Select **Claude** (or **Codex** for formal/systems-heavy designs) as `Main Author` to deepen the chosen unified mechanism; invoke **ChatGPT Pro** only when a fundamental theoretical knot appears.
-3. **Dual-Track Blind Review (`blind_review`):** Run **Codex** (`formal_falsification`: invariants, leaks, boundary counterexamples) in parallel with **Claude** (`mechanistic_reconstruction`: core causal strength & minimal structural repair), plus **Gemini** (`prior_art_isomorphism` when literature overlap is uncertain).
-4. **Implementation & Panoramic Diagnostics:** Use **Codex / Claude Code** for zero-drift core implementation and verification tests; use **Antigravity Gemini** for benchmark harness wiring and whole-log / multimodal failure trajectory diagnosis.
-5. **Bottleneck Escape (`>=2` consecutive local patches):** Have **Gemini** distill the invariant failure signature across all raw run logs, then send a clean 3-paragraph paradox inquiry to **ChatGPT Pro** (`pro_macro`) to re-architect the core representation.
+1. **Frontier Ceiling & Real-Baseline Bottleneck Check:** **Antigravity** (`gemini_panoramic`) ingests full texts of the strongest recent primary papers to identify their shared unspoken assumption, while **Codex / Antigravity** runs a Tier-1 read-only diagnostic on real baseline data/logs to verify the bottleneck exists in actual dataflow.
+2. **Divergent Genesis (`blind_analysis`):** Dispatch isolated problem framing in parallel—**ChatGPT Pro** (`pro_macro` first-principles inquiry), **Antigravity Gemini** (`gemini_panoramic` cross-field isomorphism scan), and **Codex** (or opt-in **Claude** `claude_synthesis`) concrete mechanism sketch. Compare only after independent outputs are saved.
+3. **Focused Mechanism Construction & Operator Collision Check:** **Codex** (or opt-in **Claude**) acts as `Main Author` to derive the unified mechanism; **Antigravity** immediately runs a de-jargonized Stage-2 operator collision search against recent primary literature to verify genuine SOTA breakthrough.
+4. **Dual-Track Blind Review (`blind_review`):** Run **Isolated Codex** (`formal_falsification`: invariants, leaks, boundary counterexamples, and coupling/deletion razor) in parallel with **Isolated Antigravity** (`prior_art_isomorphism` & SOTA assumption-relaxation check)—plus opt-in **Isolated Claude** (`mechanistic_reconstruction`) when declared.
+5. **Implementation & Panoramic Diagnostics:** Use **Codex** (and opt-in **Claude Code** if declared) for zero-drift core implementation and verification tests; use **Antigravity Gemini** for benchmark harness wiring and whole-log / multimodal failure trajectory diagnosis.
+6. **Bottleneck Escape (`>=2` consecutive local patches):** Have **Antigravity** distill the invariant failure signature across raw run logs, then send a clean 3-paragraph paradox inquiry to **ChatGPT Pro** (`pro_macro`) to re-architect the core representation.

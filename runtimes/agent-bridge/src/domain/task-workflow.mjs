@@ -58,7 +58,7 @@ function ownerMessage(engine, task, w, subject, content, metadata = {}) {
 }
 export function initialWorkflow(task, input = {}) {
   const contract = normalizeContract(task, input, 1);
-  return { contract, owner: { agent: task.assigned_to, epoch: 1, conversationId: task.bound_conversation_id ?? task.session_id }, status: 'ready', summary: '', artifacts: [], completedSteps: [], remainingWork: [], continuation: null, incidents: {}, decisions: {}, pendingHandoff: null, lastReceiptId: null };
+  return { contract, owner: { agent: task.assigned_to, epoch: 1, conversationId: task.bound_conversation_id ?? task.session_id }, status: 'ready', summary: '', artifacts: [], completedSteps: [], remainingWork: [], hypothesisForks: [], continuation: null, incidents: {}, decisions: {}, pendingHandoff: null, lastReceiptId: null };
 }
 function normalizeContract(task, input, version) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('contract must be an object');
@@ -151,6 +151,16 @@ export function submitTaskReceipt(engine, args) {
     if (args.artifacts !== undefined) w.artifacts = array(args.artifacts, 'artifacts');
     if (args.completedSteps !== undefined) w.completedSteps = array(args.completedSteps, 'completedSteps');
     if (args.remainingWork !== undefined) w.remainingWork = array(args.remainingWork, 'remainingWork');
+    if (args.hypothesisForks !== undefined) {
+      const forks = array(args.hypothesisForks, 'hypothesisForks');
+      for (const f of forks) {
+        if (!f || typeof f !== 'object') fail('Each hypothesisFork must be an object');
+        required(f.branchId, 'hypothesisFork.branchId');
+        required(f.hypothesis, 'hypothesisFork.hypothesis');
+        required(f.discriminativeCheck, 'hypothesisFork.discriminativeCheck');
+      }
+      w.hypothesisForks = forks;
+    }
     w.lastReceiptId = args.receiptId;
     if (args.incident) {
       const i = args.incident; required(i.key, 'incident.key');

@@ -15,9 +15,11 @@ import {
   verifyModelMatch,
 } from "./model.mjs";
 import {
+  CORE_DEFAULT_PEERS,
   buildPolicySnapshot,
   createMandate,
   diffPolicyEffects,
+  resolveDeclaredPeersFromControls,
 } from "./policy.mjs";
 import {
   defaultTaskThreadId,
@@ -107,12 +109,17 @@ export class BridgeEngine {
 
   getCurrentPolicy(overrides = {}) {
     const ctrl = this.repos.getControl();
+    const storedPeers = Array.isArray(ctrl.allowed_peers)
+      ? ctrl.allowed_peers
+      : typeof ctrl.allowed_peers === "string" && ctrl.allowed_peers.trim()
+        ? JSON.parse(ctrl.allowed_peers)
+        : null;
     return {
       routerMode: overrides.routerMode || ctrl.router_mode || "observe",
       acceptMode: overrides.acceptMode || overrides.routerMode || ctrl.router_mode || "observe",
       controlVersion: overrides.controlVersion || ctrl.control_version || "",
       controlsHash: overrides.controlsHash || ctrl.controls_hash || "",
-      allowedPeers: overrides.allowedPeers || [
+      allowedPeers: overrides.allowedPeers || storedPeers || [
         "antigravity",
         "codex",
         "claude-code",
@@ -206,32 +213,42 @@ export class BridgeEngine {
     controlsText = null,
     routerMode = null,
     allowedPeers = null,
+    optInClaudeOnly = false,
     reason = null,
   } = {}) {
     return this.repos.atomic(() => {
       const ctrl = this.repos.getControl();
       const prevMode = ctrl.router_mode || "observe";
       const nextMode = routerMode || prevMode;
+      const prevPeers = this.getCurrentPolicy().allowedPeers;
 
       const prevSnap = {
         routerMode: prevMode,
         acceptMode: prevMode,
         controlVersion: ctrl.control_version || "",
         controlsHash: ctrl.controls_hash || "",
-        allowedPeers: ["antigravity", "codex", "claude-code"],
+        allowedPeers: prevPeers,
       };
+
+      const declaredFromControls =
+        controlsText !== null && controlsText !== undefined
+          ? resolveDeclaredPeersFromControls(controlsText, { optInClaudeOnly })
+          : optInClaudeOnly
+            ? [...CORE_DEFAULT_PEERS]
+            : null;
+      const resolvedPeers = allowedPeers || declaredFromControls || prevSnap.allowedPeers;
 
       let nextSnap;
       if (controlsText !== null && controlsText !== undefined) {
         nextSnap = buildPolicySnapshot({
           controlsText,
           routerMode: nextMode,
-          allowedPeers: allowedPeers || prevSnap.allowedPeers,
+          allowedPeers: resolvedPeers,
         });
       } else {
         // Recompute version preserving existing controlsHash when controlsText was not re-read
-        const effectivePeers = Array.isArray(allowedPeers)
-          ? [...new Set(allowedPeers)].sort()
+        const effectivePeers = Array.isArray(resolvedPeers)
+          ? [...new Set(resolvedPeers)].sort()
           : prevSnap.allowedPeers;
         const controlsHash =
           ctrl.controls_hash || sha256Hex("").slice(0, 16);
@@ -268,6 +285,7 @@ export class BridgeEngine {
         router_mode: nextMode,
         control_version: nextSnap.controlVersion,
         controls_hash: nextSnap.controlsHash,
+        allowed_peers: nextSnap.allowedPeers,
         ...(reason !== null ? { reason, changed_at: nowIso } : {}),
       });
 
@@ -444,6 +462,19 @@ export class BridgeEngine {
 
       const id = taskId || crypto.randomUUID();
       const now = this._nowIso();
+      const activePolicy = this.getCurrentPolicy();
+      if (
+        assignedTo &&
+        Array.isArray(activePolicy.allowedPeers) &&
+        activePolicy.allowedPeers.length > 0 &&
+        !activePolicy.allowedPeers.includes(assignedTo)
+      ) {
+        throw new BridgeUserError(
+          REASONS.PEER_DISALLOWED,
+          `Cannot dispatch task to '${assignedTo}': participant is not enabled in current allowedPeers [${activePolicy.allowedPeers.join(", ")}]. Declare optional participants (such as 'claude-code') explicitly before including them.`,
+          { assignedTo, allowedPeers: activePolicy.allowedPeers }
+        );
+      }
       const reqModel =
         requiredModel || metadata?.requiredModel || metadata?.model || null;
       const cognitiveProfile = resolveCognitiveProfile({

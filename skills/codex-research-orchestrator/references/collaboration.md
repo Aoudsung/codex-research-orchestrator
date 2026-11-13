@@ -20,11 +20,11 @@ When direction is unclear or blocked, ask the research contributors for short in
 
 An optional [brainstormer](roles/brainstormer.md) can develop alternatives within existing contact authorization. Label shared construction explicitly rather than presenting it as independent assessment.
 
-Roles and group structure are configurable. Codex, ChatGPT Pro, Claude Code, Antigravity (Gemini), or other available participants may act as macro-architects, authors, scouts, or reviewers according to their [model cognitive profiles](model-profiles.md) and the user's choices. Pair each assignment with its phase-appropriate [epistemic stance](epistemic-stances.md) (`abductive_pioneer`, `deductive_auditor`, or `zero_drift_executor`), and assign complementary questions in parallel when each can make a distinct contribution:
+Roles and group structure are configurable. **Default multi-agent collaboration uses Codex, Antigravity (Gemini), and authorized ChatGPT Pro—never assume or schedule Claude (`claude-code`) unless the user explicitly declares Claude available in the current request, `controls.md`, or `project.md`.** Pair each active participant with its [model cognitive profile](model-profiles.md) and phase-appropriate [epistemic stance](epistemic-stances.md) (`abductive_pioneer`, `deductive_auditor`, or `zero_drift_executor`), and assign complementary questions in parallel when each can make a distinct contribution:
 
-- **Asymmetric Macro-Abduction (`pro_macro`):** When using ChatGPT Pro for problem framing, unified mechanism invention, or bottleneck escape (`>=2` consecutive local patches without simplifying the core relationship), send a zero-clutter macro inquiry without local file paths, patch diffs, or `D{k}/C{n}` ledgers. After Pro replies in cohesive prose, the lead (`gpt_contract` / `deductive_auditor`) formalizes variables, executes the strict object-invariant check, and schedules blind verification.
-- **Panoramic Breadth vs. Cohesive Depth (`gemini_panoramic` + `claude_synthesis`):** Use Antigravity Gemini with full-source context packets (`gemini_panoramic`) for multi-paper closest-predecessor checks, cross-domain structural isomorphisms, and whole-log empirical diagnostics; use Claude (or Codex for formal/systems tracks) as `Main Author` to deepen a supported macro direction into a cohesive end-to-end mechanism and clean implementation.
-- **Dual-Track Independent Review (`blind_review`):** When multiple reviewers are available, pair complementary audit tracks under strict blind isolation—`formal_falsification` (Codex/GPT: object-drift check, assumption leaks, degenerate boundary counterexamples) alongside `mechanistic_reconstruction` (Claude: core causal critique and minimal structural repair within the original object), plus `prior_art_isomorphism` (Gemini: full-text overlap check against closest primary predecessors).
+- **Asymmetric Macro-Abduction (`pro_macro`):** When using ChatGPT Pro for problem framing, unified mechanism invention, or bottleneck escape (`>=2` consecutive local patches without simplifying the core relationship), feed it the distilled structural tension (grounded in latest SOTA blind spots and Tier-1 real-baseline anomalies) without local file paths, patch diffs, or `D{k}/C{n}` ledgers. After Pro replies in cohesive prose, the lead (`gpt_contract` / `deductive_auditor`) formalizes variables, executes the strict object-invariant check, and schedules blind verification.
+- **Panoramic Breadth + Cohesive Depth (Default `Codex + Antigravity`, Opt-In `Claude`):** Use Antigravity Gemini (`gemini_panoramic`) for latest primary-paper SOTA ceiling checks, Stage-2 de-jargonized operator collision searches, cross-domain structural isomorphisms, and whole-log empirical diagnostics. By default, Codex acts as `Main Author` to derive the unified mechanism and write cohesive prose; when the user explicitly declares Claude available, Claude (`claude_synthesis`) may take over `Main Author` deepening and narrative drafting.
+- **Dual-Track Independent Review (`blind_review`):** Under strict blind isolation, run **Isolated Codex** (`formal_falsification`: object-drift check, assumption leaks, degenerate boundary counterexamples, and coupling/deletion razor) alongside **Isolated Antigravity** (`prior_art_isomorphism` & SOTA breakthrough verification). When Claude is explicitly declared available, attach **Isolated Claude** (`mechanistic_reconstruction`: core causal critique and minimal structural repair).
 
 A discussion group may divide its question or develop a separate candidate when the project's delegation policy permits it.
 
@@ -50,7 +50,26 @@ There are three material-sharing contexts:
 
 Isolation covers messages, attachments, inherited context, and readable project materials. Where possible, use agents without inherited history or a new isolated context with restricted input materials. If isolation is unavailable, label the work a joint check or self-check and continue permitted work. If the user requires independent review for completion, that requirement remains unmet.
 
-Form and save independent opinions before sharing and comparing them. Agreement is not a substitute for evidence. When participants disagree, ask each for original sources, derivations, or counterexamples, then determine whether the disagreement concerns definitions, facts, conditions, or value judgments.
+Form and save independent opinions before sharing and comparing them. Agreement is not a substitute for evidence.
+
+### Progressive Multi-Round Dialogue and Controlled Hypothesis Forking
+
+Serious scientific disagreements rarely resolve in a single exchange because Round 1 often exposes unstated conditioning or notation differences before the deeper structural trade-off surfaces. Do not impose an artificial one-round cutoff, and do not allow repetitive verbal loops:
+
+1. **Round 1 (alignment and peeling):** Allow the author and reviewer/peer to align definitions, unpack implicit operator conditions, eliminate surface misunderstandings, and isolate the genuine structural tension.
+2. **Rounds 2..K (epistemic-delta gate):** Continue multi-round discussion freely **while each turn produces a verifiable epistemic shift**—a new intermediate derivation or bound that moves the dispute locus deeper, a sharper counterexample that bypasses the previous defense, a concrete modification to the operator's dynamics, or new primary-source / real-trajectory diagnostic evidence.
+3. **Two-turn zero-delta fuse:** Intervene only when **two consecutive turns** repeat prior assertions or subjective importance claims without introducing new math, counterexamples, or data:
+   - *If locally testable*: run a targeted Tier-1 diagnostic measurement on real baseline data/logs to settle the disputed quantity.
+   - *If scale-dependent or deeply coupled*: **do not force premature consensus or kill a viable candidate on intuition.** Record a **Controlled Hypothesis Fork** (keeping two bounded candidate branches alive with the explicit discriminative metric that will separate them at real evaluation scale), or distill the deadlock into a macro-paradox for ChatGPT Pro (`pro_macro`).
+
+## Bimodal Low-Entropy Communication
+
+Minimize token cost, latency, and semantic drift by separating the **thin control plane** from the **full-fidelity artifact plane**:
+
+- **Thin control plane (`<= 150–200` words, zero prose relay):** Never paraphrase or re-summarize another agent's proof, proposal, code, or logs inside coordination messages. Routing, follow-ups, and execution handoffs carry only: (1) the single question or action needed, (2) immutable primary pointers (`record #ID`, `bridge://message/<id>`, `bridge://patch/<id>`, or `file:line` + `sha256`), (3) the exact delta since the recipient's last cursor, and (4) the return contract.
+- **Full-fidelity reasoning plane (never telegram-truncated):** Write substantive derivations, counterexample proofs, and multi-round critiques **once in full mathematical and logical completeness** as versioned records or files, and share them by pointer so collaborators read exact arguments without lossy compression.
+- **One-line negative tombstones:** Record ruled-out mechanisms as compact one-line tombstones (`<= 40` words + evidence pointer) in shared state so peers never re-propose dead routes under new names.
+- **Local-first dispatch threshold:** Do not spend an external collaboration turn on a question that the current owner can settle within minutes via direct derivation, primary-source check, or a quick local diagnostic script.
 
 ## When to Review and How to Handle Findings
 

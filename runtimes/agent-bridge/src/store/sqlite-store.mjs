@@ -53,7 +53,8 @@ export class SqliteStore {
             reason TEXT DEFAULT NULL,
             router_mode TEXT NOT NULL DEFAULT 'observe',
             control_version TEXT NOT NULL DEFAULT '',
-            controls_hash TEXT NOT NULL DEFAULT ''
+            controls_hash TEXT NOT NULL DEFAULT '',
+            allowed_peers TEXT DEFAULT NULL
           );
           INSERT OR IGNORE INTO bridge_control(id, paused) VALUES (1, 0);
 
@@ -369,6 +370,7 @@ export class SqliteStore {
     addColIfMissing("bridge_control", "router_mode", "TEXT NOT NULL DEFAULT 'observe'");
     addColIfMissing("bridge_control", "control_version", "TEXT NOT NULL DEFAULT ''");
     addColIfMissing("bridge_control", "controls_hash", "TEXT NOT NULL DEFAULT ''");
+    addColIfMissing("bridge_control", "allowed_peers", "TEXT DEFAULT NULL");
 
     // v1.1 + v1.0.0 messages columns
     addColIfMissing("messages", "seq", "INTEGER NOT NULL DEFAULT 0");
@@ -696,6 +698,7 @@ export class SqliteStore {
       router_mode: row.router_mode || "observe",
       control_version: row.control_version || "",
       controls_hash: row.controls_hash || "",
+      allowed_peers: row.allowed_peers ? JSON.parse(row.allowed_peers) : null,
     };
   }
 
@@ -719,11 +722,15 @@ export class SqliteStore {
         patch.controls_hash !== undefined
           ? patch.controls_hash
           : current.controls_hash,
+      allowed_peers:
+        patch.allowed_peers !== undefined
+          ? patch.allowed_peers
+          : current.allowed_peers,
     };
     this.db
       .prepare(
         `UPDATE bridge_control
-         SET paused = ?, changed_at = ?, reason = ?, router_mode = ?, control_version = ?, controls_hash = ?
+         SET paused = ?, changed_at = ?, reason = ?, router_mode = ?, control_version = ?, controls_hash = ?, allowed_peers = ?
          WHERE id = 1`
       )
       .run(
@@ -732,7 +739,8 @@ export class SqliteStore {
         next.reason,
         next.router_mode,
         next.control_version,
-        next.controls_hash
+        next.controls_hash,
+        next.allowed_peers ? JSON.stringify(next.allowed_peers) : null
       );
     return this.getControl();
   }

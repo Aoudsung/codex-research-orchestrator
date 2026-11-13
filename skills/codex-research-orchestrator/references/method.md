@@ -45,11 +45,23 @@ Apply this section when the user's task is original research. Reproduction, surv
 
 Early candidates need a reasoned causal account, identifiable assumptions, and a way to investigate their strongest counterexamples. Do not require a finished proof, final novelty judgment, and complete experiment budget for every short idea. Before adopting a main proposal as complete, require both rigorous support appropriate to its actual claims and a substantive contribution relative to the closest work.
 
-When an idea has a flaw, locate the smallest failing condition and attempt a constructive repair of its core relationship within the original object. Derive how the revision addresses the counterexample and what assumptions or costs it adds. Relevant corrections may change an estimator, representation, feedback signal, stopping rule, or certificate; choose them because they address the failure. Merely naming an error term or an unavailable assumption is not a solution.
+When an idea has a flaw, apply **internalize-first repair and coupling/deletion gates** to prevent bloated module-stacking:
 
-If the route is ruled out, preserve the negative evidence and reconstruct the approach. Do not present a known baseline as completion of an unmet originality objective. If repairs accumulate without explaining why the parts belong together, reconsider the underlying representation or feedback relationship. Conversely, novelty does not justify retaining a disproved claim.
+1. **Internalize-first repair:** Before introducing any external regularizer, auxiliary network, buffer, or gating heuristic, first test whether modifying the existing core representation, metric space, or update operator resolves the counterexample internally. Introduce a new component only when analysis shows the existing state mathematically lacks information required to close the loop.
+2. **Coupling and deletion-necessity test (anti-Frankenstein gate):** Do not justify components by pipeline division of labor ("Module A handles stability, Module B handles exploration") or uncoupled score blending (`L = L1 + λ2 L2 + λ3 L3`). Every component or hyperparameter beyond the minimal baseline must answer two questions: (a) how its internal state or signal mathematically couples with the core operator, and (b) what qualitative failure occurs if it is deleted. During convergence, prune any component whose removal causes only a marginal metric fluctuation rather than qualitative breakdown.
 
-When novelty is weak, investigate the problem's distinctive structure, the information available to the method, and its closest predecessors. Seek a concrete mechanism difference and a nontrivial consequence supported by derivation or suitable observation. A new name, a collection of useful parts, or the fact that a general framework can express the method does not settle that assessment.
+If the route is ruled out, record a one-line tombstone with evidence and reconstruct the approach. Do not present a known baseline as completion of an unmet originality objective. If repairs accumulate past two local patches without simplifying why the parts belong together, reconsider the underlying representation or feedback relationship. Conversely, novelty does not justify retaining a disproved claim.
+
+### Two-stage adversarial SOTA collision and breakthrough modes
+
+To avoid reinventing recent work under new terminology or optimizing against outdated textbook baselines:
+
+- **Stage-0 frontier blind-spot check (before ideation):** Inspect the strongest primary papers from the latest 12–18 months (top venues and recent preprints) to extract the **shared unspoken assumption** behind current SOTA methods and the concrete regime where that assumption breaks. Aim mechanism design directly at that frontier ceiling.
+- **Stage-2 de-jargonized operator collision (immediately after mechanism invention):** Strip newly coined names and search primary literature across adjacent fields by mathematical operator / objective structure to verify the update rule was not already published under different terminology.
+- **Three valid modes of substantive SOTA breakthrough:** A candidate original contribution must establish at least one of the following under matched information and compute budgets:
+  1. *Unifying generalization*: current SOTA emerges as a restricted or degenerate special case of the proposed formulation;
+  2. *Critical assumption relaxation*: the mechanism succeeds with theoretical or empirical guarantees in a realistic regime where latest SOTA structurally degrades due to a violated premise;
+  3. *Structural Pareto replacement*: the mechanism matches or outperforms SOTA while eliminating an expensive training stage, oracle signal, or computational bottleneck.
 
 A diagnosis of remaining bias, incomplete convergence, or weak novelty should lead to the next specific construction while work is authorized and resources remain. Respect pauses, round limits, and real resource boundaries. At those boundaries report the unfinished objective and concrete next step.
 
@@ -70,7 +82,11 @@ For each necessary experiment, specify:
 
 Specify key metrics, data splits or material selection, and necessary randomness, repetitions, and uncertainty treatment in advance. Choose them for the field and concrete failure modes, rather than applying a fixed checklist. Exploration after seeing results is allowed, but distinguish it from prespecified tests. Do not manufacture a success claim through repeated selection of metrics and baselines.
 
-Start with the smallest check that can distinguish the current explanations. Expand only when results, changes, or new evidence justify it. Experiments test existing predictions, quantify effects, or examine explicit hypotheses; they cannot replace logical analysis that should come first.
+Start with a **tiered diagnostic ladder** that sharpens scientific insight while avoiding **toy-model mirages** (methods that shine on 2D synthetic Gaussians yet fail on high-dimensional real distributions, or representation phenomena invisible at toy scale):
+
+- **Tier-0 symbolic or synthetic sanity check (one-sided bug filter only):** Use `<100`-line scripts or symbolic checks strictly to catch sign errors, dimensional mismatches, zero gradients, or immediate numerical blowups. Passing Tier-0 never establishes real-world efficacy; absence of emergent representation effects in a tiny synthetic toy never disqualifies a mechanism.
+- **Tier-1 real-baseline trajectory diagnostic (primary insight generator):** Before building complex new training pipelines, run lightweight read-only diagnostics on a small slice of **real task data, pretrained activations, or logged SOTA baseline trajectories** to verify that the hypothesized bottleneck actually occurs in real dataflow and to capture quantitative anomalies that refine the theory.
+- **Tier-2 matched-budget benchmark evaluation:** Expand to full competitive baselines only after Tier-1 confirms the phenomenon and the core mechanism is internally coherent. Experiments test explicit predictions or isolate empirical unknowns; they cannot replace logical analysis that should come first.
 
 When execution prerequisites or human-participant approvals are pending, continue design and source work.
 

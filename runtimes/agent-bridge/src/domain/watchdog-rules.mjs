@@ -320,3 +320,90 @@ export function detectNeedsReviewEvidenceUsage(
   }
   return alerts;
 }
+
+export const ZERO_EPISTEMIC_DELTA_THRESHOLD = 2;
+
+/**
+ * L2 Anti-Spin Probe 4:
+ * Progressive Multi-Round Dialogue Fuse — allows multi-round discussion freely while each turn
+ * carries an epistemic delta (new derivation, counterexample, operator change, or primary/diagnostic pointer),
+ * and triggers ONLY when `>= 2` consecutive discussion turns produce zero epistemic delta.
+ */
+export function detectZeroDeltaDiscussionSpin(
+  tasks = [],
+  messages = [],
+  {
+    threshold = ZERO_EPISTEMIC_DELTA_THRESHOLD,
+    nowIso = new Date().toISOString(),
+  } = {}
+) {
+  if (!Array.isArray(tasks) || !Array.isArray(messages) || messages.length === 0) {
+    return [];
+  }
+  const activeTasks = new Map();
+  for (const t of tasks) {
+    if (t && t.id && !["completed", "failed", "cancelled"].includes(t.status)) {
+      activeTasks.set(t.id, t);
+    }
+  }
+  if (activeTasks.size === 0) return [];
+
+  const byTask = new Map();
+  for (const m of messages) {
+    if (!m || !m.task_id || !activeTasks.has(m.task_id)) continue;
+    if (m.metadata?.isRouterFanout || m.metadata?.isRouterEscalation || m.metadata?.internalContinuation) {
+      continue;
+    }
+    const isDiscussionTurn =
+      m.metadata?.disputeRound !== undefined ||
+      Object.prototype.hasOwnProperty.call(m.metadata || {}, "epistemicDelta");
+    if (!isDiscussionTurn) continue;
+    if (!byTask.has(m.task_id)) byTask.set(m.task_id, []);
+    byTask.get(m.task_id).push(m);
+  }
+
+  const hasArtifactOrDelta = (m) => {
+    const delta = m.metadata?.epistemicDelta;
+    const explicitDelta =
+      Boolean(delta) &&
+      delta !== "none" &&
+      !(typeof delta === "object" && delta.advanced === false);
+    const hasPointers = Boolean(
+      (Array.isArray(m.metadata?.sourceRecordIds) && m.metadata.sourceRecordIds.length > 0) ||
+        m.metadata?.patchId ||
+        m.metadata?.validationId ||
+        m.metadata?.diagnosticRef
+    );
+    return explicitDelta || hasPointers;
+  };
+
+  const alerts = [];
+  for (const [taskId, list] of byTask.entries()) {
+    if (list.length < threshold) continue;
+    const sorted = [...list].sort((a, b) => Number(a.seq || 0) - Number(b.seq || 0));
+    const zeroDeltaIds = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (!hasArtifactOrDelta(sorted[i])) {
+        zeroDeltaIds.unshift(sorted[i].id);
+      } else {
+        break;
+      }
+    }
+    if (zeroDeltaIds.length >= threshold) {
+      const dedupeKey = sha256Hex(
+        `zero_delta_spin:${taskId}:${zeroDeltaIds.join(",")}`
+      ).slice(0, 20);
+      alerts.push({
+        eventId: `wd_${dedupeKey}`,
+        dedupeKey,
+        kind: "zero_epistemic_delta_spin",
+        taskId,
+        consecutiveTurns: zeroDeltaIds.length,
+        messageIds: zeroDeltaIds,
+        summary: `Task '${taskId}' had ${zeroDeltaIds.length} consecutive discussion turns with zero epistemic delta; pause verbal debate and run a Tier-1 real-baseline diagnostic or record a two-branch Controlled Hypothesis Fork.`,
+        createdAt: nowIso,
+      });
+    }
+  }
+  return alerts;
+}

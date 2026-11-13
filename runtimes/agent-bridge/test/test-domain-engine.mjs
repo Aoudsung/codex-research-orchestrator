@@ -763,3 +763,120 @@ test("13. Cognitive Profiles, Wakeup Stance Guidance, and pro_macro Zero-Clutter
   assert.match(wakeupText, /stance=zero_drift_executor, adapter=gemini_panoramic/);
   assert.match(wakeupText, /bridge_handback\(reasonCode='scientific_ambiguity'\)/);
 });
+
+test("14. Opt-in Claude participant gating, Progressive Epistemic-Delta multi-round fuse, and Controlled Hypothesis Forks", () => {
+  const { engine, now } = makeMemoryFixture();
+  const watchdog = new WatchdogService({ engine });
+
+  // 1) Explicit participant policy without Claude blocks claude-code dispatch while keeping codex + antigravity active
+  engine.syncPolicy({
+    controlsText: "# Research Controls\nParticipants: codex, antigravity\nPreserve core causal loop.",
+    routerMode: "observe",
+  });
+  assert.deepEqual(engine.getCurrentPolicy().allowedPeers, ["antigravity", "codex"]);
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "unsolicited-claude",
+        fromAgent: "codex",
+        assignedTo: "claude-code",
+        prompt: "Draft mechanism",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.PEER_DISALLOWED
+  );
+
+  // Once user explicitly declares Claude in controls.md, claude-code becomes available immediately
+  engine.syncPolicy({
+    controlsText: "# Research Controls\nParticipants: codex, antigravity\n启用 Claude 参与机制深化。",
+    routerMode: "observe",
+  });
+  assert.deepEqual(engine.getCurrentPolicy().allowedPeers, ["antigravity", "claude-code", "codex"]);
+
+  // 2) Multi-round discussion with genuine epistemic deltas does NOT trip the L2 spin fuse even across 3+ rounds
+  const debateTask = engine.createTask({
+    taskId: "debate-task-1",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    prompt: "Evaluate non-stationary operator convergence",
+    protocolVersion: 2,
+    contract: {
+      objective: "Settle convergence condition or fork hypotheses",
+      allowedContinuation: ["tier1_diagnostic"],
+    },
+  });
+
+  engine.sendMessage({
+    fromAgent: "antigravity",
+    toAgent: "codex",
+    taskId: "debate-task-1",
+    content: "Round 1: Unpacked implicit conditioning in Eq (3); shifted tension to trace remainder.",
+    metadata: { disputeRound: 1, epistemicDelta: "clarified_conditioning_shifted_to_trace_remainder" },
+  });
+  engine.sendMessage({
+    fromAgent: "codex",
+    toAgent: "antigravity",
+    taskId: "debate-task-1",
+    content: "Round 2: Derived spectral bound showing remainder scales as O(r/T); see record #7.",
+    metadata: { disputeRound: 2, sourceRecordIds: ["7"] },
+  });
+  engine.sendMessage({
+    fromAgent: "antigravity",
+    toAgent: "codex",
+    taskId: "debate-task-1",
+    content: "Round 3: Counterexample under heavy-tailed drift logged in Tier-1 baseline check.",
+    metadata: { disputeRound: 3, diagnosticRef: "logs/tier1_spectrum.json" },
+  });
+
+  let sweep = watchdog.runSweep({ nowMs: now() });
+  assert.equal(sweep.l2Alerts.filter((a) => a.kind === "zero_epistemic_delta_spin").length, 0);
+
+  // 3) Two consecutive zero-delta verbal turns trip the zero_epistemic_delta_spin L2 fuse
+  engine.sendMessage({
+    fromAgent: "codex",
+    toAgent: "antigravity",
+    taskId: "debate-task-1",
+    content: "In practice neural networks usually smooth out heavy tails.",
+    metadata: { disputeRound: 4, epistemicDelta: "none" },
+  });
+  engine.sendMessage({
+    fromAgent: "antigravity",
+    toAgent: "codex",
+    taskId: "debate-task-1",
+    content: "I still disagree that smoothing is sufficient without further justification.",
+    metadata: { disputeRound: 5, epistemicDelta: false },
+  });
+
+  sweep = watchdog.runSweep({ nowMs: now() + 1000 });
+  const spin = sweep.l2Alerts.find((a) => a.kind === "zero_epistemic_delta_spin");
+  assert.ok(spin);
+  assert.equal(spin.consecutiveTurns, 2);
+  assert.match(spin.summary, /Controlled Hypothesis Fork/);
+
+  // 4) Controlled two-branch Hypothesis Fork is persisted cleanly via workflow v2 receipt
+  engine.submitTaskReceipt({
+    taskId: "debate-task-1",
+    actorAgent: "antigravity",
+    receiptId: "rcpt-fork-1",
+    attemptId: "att-1",
+    contractVersion: debateTask.metadata.workflow.contract.version,
+    ownerEpoch: 1,
+    outcome: "progress",
+    summary: "Recorded two-branch controlled fork pending real-scale evaluation",
+    hypothesisForks: [
+      {
+        branchId: "H-A",
+        hypothesis: "Isotropic natural step suffices when feature rank <= 32",
+        discriminativeCheck: "Measure empirical Fisher condition number on 1k real trajectories",
+      },
+      {
+        branchId: "H-B",
+        hypothesis: "Low-rank metric projection is required to prevent tail blowup",
+        discriminativeCheck: "Compare tail 99th-percentile TD error on matched compute budget",
+      },
+    ],
+  });
+
+  const updated = engine.getTaskById("debate-task-1");
+  assert.equal(updated.metadata.workflow.hypothesisForks.length, 2);
+  assert.equal(updated.metadata.workflow.hypothesisForks[0].branchId, "H-A");
+});

@@ -27,7 +27,7 @@ Combine roles as needed. Label a review as self-review when it has no independen
 | Collaboration optimizer (when requested) | | Diagnose from evidence; write recommendations in the observation area only | |
 | Fact observer (when requested) | | Read allowed increments; write only its observation baseline and events | |
 
-Roles are configurable and may use native agents, Codex, Claude Code, Antigravity, or another available channel. Provider names do not determine responsibilities. Keep one owner per write area and one lead responsible for scientific alignment and final acceptance.
+Roles are configurable and may use native agents, Codex, Antigravity, or another user-authorized channel; include Claude Code only when the user explicitly declares it available. Provider names do not determine responsibilities. Keep one owner per write area and one lead responsible for scientific alignment and final acceptance.
 
 - Applicable role page and actual delegated scope for each participant:
 - Main-author question and complementary evidence or counterexample questions:

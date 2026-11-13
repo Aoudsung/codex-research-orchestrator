@@ -26,9 +26,17 @@ Use statuses as needed: conjecture, derived under stated conditions, supported b
 | ID | Claim | Status | Conditions and scope | Evidence or derivation | Conditions for refutation or revision |
 |---|---|---|---|---|---|
 
-## Current Decisions
+## Ruled-Out Routes (One-Line Tombstones)
 
-| ID | Current choice | Rationale and alternatives | Source of change or history record |
+Record falsified or pruned mechanisms in one line each (`<= 40` words + evidence pointer) so collaborators do not re-propose dead routes under new names.
+
+-
+
+## Current Decisions and Controlled Forks
+
+Record active choices and, when a multi-round dispute hinges on a scale-dependent trade-off, any controlled two-branch hypothesis fork with its discriminative test.
+
+| ID | Current choice or controlled fork | Rationale, coupling/deletion basis, and discriminative check | Source of change or history record |
 |---|---|---|---|
 
 ## Reviews and Feedback

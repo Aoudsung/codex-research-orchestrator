@@ -70,10 +70,10 @@ python3 setup.py init --project /path/to/existing-repo \
   --title "Your Project Title" \
   --question "State your exact research question or failure-diagnosis target here."
 
-# Connect Codex (lead profile; deduplicates schemas across peers) and Antigravity (9-tool worker profile).
-# Omit `claude-code` unless explicitly authorized in controls.md.
+# codex --peers antigravity (`claude-code` disabled unless declared in `controls.md`)
 python3 setup.py connect --project /path/to/existing-repo --client codex --peers antigravity --node /path/to/node24 --tool-profile auto --apply
 python3 setup.py connect --project /path/to/existing-repo --client antigravity --peers codex --node /path/to/node24 --tool-profile worker --apply
+python3 setup.py lint --project /path/to/existing-repo --json
 python3 setup.py doctor --project /path/to/existing-repo --client codex --peers antigravity
 ```
 
@@ -87,13 +87,13 @@ State your exact research question or bottleneck here.
 
 ## Collaboration & Model Routing Policy
 - Participants: codex, antigravity
-- forbid claude-code
-- Lead PI: `codex` (`BRIDGE_TOOL_PROFILE=lead`), prepares ChatGPT Web `Pro` (`pro_macro`) consults by pairing a zero-bureaucracy <850-word structural prompt (no pasted code/diffs/ledgers in chat) with primary grounding via a synced GitHub repository or secret-scrubbed `.zip` bundle (`pack_pro_bundle.py`).
-- Collaborator: `antigravity` (`gemini_panoramic`, `BRIDGE_TOOL_PROFILE=worker`), runs cross-repo audits, isolated `blind_review` (`deductive_auditor`), and `zero_drift_executor` patches.
+- forbid_claude_code: true
+- strict_write_locks: true
+- Lead Coordinator: `codex` (non-coding orchestrator; `BRIDGE_TOOL_PROFILE=lead`), dispatches **ChatGPT Web `Pro`** (`pro_macro`, standing repo/bundle auth, no SHA ceremony, checked every 15 min by `GPT-6 Luna`).
+- Three Session Lanes: `GPT` (`Astra` blind review/formalization, `6.1 Sol` coding, `Luna` L0 observer) in Codex; `Gemini` (`Carbon` co-design, `Argon` coding) in Antigravity pinned conversations; `Kimi 3.1 Pro` / `DeepSeek V4.1 Flash` in project-rooted `.pi/sessions/` (`magpie` `auto/*`, `retries=0`).
 
-## Hard Execution & Archive Boundaries
-- Obey `AGENTS.md` execution rules (for example, static edits only on laptop; run training/benchmarks only on remote servers).
-- Keep legacy experiment databases read-only; write new reasoning and decisions exclusively to `.research-memory/memory.sqlite3`, exporting `state.md` only at milestones.
+## Lint-First Discipline
+- Run `python3 setup.py lint` to enforce doc budgets, git/secret isolation, write-root exclusivity, real-benchmark / endogenous-design guards, and claim binding instead of appending prose to `AGENTS.md`.
 ```
 
 Record the observed baseline vs. candidate contrast and key file paths in `charter.md`.
@@ -106,11 +106,12 @@ Use $codex-research-orchestrator to resume from controls.md, charter.md, project
 
 Recommended Round 1 division of labor and model/effort routing:
 
-| Role in Round 1 | Model / Adapter | Thinking Effort | Responsibility |
+| Role in Round 1 | Model / Tier | Session Lane & Effort | Responsibility |
 |---|---|---|---|
-| **Active Lead PI (interactive / CLI)** | `gpt-6.1-sol` (`gpt_contract`, `lead`) | **`high`** (default diagnosis/synthesis); **`xhigh`** (deductive falsification or after >=2 failed patches); **`medium`** (locked dispatch/export) | Orchestrates MCP tasks, translates prose into math/code specs, enforces invariants, prepares `github_repo` / `upload_bundle` packets for Web `Pro`, and accepts deliveries. |
-| **First-Principles Macro Consult (Web interactive lane)** | **ChatGPT Web `Pro`** (`chatgpt.com` `Pro` thinking mode, `pro_macro`) | **`Pro`** (`pro_max`) | Inspects the attached synced GitHub repo (`branch` + `commit SHA` + target paths) or secret-scrubbed `.zip` (`pack_pro_bundle.py`) alongside a clean <850-word 3-paragraph structural prompt (no inline code/diff/ledger clutter) to surface underlying failure mechanisms. |
-| **Panoramic Audit, Blind Review & Implementation** | Antigravity Gemini (`gemini_panoramic`, `worker` 9 tools) | Adaptive (`medium` / `high`) | Scans full codebases, logs, and diagnostics first; runs isolated `blind_review` (`deductive_auditor`); delivers scoped diffs under `zero_drift_executor`. |
+| **Lead Coordinator** | `codex` (`lead`) | Codex CLI (`high`) | Orchestrates contracts, write-locks, `intake` guards, and acceptance; never edits business code directly. |
+| **Chief Macro Architect** | **ChatGPT Web `Pro`** (`pro_max`) | Web Project (`15m` checked by `Luna` `low`) | Deepest first-principles framing over synced repo / bundle (`pack_pro_bundle.py`, no SHA ceremony); unrestricted reply depth. |
+| **Mechanism & Blind Audit** | `Gemini Carbon` / `GPT Astra` | Antigravity (`Carbon`, short deltas) / Codex (`Astra`, `xhigh`) | `Carbon`: mechanism co-design & repo/log scan (no `blind_review`); `Astra`: mathematical formalization & independent `blind_review`. |
+| **Implementation & Server Runs** | `Gemini Argon` / `6.1 Sol` / `Kimi` / `DeepSeek` | Agy / Codex / `.pi/sessions/` (`magpie` `auto/*`) | Builds core + baselines together before formal runs; runs real benchmarks on GPUs with `free VRAM >= peak + margin` (excluding faulty GPUs). |
 
 ## What to ask
 
@@ -151,19 +152,20 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py con
   --project . --client codex --peers antigravity --tool-profile auto --apply
 ```
 
-This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, updates only project-local entries, preserves unrelated settings, and backs up changed configuration. Use `--tool-profile auto` on the Lead (`lead` for primary peer, `exec_only` for extra peers so 33-tool schemas are never duplicated) and `--tool-profile worker` on peer workers (9-tool surface). Claude (`claude-code`) is opt-in and remains blocked by `PEER_DISALLOWED` when `forbid claude-code` is declared in `controls.md`. Omit `--apply` to prepare the config without registering it.
+This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, updates only project-local entries, preserves unrelated settings, and backs up changed configuration. Use `--tool-profile auto` on the Lead (`lead` for primary peer, `exec_only` for extra peers so shared schemas are never duplicated) and `--tool-profile worker` on peer workers (11-tool surface). Claude (`claude-code`) is disabled unless explicitly authorized in `controls.md`. Omit `--apply` to prepare the config without registering it.
 
 Claude Code project configuration and Antigravity CLI/IDE workspace configuration are also supported. Antigravity uses `.agents/mcp_config.json`; its export remains available for other supported settings interfaces. Select only the peers you intend to use.
 
-- **Finish-and-Exit Reactive Wakeup (Zero Busy-Wait):** Workers run under the 9-tool `worker` profile without poll/wait tools and exit as soon as their turn finishes; Lead turns exit immediately after recording `waiting_external` or binding a reactive wakeup route (`callerSessionId` / `autoWakeup`, supporting `codex_ipc`, `agy_cli`, `antigravity_desktop`, `claude_cli`, etc.) rather than holding turns open with sleep/poll loops.
+- **Finish-and-Exit Reactive Wakeup (Zero Busy-Wait):** Workers run under the 11-tool `worker` profile without poll/wait tools (`bridge_claim_task` / `bridge_complete_task` included) and exit as soon as their turn finishes; Lead turns exit immediately after recording `waiting_external` or binding a reactive wakeup route (`callerSessionId` / `autoWakeup`) rather than holding turns open with sleep/poll loops.
 
 Provider execution requires the selected CLI and its normal login. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
 
-## Check setup or upgrade
+## Check setup, lint, or upgrade
 
 From the research workspace:
 
 ```sh
+python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py lint --project .
 python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py doctor --project .
 ```
 

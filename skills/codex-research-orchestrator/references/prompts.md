@@ -6,28 +6,28 @@ Do **not** waste output tokens manually copying `controls.md`, role manuals, or 
 - `=== JIT Recency Check ===` sits deterministically at the **tail** right before generation.
 - The Lead writes **only a lean task delta (`<= 150–300` words)** covering the active question, immutable `record #ID` / `bridge://` pointers, write scope, and output contract.
 
-## 1. ChatGPT Web `Pro` Macro Inquiry (`pro_macro`, `<= 400–850` Words + Grounding Attachment)
+## 1. ChatGPT Web `Pro` Macro Inquiry (`pro_macro`, `<= 400–850` Words + Grounding)
 
-`ChatGPT Pro` means the **ChatGPT Web UI (`chatgpt.com`) set to `Pro` thinking effort** (not a CLI model). Place the `abductive_pioneer` constitution once in Pro's persistent project/system instructions (`cohesive prose, zero "not A, but B" tropes, ~30% signal amplification, <5% corner cutoff, Assume-and-Proceed 2–3 layers deep`).
+`ChatGPT Pro` runs in the designated **ChatGPT Web UI (`chatgpt.com`) project** set to `Pro` thinking effort, with standing authorization for repo sync or bundle upload, unrestricted output depth, and **15-minute status checks by `Luna` (`low`)**.
 
-Each Web `Pro` dispatch pairs **one primary grounding attachment** with a **3-paragraph zero-bureaucracy prompt** (`research_context(..., profile="analysis", recipient_profile="pro_macro", stance="abductive_pioneer")`):
+Each Web `Pro` dispatch pairs **one grounding attachment** with a **3-paragraph zero-bureaucracy prompt**:
 
-1. **Grounding Attachment (`github_repo` or `upload_bundle`):**
-   - `github_repo`: synced GitHub repo URL, branch, commit SHA, and exact target module/trace paths for Pro's GitHub/repo reader; OR
-   - `upload_bundle`: secret-scrubbed `.zip` archive created by `scripts/pack_pro_bundle.py --project . --output <bundle.zip> --include <paths> --prompt-file PRO_PROMPT.md` (strictly excludes `.env`, `SSH_Document.md`, credentials, `.git`, and `.sqlite*`, and generates `BUNDLE_MANIFEST.md`).
-2. **Inline Chat Prompt (`<= 850` words):** May cite exact relative file/module names inside the attached repo/bundle so derivations stay grounded, while **stripping** inline pasted code blocks, unified diffs, itemized `D{k}/C{n}` ledgers, and rigid status-header checklists:
+1. **Grounding (`github_repo` or `upload_bundle`):**
+   - `github_repo`: synced GitHub repo URL/branch + target paths; OR
+   - `upload_bundle`: secret-scrubbed `.zip` via `scripts/pack_pro_bundle.py --project . --output <bundle.zip> --include <paths> --prompt-file PRO_PROMPT.md` (ignores `.pi/`, `.env`, credentials, `.git`, `.sqlite*`; **skips per-file SHA-256 ceremonies** unless `--include-sha256` is explicitly passed).
+2. **Inline Prompt (`<= 850` words):** Reference target files directly, keep prose clean (no fenced code blocks, unified diffs, itemized `D{k}/C{n}` ledgers, or rigid word/checklist caps restricting `Pro` output):
 
 ```markdown
-Grounding: {GitHub repo@commit or uploaded bundle `BUNDLE_MANIFEST.md`; key files: `src/...`, `results/...`}
+Grounding: {GitHub repo or uploaded bundle `BUNDLE_MANIFEST.md`; key files: `src/...`, `results/...`}
 
-{Paragraph 1 — Research Object & Functional Invariants: pure conceptual/information-theoretic description of system O and unbroken causal loop + verbatim critical constraints.}
+{Paragraph 1 — Research Object & Invariants: core mathematical/information-theoretic description of system O and unbroken causal loop + essential constraints.}
 
-{Paragraph 2 — Core Structural Paradox: distill theoretical/empirical anomalies showing why existing representations or feedback rules fail at principle level against the grounded evidence (never attach tentative local patches).}
+{Paragraph 2 — Structural Paradox: theoretical or empirical anomalies from grounded real benchmarks/trajectories showing where current operators fail (no fallback patches).}
 
-{Paragraph 3 — High-Horizon Question: ask ONE unifying question on representation/operator/dynamics, requesting 2–3 deep derivation steps grounded in the attached files and exact breaking conditions.}
+{Paragraph 3 — First-Principles Inquiry: ask one deep unifying question on representation/operator/dynamics; let Web Pro derive at full depth.}
 ```
 
-**Post-reply:** Lead (`gpt_contract` / `deductive_auditor`) translates Pro's prose into variables/operators, verifies object invariants against `controls.md`, records claims in SQLite (`research_record`), and schedules blind audit.
+**Post-reply:** `Astra` / Lead formalizes `Pro`'s prose into equations, code specs, and claim records in SQLite, then dispatches blind falsification (`Astra` only).
 
 ## 2. Independent Blind Review Delta (`review` + `deductive_auditor`)
 
@@ -68,5 +68,5 @@ Return Receipt: status (complete|partial|blocked), diff scope, exact commands + 
 
 ## 5. Multi-Round Follow-up & Format Repair
 
-- Follow-ups send **delta only**: `Continue {task/cursor}`, `Current revision / sha256`, `Epistemic delta / new question`, `Evidence pointers`. After 2 zero-delta turns, switch to a Tier-1 probe or controlled two-branch fork.
+- Follow-ups send **delta only**: `Continue {task/cursor}`, `Current revision`, `Epistemic delta / new question`, `Evidence pointers` (keep Antigravity/PI history concise; avoid re-pasting full logs). After 2 zero-delta turns, switch to a discriminative real-benchmark probe or two-branch fork.
 - If an output violates a required JSON/schema contract, resend the schema and minimal valid example naming only the violated field/type—never echo the broken output in full.

@@ -5,10 +5,10 @@ Use this guide when coordinating persistent peers (`Antigravity`, `Codex`, opt-i
 ## 1. Tiered Tool Profiles & Multi-Peer De-duplication
 
 - `BRIDGE_TOOL_PROFILE` trims resident MCP schema tokens without losing capabilities:
-  - **`lead`** (primary MCP peer): 28 compact `bridge_*` + 5 `research_*` tools (~50% compressed JSON schema).
-  - **`worker`** (scoped executor): 7 core worker `bridge_*` tools + 2 read-only memory tools (`research_search`, `research_read`).
-  - **`exec_only`** (secondary peers when 2+ MCP servers mount simultaneously): **0 duplicated shared tools**—keeps only native `<peer>_exec` / status tools.
-- `research_setup.py connect` assigns `lead` to `index == 0` and `exec_only` to `index >= 1` automatically (override via `--tool-profile`).
+  - **`lead`** (primary MCP peer): compact `bridge_*` + `research_*` tools.
+  - **`worker`** (scoped executor): **11** tools (`bridge_claim_task`, `bridge_complete_task`, core read/reply/patch/validation/handback + `research_search`, `research_read`).
+  - **`exec_only`** (extra MCP peers): **0** duplicated shared tools—keeps native `<peer>_exec` / status only.
+- `research_setup.py connect` assigns `lead` to `index == 0` and `exec_only` to `index >= 1`; `python3 setup.py lint` flags un-deduplicated multi-peer configs (`MCP-001`) and disabled `claude` servers.
 
 ## 2. Task Binding, Effort & Preflight
 
@@ -21,10 +21,12 @@ Use this guide when coordinating persistent peers (`Antigravity`, `Codex`, opt-i
 - **Deterministic Research Router (`off | observe | auto`):** `observe` logs `would_dispatch` proposals without spending external quota. `direct`/`context` fan-out (`bridge_subscribe_thread`) is engine-blocked on `blind_analysis` and `blind_review` tasks.
 - **Two-phase consumption (`consumed_at`):** Reading via `bridge_read_messages` marks actual turn ingestion separately from socket `delivered` status. Unconsumed crash recoveries receive a `RecoveryNote` pointing to the latest patch `sha256`.
 - **Out-of-scope handback (`bridge_handback`):** Releases ownership immediately (`scientific_ambiguity`, `permission_delta`, `budget_exceeded`, `humanAction`) instead of looping or guessing.
-- **Escalation & Safeguards:**
-  - `validateProMacroPrompt` hard-blocks inline code/diffs/ledgers sent to `pro_macro` (attach raw code/traces via `github_repo` or `upload_bundle` from `pack_pro_bundle.py`).
-  - `bridge_record_validation` emits `jitGuidance` (`recommendedEffort: 'high' | 'xhigh'` + Two-Patch Escape reminder) on `>=2` consecutive failures or `>=2` stacked patches.
-  - `controlVersion` revalidates active tasks if `controls.md` changes mid-flight.
+- **Escalation & Runtime Admission Guards (`intake.mjs` / `policy.mjs`):**
+  - `validateProMacroPrompt`: hard-blocks inline code/diffs/ledgers and SHA-256 verification ceremonies on `pro_macro` (attach code via `github_repo` or `upload_bundle` from `pack_pro_bundle.py`).
+  - `validateModelRoleAndChannel`: blocks `dyschop/*`, disabled `claude-code`, wrong-lane model routing, `Carbon` on `blind_review`, and `Luna` on code edits.
+  - `validateCoordinatorWriteBoundary` & `validateWriteRootExclusivity`: block coordinator business writes and overlapping `writeRoots` across active tasks.
+  - `validateResearchTaskDiscipline`: blocks synthetic/toy benchmarks, mock checkpoints, fallback/heuristic/calibration wrappers, baseline-mutating ablations, and experiment runs without `claimIds`.
+  - `mcp-server.mjs` hot-reloads `core`, `servers`, and `domain` with one-shot async worker exit protection and same-provider cross-session wakeup routing (`task-workflow.mjs`).
 - **Spill pagination & health:** Read long payloads via `bridge_read_card` (`bridge://<kind>/<id>`, `offset`/`limit`); inspect queue/watchdog health via `bridge_watchdog_status`.
 
 ## 4. Finish-and-Exit, Reactive Wakeup & State Separation

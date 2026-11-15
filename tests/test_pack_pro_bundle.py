@@ -27,6 +27,8 @@ class PackProBundleTests(unittest.TestCase):
         (self.project / "src" / "__pycache__").mkdir()
         (self.project / "src" / "__pycache__" / "model.cpython-313.pyc").write_bytes(b"\x00\x01")
         (self.project / ".env").write_text("API_KEY=secret\n", encoding="utf-8")
+        (self.project / ".pi").mkdir()
+        (self.project / ".pi" / "project-session.json").write_text('{"id":"x"}\n', encoding="utf-8")
         (self.project / "SSH_Document.md").write_text("password: hidden\n", encoding="utf-8")
         (self.project / "src" / ".env.local").write_text("TOKEN=123\n", encoding="utf-8")
         (self.project / "src" / "cache.sqlite3").write_bytes(b"sqlite")
@@ -66,8 +68,26 @@ class PackProBundleTests(unittest.TestCase):
             manifest = zf.read("BUNDLE_MANIFEST.md").decode("utf-8")
             self.assertIn(receipt["commit_sha"], manifest)
             self.assertIn("`src/model.py`", manifest)
+            self.assertNotIn("SHA256", manifest)
             self.assertNotIn("SSH_Document.md", manifest)
             self.assertNotIn(".env", manifest)
+            self.assertNotIn(".pi/project-session.json", names)
+
+    def test_optional_include_sha256_flag(self):
+        out_zip = self.project / "bundle-sha.zip"
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            rc = pack_pro_bundle.main([
+                "--project", str(self.project),
+                "--output", str(out_zip),
+                "--include", ".",
+                "--include-sha256",
+            ])
+        self.assertEqual(0, rc)
+        with zipfile.ZipFile(out_zip) as zf:
+            names = set(zf.namelist())
+            self.assertNotIn(".pi/project-session.json", names)
+            self.assertIn("| Path | Lines | Bytes | SHA256 |", zf.read("BUNDLE_MANIFEST.md").decode("utf-8"))
 
     def test_explicit_secret_include_fails_loudly(self):
         for forbidden in ("SSH_Document.md", ".env"):

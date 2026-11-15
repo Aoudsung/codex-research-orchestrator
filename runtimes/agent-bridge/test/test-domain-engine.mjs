@@ -4,7 +4,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { BridgeUserError, REASONS, resolveCognitiveProfile, sha256Hex } from "../src/domain/model.mjs";
+import { BridgeUserError, REASONS, inferModelAdapter, resolveCognitiveProfile, sha256Hex } from "../src/domain/model.mjs";
+import { stripNegatedProhibitionLines } from "../src/domain/intake.mjs";
+import { buildAgySessionSettings, evaluateGpuPlacement, runTaskPreflight } from "../src/core/preflight.mjs";
 import { MemoryRepositories } from "../src/domain/memory-repos.mjs";
 import { BridgeEngine } from "../src/domain/engine.mjs";
 import { SqliteStore } from "../src/store/sqlite-store.mjs";
@@ -1058,4 +1060,222 @@ test("Task reuse permission compatibility handles derived root commands & reject
       }),
     (err) => err instanceof BridgeUserError && err.code === REASONS.TASK_SCOPE_CONFLICT
   );
+});
+
+test("16. Runtime intake lint guards: negation stripping, channels, carbon/luna roles, writeLocks, synthetic/fallback & claim binding", () => {
+  const { engine } = makeMemoryFixture();
+  engine.syncPolicy({
+    controlsText: "# Controls\nforbid_claude_code: true\nstrict_write_locks: true\n禁止使用合成环境、toy benchmark、fallback、兜底、staged release。",
+    routerMode: "observe",
+  });
+
+  // 1) Quoted negative controls must NOT false-positive
+  assert.equal(
+    stripNegatedProhibitionLines("禁止使用合成环境。禁止做兜底。Verify real solver convergence."),
+    "Verify real solver convergence."
+  );
+  const cleanTask = engine.createTask({
+    taskId: "clean-endogenous-task",
+    fromAgent: "codex",
+    assignedTo: "codex",
+    requiredModel: "gpt-6-sol",
+    cwd: "/tmp/proj",
+    permissions: { writeRoots: ["src/solver"] },
+    prompt: "禁止使用合成环境、mock checkpoint 或 fallback wrapper。Implement exact endogenous operator update.",
+  });
+  assert.equal(cleanTask.id, "clean-endogenous-task");
+
+  // 2) Overlapping writeRoots across active tasks fails deterministically
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "overlapping-writer",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-astra",
+        cwd: "/tmp/proj",
+        permissions: { writeRoots: ["src/solver/step.py"] },
+        prompt: "Refactor step.py",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.WRITE_ROOT_CONFLICT
+  );
+
+  // 3) Mixed prohibition + positive violation catches ONLY the positive violation
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-synthetic",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-sol",
+        prompt: "禁止使用合成数据；Use mock checkpoint to speed up verification.",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.SYNTHETIC_FIXTURE_FORBIDDEN
+  );
+
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-fallback",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-sol",
+        prompt: "实现启发式门控并添加一个兜底分支来保底输出。",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.FALLBACK_DESIGN_FORBIDDEN
+  );
+
+  // 4) Model-channel & model-role topology guards
+  assert.equal(inferModelAdapter({ requiredModel: "gpt-6-astra" }), "gpt_contract");
+  assert.equal(
+    resolveCognitiveProfile({ requiredModel: "gpt-6-astra", cognitiveProfile: { stance: "deductive_auditor" } }).adapter,
+    "gpt_contract"
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-channel-pi",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gemini-carbon-high",
+        metadata: { provider: "pi" },
+        prompt: "Audit long horizon context",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.MODEL_CHANNEL_MISMATCH
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-dyschop",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "kimi-3.1-pro",
+        metadata: { piProvider: "dyschop/kimi-k2" },
+        prompt: "Analyze paper metrics",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.MODEL_CHANNEL_MISMATCH
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-carbon-review",
+        fromAgent: "codex",
+        assignedTo: "antigravity",
+        requiredModel: "gemini-carbon-high",
+        metadata: { isolationProfile: "blind_review", role: "blind_review" },
+        prompt: "Independent formal falsification",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.MODEL_ROLE_MISMATCH
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-luna-write",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-luna",
+        permissions: { writeRoots: ["src/new"] },
+        prompt: "Edit solver",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.MODEL_ROLE_MISMATCH
+  );
+
+  // 5) Coordinator non-coding boundary & Web Pro SHA ceremony skip
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-coord-write",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-sol",
+        metadata: { role: "coordinator" },
+        permissions: { writeRoots: ["src/new"] },
+        prompt: "Edit source directly",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.COORDINATOR_CODING_FORBIDDEN
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-pro-sha",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-5.4-pro",
+        metadata: { proGrounding: { channel: "upload_bundle", requireSha256: true } },
+        prompt: "Evaluate overarching theorem.",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.PRO_SHA_CEREMONY_SKIPPED
+  );
+
+  // 6) Experiment claim binding & self-only ablation
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-exp-no-claim",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-sol",
+        metadata: { taskKind: "experiment" },
+        prompt: "Run real benchmark evaluation.",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.CLAIM_BINDING_REQUIRED
+  );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-ablation-baseline",
+        fromAgent: "codex",
+        assignedTo: "codex",
+        requiredModel: "gpt-6-sol",
+        metadata: { taskKind: "ablation", claimIds: ["C2"], experimentSpec: { isAblation: true, modifiesBaseline: true } },
+        prompt: "Verify C2 ablation component.",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.CLAIM_BINDING_REQUIRED
+  );
+  const validExp = engine.createTask({
+    taskId: "good-exp-claim",
+    fromAgent: "codex",
+    assignedTo: "codex",
+    requiredModel: "gpt-6-sol",
+    metadata: { taskKind: "ablation", claimIds: ["C2"], experimentSpec: { isAblation: true, modifiesBaseline: false } },
+    prompt: "Verify C2 ablation removing endogenous prior only.",
+  });
+  assert.equal(validExp.id, "good-exp-claim");
+});
+
+test("17. Preflight command guards, Agy deny rules, and GPU free-VRAM placement", () => {
+  const preflight = runTaskPreflight({
+    runtime: "codex-cli",
+    cwd: process.cwd(),
+    deliveryMode: "read_only",
+    permissions: {
+      readRoots: ["."],
+      writeRoots: [],
+      allowedCommands: ["pytest tests/", "git push origin main"],
+      forbiddenOperations: ["local_tests", "git_push"],
+    },
+  });
+  assert.equal(preflight.ok, false);
+  assert.equal(preflight.incompatibleCommands.length, 2);
+
+  const agy = buildAgySessionSettings({
+    cwd: process.cwd(),
+    deliveryMode: "read_only",
+    forbiddenOperations: ["ssh", "local_tests", "git_push", "claude-code"],
+  });
+  assert.ok(agy.permissions.deny.includes("command(pytest)"));
+  assert.ok(agy.permissions.deny.includes("command(git push)"));
+  assert.ok(!agy.permissions.allow.includes("mcp(cro_claude_code/*)"));
+
+  const placement = evaluateGpuPlacement({
+    gpus: [
+      { index: 0, freeMb: 80000, faulty: true },
+      { index: 1, freeMb: 12000 },
+      { index: 2, freeMb: 28000 },
+    ],
+    requiredVramMb: 20000,
+    safetyMarginMb: 4096,
+  });
+  assert.equal(placement.schedulable, true);
+  assert.equal(placement.selectedGpu.index, 2);
 });

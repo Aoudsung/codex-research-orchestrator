@@ -900,9 +900,51 @@ def doctor(args, project):
         action = f"Install the {missing} provider CLI ({AGENTS[missing][0]}) before using that peer."
     else:
         action = resume_action(project)
+    if project.exists() and project.is_dir():
+        try:
+            lint_mod = _load_lint_module()
+            lint_rep = lint_mod.lint_project(project)
+            checks["lint"] = {
+                "status": "clean" if lint_rep["ok"] else ("failed" if lint_rep["error_count"] else "warnings"),
+                "error_count": lint_rep["error_count"],
+                "warning_count": lint_rep["warning_count"],
+            }
+        except Exception as error:
+            checks["lint"] = {"status": "unavailable", "detail": str(error)}
     return result("doctor", [], action, basic_research_ready=ready, bridge_requested=bridge_requested,
                   checks=checks, authentication="not-verified", host_connectivity="not-verified",
                   note="Optional bridge or Node absence does not block basic research. No persistent state was created.")
+
+
+def _load_lint_module():
+    lint_path = Path(__file__).resolve().parent / "research_lint.py"
+    spec = importlib.util.spec_from_file_location("research_lint", lint_path)
+    if spec is None or spec.loader is None:
+        raise SetupError(f"Unable to load linter at {lint_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def lint_command(args, project):
+    report = _load_lint_module().lint_project(project, strict=getattr(args, "strict", False))
+    next_action = (
+        resume_action(project)
+        if report["ok"]
+        else "Fix reported lint errors/warnings (promote recurring constraints to runtime guards rather than prose)."
+    )
+    return result(
+        "lint",
+        [],
+        next_action,
+        ok=report["ok"],
+        status=report["status"],
+        strict=report["strict"],
+        error_count=report["error_count"],
+        warning_count=report["warning_count"],
+        checked_paths=report["checked_paths"],
+        findings=report["findings"],
+    )
 
 
 def discover_project_mcp_hints(project):
@@ -1551,6 +1593,7 @@ def parser():
                               ("init", "Create records and memory, or resume an existing workspace"),
                               ("connect", "Prepare project MCP configuration; apply only when requested"),
                               ("doctor", "Inspect readiness without modifying project state"),
+                              ("lint", "Run read-only static and runtime-state lint checks"),
                               ("probe", "Read-only environment and workspace probe for guided setup"),
                               ("baselines", "Inspect, seed, or acknowledge 3-way builtInBase template baselines"),
                               ("watchdog", "Inspect or heal the resident superagent watchdog daemon (exit codes 0/1/2/3)"),
@@ -1574,6 +1617,8 @@ def parser():
             command.add_argument("--apply", action="store_true", help="Register project config for Codex, Claude Code or Antigravity CLI/IDE")
         if name == "probe":
             command.add_argument("--node", help="Node >=24 executable path or command")
+        if name == "lint":
+            command.add_argument("--strict", action="store_true", help="Treat warnings as lint failures")
         if name == "baselines":
             command.add_argument("--seed", action="store_true", help="Non-destructively snapshot builtInBase and custom workspace baselines")
             command.add_argument("--ack", help="Acknowledge a reviewed path in template-updates.json")
@@ -1599,9 +1644,12 @@ def emit_output(command_name, output, structured):
         print(json_text(output), end="")
         return
     print(f"{command_name}: " + ("changed " + ", ".join(output["changed"]) if output["changed"] else "no files changed"))
-    for key in ("mode", "status", "daemon_status", "exit_code", "generated", "applied", "backup", "basic_research_ready", "note"):
+    for key in ("mode", "status", "ok", "error_count", "warning_count", "daemon_status", "exit_code", "generated", "applied", "backup", "basic_research_ready", "note"):
         if key in output and output[key] is not None:
             print(f"{key}: {output[key]}")
+    if "findings" in output:
+        for item in output["findings"]:
+            print(f"[{item['severity'].upper()}] {item['rule']} {item['path']}: {item['message']}")
     if "checks" in output:
         for name, value in output["checks"].items():
             print(name + ": " + json.dumps(value, ensure_ascii=False))
@@ -1637,11 +1685,14 @@ def main(argv=None):
             "init": init,
             "connect": connect,
             "doctor": doctor,
+            "lint": lint_command,
             "probe": probe,
             "baselines": baselines,
         }
         output = handlers[args.command](args, project)
         emit_output(args.command, output, structured)
+        if args.command == "lint" and not output.get("ok", True):
+            return 1
         return 0
     except (ValueError, OSError, sqlite3.Error) as error:
         output = {"error": str(error), "changed": [], "next_action": "Resolve the reported issue, then rerun the same command."}

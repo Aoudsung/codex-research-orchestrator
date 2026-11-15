@@ -35,13 +35,25 @@ function transact(engine, args, kind, id, apply) {
     return result;
   });
 }
+export function workflowNotificationSessions(engine, task, toAgent) {
+  const w = task?.metadata?.workflow;
+  if (!w || w.owner.agent !== toAgent || task.metadata.coordinationOnly) return null;
+  // Claims made by older runtimes bound the task without updating the workflow owner.
+  const sourceSessionId = w.owner.conversationId || task.bound_conversation_id || task.session_id;
+  const leadSessionId = toAgent === task.from_agent ? task.metadata.leadThreadId : null;
+  const targetSessionId = engine.repos.getRoute(task.id, toAgent)?.target_session_id || leadSessionId;
+  if (!sourceSessionId || !targetSessionId || sourceSessionId === targetSessionId || sourceSessionId === leadSessionId) return null;
+  return { sourceSessionId, targetSessionId };
+}
 function notice(engine, task, w, type, summary, id) {
   if (!w.contract.notificationPolicy.includes(type)) return;
   const from = w.owner.agent;
   const to = task.from_agent;
-  // A lead-owned task is already visible in its own task board.
-  if (!to || from === to) return;
-  engine.sendMessage({ taskId: task.id, fromAgent: from, toAgent: to, subject: type, content: summary, metadata: { humanNotification: true, notificationType: type, notificationKey: `${task.id}:${type}:${id}`, protocolVersion: 2 } });
+  // Acceptance is performed by the lead itself; it must not wake that session again.
+  if (from === to && type === 'task_completed' && w.contract.acceptor === to) return;
+  const sessions = workflowNotificationSessions(engine, task, to);
+  if (!to || (from === to && !sessions)) return;
+  engine.sendMessage({ allowSelfSend: Boolean(sessions), taskId: task.id, fromAgent: from, toAgent: to, subject: type, content: summary, metadata: { ...(sessions ? { workflowNotification: sessions } : {}), humanNotification: true, notificationType: type, notificationKey: `${task.id}:${type}:${id}`, protocolVersion: 2 } });
 }
 function ownerMessage(engine, task, w, subject, content, metadata = {}) {
   const from = task.from_agent;
@@ -49,7 +61,10 @@ function ownerMessage(engine, task, w, subject, content, metadata = {}) {
     toAgent: w.owner.agent, subject, content, metadata: { protocolVersion: 2, ...metadata } });
   if (from === w.owner.agent) {
     const route = engine.repos.getRoute(task.id, w.owner.agent);
-    if (route?.enabled) {
+    const ownerSession = w.owner.conversationId || task.bound_conversation_id || task.session_id;
+    const leadSession = task.metadata.leadThreadId;
+    if (route?.enabled && !task.metadata.coordinationOnly && ownerSession && leadSession &&
+        ownerSession !== leadSession && route.target_session_id === ownerSession) {
       engine.repos.putMessage({ ...message, wakeup_status: 'pending', wakeup_target_session: route.target_session_id });
       engine._enqueueEffect({ kind: 'wakeup', effectKey: task.id, payload: { taskId: task.id } });
     }
@@ -185,12 +200,12 @@ export function submitTaskReceipt(engine, args) {
     if (['delivered','cancelled','blocked'].includes(w.status)) w.continuation = null;
     if (w.status === 'blocked' && task.metadata.workflow.status !== 'blocked') notice(engine, task, w, 'blocked', w.summary, args.receiptId);
     save(engine, task, w, { phase: phases[w.status] ?? 'in_progress', phase_label: w.status, status: w.status === 'cancelled' ? 'cancelled' : 'running', ...(w.status === 'cancelled' ? { completed_at: engine._nowIso() } : {}) });
-    if (w.status === 'delivered' && w.owner.agent !== w.contract.acceptor &&
-        (task.metadata.workflow.status !== 'delivered' || canonical(task.metadata.workflow.artifacts) !== canonical(w.artifacts))) {
-      engine.sendMessage({ taskId: task.id, fromAgent: w.owner.agent, toAgent: w.contract.acceptor,
+    const sessions = workflowNotificationSessions(engine, task, w.contract.acceptor);
+    if (w.status === 'delivered' && (w.owner.agent !== w.contract.acceptor || sessions)) {
+      engine.sendMessage({ allowSelfSend: Boolean(sessions), taskId: task.id, fromAgent: w.owner.agent, toAgent: w.contract.acceptor,
         subject: 'Task delivery ready for acceptance',
         content: `${w.summary}\nRead the current task overview and assess deliveryCriteria. Accept delivery receipt ${args.receiptId} using bridge_accept_task_delivery with evidence references. Scientific success is recorded separately.`,
-        metadata: { protocolVersion: 2, artifactKind: 'workflow_delivery', deliveryReceiptId: args.receiptId, humanNotification: false } });
+        metadata: { ...(sessions ? { workflowNotification: sessions } : {}), protocolVersion: 2, artifactKind: 'workflow_delivery', deliveryReceiptId: args.receiptId, humanNotification: false } });
     }
     if (w.status === 'cancelled') engine.revokeTaskLease(task.id);
     return { accepted: true, status: w.status, owner: w.owner, contractVersion: w.contract.version, continuation: w.continuation };

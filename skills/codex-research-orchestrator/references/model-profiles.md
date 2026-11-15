@@ -1,45 +1,36 @@
-# Model Cognitive Profiles, L0–L4 Routing & Session Lanes
+# Model Hierarchy, Three Session Lanes & Effort Routing
 
-Assignments compile along three axes: `Role × Epistemic Stance × Model Adapter` (compiled deterministically via `research_context(..., role=..., stance=..., recipient_profile=...)`). **Claude (`claude-code`) is strictly opt-in**—never assume or route to Claude unless explicitly declared available in the user's request, `controls.md`, or `project.md`.
+Assignments compile along `Role × Epistemic Stance × Model Adapter` via `research_context(..., role=..., stance=..., recipient_profile=...)`. Channel/role boundaries are machine-enforced at task intake (`intake.mjs` & `research_setup.py lint`).
 
-## Adaptive Participant Topology
+## Capability Hierarchy & Empirical Responsibilities
 
-| Scientific responsibility | Default complete topology (`Codex` + `Antigravity` [+ `ChatGPT Pro`]) | Opt-in overlay (`Claude` explicitly declared) |
-|---|---|---|
-| Macro framing & bottleneck escape | **ChatGPT Pro** (`pro_macro`), or isolated **Codex** (`abductive_pioneer`) | Unchanged (`ChatGPT Pro` retains macro framing) |
-| SOTA ceiling, operator collision & cross-domain scan | **Antigravity Gemini** (`gemini_panoramic`) | Unchanged (`Gemini` retains panoramic recall) |
-| Main-author derivation & cohesive prose | **Codex** (`gpt_contract`) | **Claude** (`claude_synthesis`) may lead drafting |
-| Tier-0/1 diagnostics & zero-drift code | **Codex** (math-to-code) + **Antigravity** (pipelines/logs) | **Claude** owns narrow `writeRoots` sub-packages |
-| Dual-track blind review (`blind_review`) | **Isolated Codex** (`formal_falsification`) ∥ **Isolated Antigravity** (`prior_art_isomorphism`) | Add **Isolated Claude** (`mechanistic_reconstruction`) |
+Tier ranking: **`ChatGPT Web Pro` > (`GPT Astra` ≈ `Gemini Carbon`) > `Gemini Argon` >= `GPT-6.1 Sol` >= `Kimi 3.1 Pro` > `DeepSeek V4.1 Flash` > `GPT-6 Luna (low)`**. **`Claude` (`claude-code`) is disabled by default.**
 
-## Four Cognitive Adapters & Packet Profiles
-
-- **`pro_macro` (ChatGPT Web `Pro`, `<=6,000` chars):** ChatGPT Web UI (`chatgpt.com`) running with `Pro` thinking effort (distinct from CLI models). Has the deepest internal search tree over invariants; suffocated by inline code blocks, diffs, `D{k}/C{n}` ledgers, or rigid checklists inside the chat box, yet fails to derive faithfully if ungrounded. Dispatch via two parts: (1) primary grounding attachment (`github_repo`: repo URL + branch + commit SHA + exact target paths, OR `upload_bundle`: secret-scrubbed `.zip` via `scripts/pack_pro_bundle.py`), plus (2) a clean 3-paragraph structural prose prompt (`<=850` words; exact repo/bundle relative paths allowed). **Asymmetric post-reply:** Lead (`Codex`) translates prose into variables/operators, runs `deductive_auditor` Object Invariant Checks against `controls.md`, and logs claims via `research_record`.
-- **`gpt_contract` (Codex / ChatGPT, `focused_curated` `16k–48k` chars):** Contract-first precision; prone to safe module-stacking under heavy open-ended checklists. For review (`formal_falsification`): disable `<5%` cutoff, verify text/equation/code object identity, hunt hidden identifiability/leakage assumptions, and construct degenerate boundaries. For execution (`zero_drift_executor`): trigger `bridge_handback(reasonCode='scientific_ambiguity')` instead of guessing semantics.
-- **`claude_synthesis` (Claude — Opt-in only, `focused_curated` `24k–64k` chars):** Concept-to-architecture synthesis and constructive repair (`mechanistic_reconstruction`). Forbid balancing compromises or retreating to safe baselines; enforce tight `writeRoots`.
-- **`gemini_panoramic` (Antigravity Gemini, `150k–400k` chars):** Native `1M+` raw long-context recall (full papers, repos, run logs) in static-first prefix order. Enforce the **Five-Tuple Isomorphism** for cross-domain transfer and verbatim `section`/`file:line`/`timestamp` citations (`UNOBSERVED` if absent).
-
-## L0–L4 Risk-Based Model & Thinking Effort Routing Matrix
-
-Match model tier and reasoning `effort` (`minimal | low | medium | high | xhigh | pro_max`) to epistemic risk and reversibility rather than maxing compute everywhere:
-
-| Level | Workload & Risk Profile | Recommended Model + Effort | Tool Profile |
+| Model / Tier | Session Lane | Primary Responsibility | Enforced Boundary |
 |---|---|---|---|
-| **L0** | Mechanical reads, status, search, export, formatting | Lightweight/fast peer or Lead (`minimal` / `low`) | `worker` / `exec_only` |
-| **L1** | Scoped implementation & reproducible smoke checks with locked spec (`zero_drift_executor`) | `Codex` or `Antigravity` (`medium`) | `worker` (9 tools) |
-| **L2** | Standard synthesis, core math-to-code, ablation/Tier-1 probe design | `Codex` / `Gemini` / opt-in `Claude` (`high`) | `lead` / `worker` |
-| **L3** | High-risk `deductive_auditor` review, `<5%` tail/leakage hunt, multi-patch diagnosis | `Codex` (`xhigh`) ∥ Blind Reviewer (`high`/`xhigh`) | `lead` (`review` packet) |
-| **L4** | Structural impasse (`>=2` patches), core problem framing, cross-domain breakthrough | `ChatGPT Pro` (`pro_max`) + `Gemini` (`gemini_panoramic`) + `Codex` (`xhigh`) | `pro_macro` / `gemini_panoramic` |
+| **ChatGPT Web `Pro`** (`pro_max`) | Designated ChatGPT Web project (standing bundle/repo auth; 15-min `Luna` status check) | Chief macro architect, SOTA framing, multi-layer structural derivations at unrestricted answer depth | No pasted diffs/ledgers in chat; **no SHA-256 verification ceremony** (`pack_pro_bundle.py`) |
+| **GPT `Astra`** (`high`/`xhigh`) | Codex CLI / subagent | Mathematical/contract formalization & independent `blind_review` (`formal_falsification`) | Never runs in Antigravity or PI |
+| **Gemini `Carbon`** (`high`) | Antigravity pinned conversation (short delta turns) | Mechanism & architecture co-design, full-repo/log panoramic scans (`gemini_panoramic`) | **Never `blind_review`** (barred at intake); avoid long multi-turn PI logs (`Vertex 429`) |
+| **Gemini `Argon`** (`medium`/`high`) / **`GPT-6.1 Sol`** | Antigravity (`Argon`) / Codex (`Sol`) | Core implementation, real-benchmark baselines, remote server experimental validation | Coordinator (`codex` lead) never edits business code; 1 active writer per `writeRoots` |
+| **Kimi 3.1 Pro / DeepSeek V4.1 Flash** | Explicit project-rooted **PI** session (`.pi/sessions/`, `cwd=project`, `magpie` `auto/*`, `retries=0`) | Bounded data pipelines, structured coding submodules, evidence extraction | **Legacy `dyschop/*` banned**; never route Gemini/GPT inside PI |
+| **GPT-6 `Luna`** (`low`) | Codex `subagent` / L0 worker | Read-only server checks (`free VRAM >= peak + margin`, excluding faulty GPUs) & 15-min Web `Pro` checks | **No code writes**, no architecture/review |
 
-## Runtime Dynamic Escalation & De-escalation Triggers
+## Cognitive Adapters & Packet Profiles
 
-1. **Two-Failure / Two-Patch Escalation (`engine.mjs` `jitGuidance`):** After `>=2` consecutive failed validations or `>=2` stacked local patches, automatically escalate to `high`/`xhigh` (`recommendedEffort`), freeze ad-hoc patching, run endogenous operator + destructive deletion checks, or escalate to **L4** `pro_macro`.
-2. **Zero-Delta Discussion Spin (`>=3` turns without new evidence/patch):** Watchdog trips circuit; escalate to Lead `high`/`xhigh` to issue a Tier-1 discriminative probe or controlled two-branch fork.
-3. **Scientific Ambiguity Handback:** Worker calling `bridge_handback(reasonCode='scientific_ambiguity')` halts local guessing; Lead resolves semantics at `high` effort before re-dispatch.
-4. **Verification De-escalation:** Once mechanism equations and baseline pass **L3** audit (`derived`/`supported`), downgrade routine sweeps and regression runs back to **L1** (`medium`).
+- **`pro_macro` (ChatGPT Web `Pro`, `<=6,000` chars):** Ground via synced GitHub repo or secret-scrubbed `.zip` (`pack_pro_bundle.py`, `.pi` ignored, default no SHA256 column) + clean 3-paragraph structural prose (`<=850` words; unrestricted answer length). Lead translates prose to formal variables/claims in SQLite.
+- **`gpt_contract` (Codex — `Astra` / `6.1 Sol` / `Luna`, `focused_curated` `16k–48k`):** Strict contract/proof verification (`Astra`) or zero-drift execution (`6.1 Sol`). Ambiguities immediately trigger `bridge_handback(reasonCode='scientific_ambiguity')`.
+- **`gemini_panoramic` (Antigravity — `Carbon` / `Argon`, `150k–400k`):** Native long-context recall over papers, codebases, and logs in static-first prefix order. Enforce Five-Tuple Isomorphism and verbatim citations (`UNOBSERVED` if absent); keep session deltas concise to avoid Vertex rate limits.
+- **`claude_synthesis` (Opt-in only):** Disabled by default (`forbid_claude_code: true`); active only when user explicitly overrides in `controls.md`.
 
-## CLI vs Desktop Session-Lane Binding Rules
+## L0–L4 Risk-Based Effort & Dynamic Triggers
 
-- Record explicit `(logicalTaskId, participant, sessionId, requestedModel, effortTier)` per task; keep requested model/effort separate from runtime-reported model identity.
-- **CLI headless lanes** (`codex_exec`, `antigravity_exec`, opt-in `claude_exec`) run on isolated task/worktree bindings (`completeTaskOnExit: false` when awaiting verification; secondary MCP peers use `BRIDGE_TOOL_PROFILE=exec_only`).
-- **Desktop / Web interactive lanes** (e.g., **ChatGPT Web `Pro`** browser/desktop pane with `github_repo` or `upload_bundle` grounding, Workbench human-attention queue) handle **L4** macro consults and user decisions without colliding with CLI cursors or overwriting active worktrees.
+| Level | Workload | Model + Effort | Profile |
+|---|---|---|---|
+| **L0** | Read-only status, server GPU free-VRAM check, 15-min Web `Pro` check, search/export | `Luna` (`low`) / fast PI | `worker` (11 tools) / `exec_only` |
+| **L1** | Scoped coding & unified real-benchmark execution under locked spec | `Argon` / `6.1 Sol` (`medium`), `Kimi`/`DeepSeek` (`auto/*`) | `worker` (11 tools) |
+| **L2** | Core math-to-code, mechanism co-design, claim-bound ablations | `Carbon` / `6.1 Sol` / `Astra` (`high`) | `lead` / `worker` |
+| **L3** | Independent `blind_review` (`formal_falsification`), `<5%` tail/leakage audit, Two-Patch triage | `Astra` (`xhigh`) | `lead` (`review` packet) |
+| **L4** | Structural impasse (`>=2` patches), first-principles macro redesign | `ChatGPT Web Pro` (`pro_max`) + `Carbon` / `Astra` (`xhigh`) | `pro_macro` / `gemini_panoramic` |
+
+- **Two-Failure / Two-Patch Escalation (`engine.mjs` `jitGuidance`):** `>=2` validation failures or local patches freeze ad-hoc edits and escalate to `Astra`/`Carbon`/`Web Pro`.
+- **Three Session Lanes Guard (`intake.mjs` / `research_lint.py`):** Record `(taskId, model, channel, sessionId)`; keep `codex`, `antigravity`, and `.pi/sessions/` cleanly isolated.

@@ -1,10 +1,15 @@
-# Collaboration Policy, Blind Isolation & Low-Entropy Coordination
+# Collaboration Policy, Three Session Lanes & Write Discipline
 
-Delegate separable investigation, independent construction/review, or scoped execution while keeping one Lead for scientific alignment and final acceptance, and one writer per file region.
+Delegate separable investigation, independent review, or scoped execution while keeping the Lead coordinator strictly non-coding and enforcing one active writer per target path.
 
-## Adaptive Participant Policy
+## Three Session Lanes & Participant Policy
 
-**Claude (`claude-code`) is never assumed by default.** Coordinate natively in Codex, or pair `Codex + Antigravity (Gemini)` (+ authorized `ChatGPT Pro`); attach Claude **only when explicitly declared by the user**. See [model profiles](model-profiles.md) for L0–L4 effort routing and cognitive adapters.
+- **Default team (`Claude` disabled):** `ChatGPT Web Pro`, `Codex` (`Astra` / `6.1 Sol` / `Luna`), `Antigravity` (`Carbon` / `Argon`), and PI open-weight models (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`).
+- **Lane isolation (`ROUTE-001`):**
+  1. `GPT` models -> `Codex` chats/subagents (`Astra` for formalization/`blind_review`, `6.1 Sol` for implementation, `Luna` low-effort for L0 observation).
+  2. `Gemini` models -> pinned `Antigravity` desktop conversations (`Carbon` for co-design/scan, `Argon` for implementation). Use short delta updates—do not run long Gemini threads inside PI (triggers `Vertex 429`).
+  3. `Kimi` / `DeepSeek` -> explicit project-rooted **PI** sessions (`.pi/sessions/`, `cwd=project`, `magpie` `auto/*`, `retries=0`; legacy `dyschop/*` banned).
+- **Single-writer & remote GPU discipline:** One active writer per `writeRoots` (`WORK_LOCK`; never dodge locks via parallel `git worktree` checkouts). Schedule remote GPU jobs whenever `free VRAM >= peak + margin` (excluding faulty GPUs), without waiting for 100% host idleness (`evaluateGpuPlacement`).
 
 ## Three Isolation Contexts
 

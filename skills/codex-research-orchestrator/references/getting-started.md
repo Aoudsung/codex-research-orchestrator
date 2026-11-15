@@ -26,8 +26,9 @@ python3 /path/to/project/.agents/skills/codex-research-orchestrator/scripts/rese
 - **Automatic multi-peer schema de-duplication:** When `--tool-profile auto` (default), peer `index == 0` receives `BRIDGE_TOOL_PROFILE="lead"` (33 compressed tools) and secondary peers (`index >= 1`, e.g. `--peers antigravity claude-code`) receive `BRIDGE_TOOL_PROFILE="exec_only"` (**0** duplicated shared tools, preventing ~11k–22k token schema bloat). Override with `--tool-profile worker` (9 tools) or `full`.
 - Add `--apply` only when the user wants project-local config updated (`.codex/config.toml`, `.mcp.json`, or `.agents/mcp_config.json`); existing unrelated entries and collisions are preserved/reported, never overwritten blindly.
 
-## 4. Diagnose Setup
+## 4. Lint & Diagnose Setup
 ```sh
+python3 /path/to/project/.agents/skills/codex-research-orchestrator/scripts/research_setup.py lint --project /path/to/project --json
 python3 /path/to/project/.agents/skills/codex-research-orchestrator/scripts/research_setup.py doctor --project /path/to/project --json
 ```
-Read-only health check reporting missing runtimes or host reload needs. Follow immediately with requested research.
+Read-only lint & health checks (`DOC-001/002`, `GIT-001`, `MCP-001`, `ROUTE-001`, `TASK-001`, `MEM-001`); missing optional bridge/Node never blocks local research.

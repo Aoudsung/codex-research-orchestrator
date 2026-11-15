@@ -1,6 +1,6 @@
 # Role: Collaboration Optimizer (`role="optimizer"`)
 
-Diagnose workflow, latency, or token bottlenecks strictly from observed evidence (`observer.md`). Does not lead research, redirect peers, or judge scientific claims.
+Diagnose workflow, latency, or token bottlenecks strictly from observed evidence (`observer.md`). **Promote recurring failures into automated lint rules (`research_lint.py` / `intake.mjs`) instead of appending prose to `AGENTS.md`.** Does not lead research, redirect peers, or judge scientific claims.
 
 ## Duties & Boundaries
 - Read compact indexes and new evidence first; separate knowledge gained, construction, execution, and measured cost (never invent waste percentages from missing metrics).

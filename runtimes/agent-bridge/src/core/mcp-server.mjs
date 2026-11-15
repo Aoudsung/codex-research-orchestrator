@@ -124,11 +124,11 @@ export class McpStdioServer {
   }
 
   /**
-   * Compute maximum modification timestamp across src/core and src/servers for hot-reload detection.
+   * Include domain changes so workflow fixes reach already connected MCP clients.
    */
   _getMaxSourceMtimeMs() {
     let maxMtime = 0;
-    for (const sub of ["core", "servers"]) {
+    for (const sub of ["core", "servers", "domain"]) {
       const dir = path.join(SRC_ROOT, sub);
       try {
         for (const entry of fs.readdirSync(dir)) {
@@ -188,8 +188,11 @@ export class McpStdioServer {
         }
       });
 
-      child.on("error", () => finish(null));
-      child.on("close", () => finish(null));
+      const unconfirmed = () => finish({ jsonrpc: "2.0", id: msg.id,
+        error: { code: -32603, message: "Fresh MCP worker exited without a confirmed response; the request was not replayed." } });
+      child.on("error", unconfirmed);
+      child.on("close", unconfirmed);
+      child.stdin.on("error", unconfirmed);
 
       child.stdin.write(`${JSON.stringify(msg)}\n`);
       child.stdin.end();
@@ -261,6 +264,9 @@ export class McpStdioServer {
     });
 
     process.stdin.on("end", () => {
+      // Fresh workers receive one request followed by EOF. The parent ends the
+      // process after its response; an async dispatch must survive until then.
+      if (process.env.MCP_ONE_SHOT_WORKER) return;
       this._closeWatchers();
       this.log("stdin closed, exiting.");
       process.exit(0);

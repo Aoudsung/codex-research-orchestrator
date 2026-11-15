@@ -21,13 +21,18 @@ import {
   buildPolicySnapshot,
   createMandate,
   diffPolicyEffects,
+  parseControlsLintPolicy,
   resolveDeclaredPeersFromControls,
 } from "./policy.mjs";
 import {
   defaultTaskThreadId,
+  validateCoordinatorWriteBoundary,
+  validateModelRoleAndChannel,
   validateProMacroPrompt,
+  validateResearchTaskDiscipline,
   validateRoutingNote,
   validateThreadSubscription,
+  validateWriteRootExclusivity,
 } from "./intake.mjs";
 import { evaluateHandback, evaluateInboundEvent } from "./router-eval.mjs";
 import {
@@ -80,6 +85,7 @@ export class BridgeEngine {
     this.isPidAlive = isPidAlive;
     this.onMessageCommitted = null;
     this.onEffectsEnqueued = null;
+    this._policyFlags = {};
 
     this._ensureInitialPolicy();
   }
@@ -126,6 +132,7 @@ export class BridgeEngine {
         "codex",
         "claude-code",
       ],
+      lintPolicy: { ...(this._policyFlags || {}) },
     };
   }
 
@@ -269,6 +276,12 @@ export class BridgeEngine {
           controlVersion,
         };
       }
+
+      const nextPolicyFlags =
+        controlsText !== null && controlsText !== undefined
+          ? parseControlsLintPolicy(controlsText)
+          : { ...(this._policyFlags || {}) };
+      this._policyFlags = nextPolicyFlags;
 
       const changed =
         prevSnap.controlVersion !== nextSnap.controlVersion ||
@@ -506,6 +519,44 @@ export class BridgeEngine {
       if (Array.isArray(metadata?.readRoots) && !mergedPermissions.readRoots) {
         mergedPermissions.readRoots = metadata.readRoots;
       }
+
+      const policyFlags = activePolicy.lintPolicy || {};
+      validateModelRoleAndChannel({
+        assignedTo,
+        requiredModel: reqModel,
+        role: metadata?.role,
+        taskKind: metadata?.taskKind,
+        provider: metadata?.provider,
+        metadata,
+        contract,
+        permissions: mergedPermissions,
+        policyFlags,
+      });
+      validateCoordinatorWriteBoundary({
+        role: metadata?.role,
+        metadata,
+        permissions: mergedPermissions,
+        policyFlags,
+      });
+      validateWriteRootExclusivity({
+        taskId: id,
+        cwd: cwd || this.defaultCwd() || "",
+        assignedTo,
+        requiredConversationId: reqConv,
+        boundConversationId: boundConv,
+        permissions: mergedPermissions,
+        metadata,
+        existingTasks: this.repos.listTasks({ limit: 500 }),
+        strict: Boolean(policyFlags.strictWriteLocks || metadata?.strictWriteLocks),
+      });
+      validateResearchTaskDiscipline({
+        prompt,
+        contract,
+        metadata,
+        role: metadata?.role,
+        taskKind: metadata?.taskKind,
+        policyFlags,
+      });
 
       const initialPhase = "ready";
       const ctrl = this.repos.getControl();
@@ -1029,6 +1080,13 @@ export class BridgeEngine {
     const matchedRoute = resolvedTaskId
       ? this.repos.getRoute(resolvedTaskId, resolvedToAgent)
       : null;
+    const workflowSessions = allowSelfSend && metadata?.protocolVersion === 2 &&
+      metadata?.workflowNotification && fromAgent === resolvedToAgent
+      ? workflow.workflowNotificationSessions(this, this.repos.getTask(resolvedTaskId), resolvedToAgent)
+      : null;
+    const crossSessionWorkflow = workflowSessions &&
+      metadata.workflowNotification.sourceSessionId === workflowSessions.sourceSessionId &&
+      metadata.workflowNotification.targetSessionId === workflowSessions.targetSessionId;
 
     if (!resolvedThreadId) {
       const taskForThread = resolvedTaskId
@@ -1047,7 +1105,7 @@ export class BridgeEngine {
     };
     delete enrichedMeta.bridgeDelivery;
 
-    if (resolvedTaskId && fromAgent) {
+    if (resolvedTaskId && fromAgent && !crossSessionWorkflow) {
       this.repos.markPriorTaskMessagesProcessed({
         taskId: resolvedTaskId,
         toAgent: fromAgent,
@@ -1059,7 +1117,7 @@ export class BridgeEngine {
     let wakeupTargetSession = null;
     if (
       resolvedTaskId &&
-      fromAgent !== resolvedToAgent &&
+      (fromAgent !== resolvedToAgent || crossSessionWorkflow) &&
       !enrichedMeta.isWakeupNotification &&
       !enrichedMeta.suppressWakeup
     ) {

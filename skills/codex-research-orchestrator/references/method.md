@@ -29,15 +29,15 @@ Reject surface metaphors. Any cross-domain mechanism transfer must verify all fi
 
 ## 4. Endogenous Repair, Coupling Razor & Escape Law
 
-- **Internalize first:** Before adding external regularizers, auxiliary networks, buffers, or gates, test whether refining the existing representation, metric, or update operator fixes the failure. Add a component only when the current state mathematically lacks the required information.
-- **Destructive Deletion Test (Coupling Razor):** Reject uncoupled pipeline stacking (`L = L1 + λ2 L2 + λ3 L3`). Every non-baseline piece must prove mathematical coupling with the core operator and produce **qualitative failure** if deleted; prune parts causing only minor metric noise.
-- **Two-Patch Escape:** Exceeding two local patches without simplifying the core explanation mandates stopping edits and reframing (`epistemic-stances.md`).
+- **First-principles endogenous priority (`intake.mjs` enforced):** Repair inside the core mathematical formulation and representation directly. Forbid fallback wrappers, heuristic gates, staged releases, or calibration/certification layers bolted around a weak operator.
+- **Destructive Deletion Test:** Reject uncoupled pipeline stacking (`L = L1 + λ2 L2 + λ3 L3`). Every non-baseline piece must prove mathematical coupling with the core operator and produce **qualitative failure** if deleted.
+- **Two-Patch Escape:** Exceeding two local patches without simplifying the core explanation mandates freezing edits and reframing (`Web Pro` / `Carbon`).
 
-## 5. Tiered Diagnostic Ladder (Avoid Toy-Model Mirages)
+## 5. Real-Benchmark Discipline & Unified Verification
 
-- **Tier-0 Synthetic Sanity Check (`<100` lines):** Catch sign errors, shape mismatches, zero gradients, or blowups only. Never claim real-world efficacy from 2D synthetic toys, and never discard a representation mechanism solely from toy non-emergence.
-- **Tier-1 Real-Baseline Trajectory Diagnostic:** Inspect a small slice of real task data, pretrained activations, or baseline failure logs **before** building heavy pipelines to verify the bottleneck exists in live dataflow.
-- **Tier-2 Matched-Budget Evaluation:** Run full competitive benchmarks with prespecified metrics, splits, and variance once Tier-1 confirms the anomaly and `deductive_auditor` clears the mechanism.
+- **Real benchmarks only (`SYNTHETIC_FIXTURE_FORBIDDEN`):** Never run synthetic/toy environments or mock checkpoints/samplers when real benchmarks and pretrained weights exist. Inspect real trajectories directly.
+- **Core + Baseline together before formal runs:** Finish implementing both the core method and baselines completely before launching unified formal experiment suites; cut unnecessary local unit-test scaffolding and redundant pre-checks.
+- **Claim-bound runs & self-only ablations (`CLAIM_BINDING_REQUIRED`):** Bind every experiment and ablation to explicit paper claims (`C1`/`C2`...); ablations isolate only our own proposed components without modifying external baselines.
 
 ## 6. Multi-Round Cognitive Displacement
 

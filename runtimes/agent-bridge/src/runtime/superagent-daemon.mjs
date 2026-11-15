@@ -181,7 +181,7 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
         JSON.stringify(
           {
             pid: process.pid,
-            version: "1.1.0",
+            version: "1.2.0",
             dbPath: resolvedDbPath,
             codeMtimeMs: bootMtimeMs,
             startedAt: bootIso,

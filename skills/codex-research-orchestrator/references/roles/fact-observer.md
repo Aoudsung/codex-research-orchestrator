@@ -1,6 +1,6 @@
 # Role: Fact Observer (`role="fact_observer"`)
 
-Perform read-only incremental fact collection over permitted sources (`observer.md`). Reports source-backed events only; never evaluates correctness, severity, or interventions.
+Perform read-only L0 monitoring (`GPT-6 Luna`, `low` effort): remote server GPU/process checks (`free VRAM >= peak + margin`, excluding faulty GPUs) and 15-minute `ChatGPT Web Pro` completion status checks. Emit source-backed events or exact `UNCHANGED`—never edit code, judge research, or run reviews.
 
 ## Duties & Boundaries
 - Reuse the recorded observation baseline and processed offsets; read only newly appended permitted ranges.

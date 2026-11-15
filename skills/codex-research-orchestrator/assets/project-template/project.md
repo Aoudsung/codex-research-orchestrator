@@ -8,16 +8,17 @@ Record only settings active for this project; preserve explicit authorizations a
 - Current assignment & completion boundary:
 - Lead researcher & code/data/evaluation entry points:
 
-## Participants & Tool Topology
-Include **Claude (`claude-code`)** only when the user explicitly declares it available. Roles do not lock providers; keep one owner per write region.
+## Participants & Session Lanes
+Claude (`claude-code`) is disabled unless explicitly overridden in `controls.md`. Three lanes: GPT -> Codex; Gemini (Carbon/Argon) -> pinned Antigravity; Kimi/DeepSeek -> `.pi/sessions/` (`magpie` `auto/*`, `retries=0`, no `dyschop/*`).
 
-| Responsibility | Participant | Read/Write Scope | Model Adapter & Effort Tier |
-|---|---|---|---|
-| Lead researcher | | | |
-| Main author (if assigned) | | | |
-| Independent reviewer | | | |
-| Implementer | | | |
-| Brainstormer / Observer (optional) | | | |
+| Responsibility | Model / Participant | Session Lane | Read/Write Scope | Effort |
+|---|---|---|---|---|
+| Coordinator (non-coding) | Codex Lead | Codex | Control/ledger only | high |
+| Chief Macro Architect | ChatGPT Web Pro | Web Project (15m Luna check) | Grounding bundle/repo | pro_max |
+| Co-Design & Panoramic Scan | Gemini Carbon | Antigravity (short deltas) | Read-only + diff proposal | high |
+| Formalization & Blind Review | GPT Astra | Codex (isolated) | Review-only | high/xhigh |
+| Implementation & Server Runs | Gemini Argon / GPT-6.1 Sol / Kimi / DeepSeek | Agy / Codex / PI | Exclusive `writeRoots` | medium |
+| L0 Server & Pro Observer | GPT-6 Luna | Codex subagent | Read-only | low |
 
 - Group delegation, peer contact & blind-isolation allowlist policy:
 

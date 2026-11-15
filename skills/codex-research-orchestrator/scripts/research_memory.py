@@ -24,25 +24,53 @@ RECIPIENT_PROFILES = {
     "gemini_panoramic": 240000,
 }
 PRO_MACRO_MAX_CHARS = 8000
+MAX_TOMBSTONE_WORDS = 40
+MAX_TOMBSTONE_CHARS = 240
 ROLES = ("researcher", "reviewer", "implementer", "brainstormer", "optimizer", "fact_observer")
 STANCES = ("abductive_pioneer", "deductive_auditor", "zero_drift_executor")
 ROLE_CONTRACTS = {
-    "researcher": "Own problem formulation, mechanism hypotheses, falsifiable checks, and synthesis; record durable claims via research_record.",
-    "reviewer": "Evaluate target materials independently without lead framing; surface concrete failure modes, counterexamples, and over-coupled modules.",
-    "implementer": "Execute scoped code and experiment contracts faithfully; report exact commands, exit codes, diffs, and raw metrics without guessing scientific semantics.",
-    "brainstormer": "Generate structural reformulations, cross-domain mechanisms, and discriminative probes without prematurely converging on local patches.",
-    "optimizer": "Diagnose collaboration or compute bottlenecks from observed evidence; write process recommendations only without altering research claims.",
-    "fact_observer": "Perform read-only incremental checks over permitted sources and emit source-backed events or exactly UNCHANGED.",
+    "researcher": "Own problem formulation, mechanism hypotheses, falsifiable claim-bound checks, and synthesis (Codex Lead coordinator never edits business code directly).",
+    "reviewer": "Independent blind_review / formal_falsification via GPT Astra (never Gemini Carbon); surface counterexamples, tail failures, and fallback/coupling bloat.",
+    "implementer": "Execute scoped code & real-benchmark validation via Gemini Argon or GPT-6.1 Sol (one active writer per target path; complete core + baselines before formal runs).",
+    "brainstormer": "Web Pro chief macro architect + Gemini Carbon mechanism co-designer; search first-principles endogenous operators with zero fallback/wrapper layers.",
+    "optimizer": "Promote recurring process failures into automated lint/admission guards rather than bloating AGENTS.md or instruction prose.",
+    "fact_observer": "GPT-6 Luna (low) read-only L0 observer for remote server scheduling (free VRAM >= peak + margin, excluding faulty GPUs) and 15-min Web Pro status checks.",
 }
 STANCE_CONTRACTS = {
     "abductive_pioneer": "Search first-principles mechanisms, invariant reformulations, and cross-domain operator mappings; state explicit assumptions before deriving consequences.",
     "deductive_auditor": "Enforce object fidelity across text/equations/code, hunt tail/degeneracy/leakage failures (<5% truncation OFF), and apply the destructive deletion test.",
-    "zero_drift_executor": "Zero silent semantic drift; on ambiguous scientific choices, stop and call bridge_handback(reasonCode='scientific_ambiguity').",
+    "zero_drift_executor": "Zero silent semantic drift; on ambiguous scientific choices or under-specified real-benchmark constraints, stop and call bridge_handback(reasonCode='scientific_ambiguity').",
 }
 
 
 class MemoryError(ValueError):
     """An explicit contract failure, suitable for a CLI error message."""
+
+
+def validate_tombstone_reason(reason):
+    if not isinstance(reason, str) or not reason.strip():
+        raise MemoryError("Tombstone reason must be a nonempty string")
+    words = [w for w in reason.strip().split() if w]
+    if len(words) > MAX_TOMBSTONE_WORDS or len(reason.strip()) > MAX_TOMBSTONE_CHARS:
+        raise MemoryError(
+            f"Compact tombstone exceeded ({len(words)} words / {len(reason.strip())} chars; max <= {MAX_TOMBSTONE_WORDS} words, <= {MAX_TOMBSTONE_CHARS} chars)"
+        )
+    return reason.strip()
+
+
+def validate_record_hygiene(data):
+    """Verify claim/decision records carry explicit evidence or reasoning dependencies."""
+    kind = data.get("kind")
+    claim_status = data.get("claim_status")
+    deps = list(data.get("depends_on") or [])
+    rels = [r for r in (data.get("relations") or []) if isinstance(r, dict) and r.get("type") in {"depends_on", "supports"}]
+    needs_evidence = (
+        kind == "decision"
+        or (kind == "claim" and claim_status in {"supported", "verified"})
+    )
+    if needs_evidence and not (deps or rels):
+        raise MemoryError("Supported/verified claim or decision requires non-empty depends_on or supports relations")
+    return True
 
 
 def normalize_role(role):
@@ -94,15 +122,15 @@ def compile_jit_recency_card(profile="resume", recipient_profile="default", role
         )
     if recipient_profile == "pro_macro":
         return (
-            "[1] First-Principles Prose & Grounding: ground every claim against the attached GitHub repo (branch, commit SHA, target paths) or uploaded bundle (BUNDLE_MANIFEST.md), answer in continuous paragraphs focused on core invariants and structural trade-offs, state explicit assumptions, and derive 2-3 testable steps."
+            "[1] First-Principles Prose & Grounding: ground every claim against the attached GitHub repo or uploaded bundle (no SHA-256 verification ceremonies), answer at unrestricted depth on core invariants and structural trade-offs, state explicit assumptions, and derive testable claims."
         )
     if role == "implementer" or stance == "zero_drift_executor":
         return (
-            "[1] Zero Silent Drift: never guess unstated scientific semantics; trigger bridge_handback(reasonCode='scientific_ambiguity') when under-specified.\n"
-            "[2] Receipt Rigor: report exact command, exit code, diff scope, and raw metric delta."
+            "[1] Zero Silent Drift & Real Benchmarks: never use synthetic/toy environments or fallback wrappers; trigger bridge_handback(reasonCode='scientific_ambiguity') when under-specified.\n"
+            "[2] Claim-Bound Receipt Rigor: bind experiments/ablations to claim IDs and report exact commands, exit codes, diff scope, and raw metric deltas."
         )
     return (
-        "[1] Pre-Experiment Logic & Endogenous Priority: state mechanism and falsifiable prediction before running; prefer endogenous operator changes over stacked auxiliary losses (>2 patches => reformulate)."
+        "[1] Claim-Bound Endogenous Priority: run experiments against real benchmarks bound to paper claims; prefer endogenous operator repair over fallback/auxiliary patches."
     )
 
 
@@ -294,7 +322,7 @@ class Memory:
         return [{"id": record_id, "state": self.record(record_id)["state"],
                  "reason": self.record(record_id)["state_reason"]} for record_id in sorted(selected)]
 
-    def remember(self, data):
+    def remember(self, data, strict_hygiene=False):
         if not isinstance(data, dict):
             raise MemoryError("Record JSON must be an object")
         keys = {"kind", "title", "summary", "source", "scope", "claim_status", "depends_on", "supersedes", "reason"}
@@ -319,10 +347,11 @@ class Memory:
         reason = data.get("reason")
         if supersedes is not None:
             positive_id(supersedes)
-            if not isinstance(reason, str) or not reason.strip():
-                raise MemoryError("Supersession requires a reason")
+            reason = validate_tombstone_reason(reason)
         elif reason is not None:
             raise MemoryError("reason requires supersedes")
+        if strict_hygiene:
+            validate_record_hygiene(data)
         source = self.path_name(data["source"])
         body = self.read_source(source)
         self.check(dependencies)
@@ -352,8 +381,7 @@ class Memory:
         return record_id
 
     def withdraw(self, record_id, reason):
-        if not isinstance(reason, str) or not reason.strip():
-            raise MemoryError("Withdrawal requires a reason")
+        reason = validate_tombstone_reason(reason)
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
             if self.record(record_id)["state"] in {"withdrawn", "superseded"}:
@@ -621,7 +649,7 @@ class Memory:
             self.db.execute('CREATE TABLE IF NOT EXISTS relations(record_id INTEGER REFERENCES records(id), type TEXT NOT NULL, target INTEGER REFERENCES records(id), PRIMARY KEY(record_id,type,target))')
             self.db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS database_fts USING fts5(title,summary,scope,body,aliases, tokenize='trigram')")
 
-    def save(self, data):
+    def save(self, data, strict_hygiene=False):
         if not isinstance(data, dict):
             raise MemoryError('Record must be an object')
         fields = {'kind','title','summary','scope','body','author','topic','round','origin','external_key','object_key','aliases','claim_status','depends_on','relations','supersedes','expected_revision','reason','state'}
@@ -682,12 +710,13 @@ class Memory:
             if old:
                 if old['state'] not in {'current','needs_review'} or ('expected_revision' in data and data['expected_revision']!=old['version']):
                     raise MemoryError('Revision conflict')
-                if not data.get('reason'):
-                    raise MemoryError('Revision requires reason')
+                validate_tombstone_reason(data.get('reason'))
                 if old['id'] in self.closure(deps):
                     raise MemoryError('Revision cannot depend on its predecessor')
             elif 'expected_revision' in data or 'reason' in data:
                 raise MemoryError('Revision target does not exist')
+            if strict_hygiene:
+                validate_record_hygiene(data)
             for dep in deps:
                 if self.record(dep)['state'] not in {'current','historical'}:
                     raise MemoryError('Dependency is not current: '+str(dep))
@@ -942,6 +971,7 @@ def main(argv=None):
     initialize.add_argument("--control", action="append", required=True)
     remember = commands.add_parser("remember", help="Store a full snapshot from a project-relative record JSON file")
     remember.add_argument("file")
+    remember.add_argument("--strict-hygiene", action="store_true", help="Require dependencies on decisions and supported/verified claims")
     for name in ("read", "get"):
         read = commands.add_parser(name, help="Read full snapshot with current validity and provenance")
         read.add_argument("id", type=int)
@@ -984,7 +1014,7 @@ def main(argv=None):
         if args.command == "init":
             result = {"controls": memory.controls, "database": ".research-memory/memory.sqlite3"}
         elif args.command == "remember":
-            result = {"id": memory.remember(json.loads(memory.read_source(args.file)))}
+            result = {"id": memory.remember(json.loads(memory.read_source(args.file)), strict_hygiene=args.strict_hygiene)}
         elif args.command in {"read", "get"}:
             result = memory.read(args.id)
         elif args.command == "withdraw":

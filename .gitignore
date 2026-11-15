@@ -6,3 +6,5 @@ dist/
 .agent-bridge/
 node_modules/
 .research-orchestrator/
+.pi/
+pi-session-*.html

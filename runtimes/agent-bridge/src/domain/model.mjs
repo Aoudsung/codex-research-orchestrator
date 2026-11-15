@@ -105,6 +105,15 @@ export const REASONS = Object.freeze({
   DELIVERY_CIRCUIT_OPEN: "DELIVERY_CIRCUIT_OPEN",
   INVALID_COGNITIVE_PROFILE: "INVALID_COGNITIVE_PROFILE",
   PRO_MACRO_PROMPT_CLUTTER: "PRO_MACRO_PROMPT_CLUTTER",
+  MODEL_CHANNEL_MISMATCH: "MODEL_CHANNEL_MISMATCH",
+  MODEL_ROLE_MISMATCH: "MODEL_ROLE_MISMATCH",
+  COORDINATOR_CODING_FORBIDDEN: "COORDINATOR_CODING_FORBIDDEN",
+  WRITE_ROOT_CONFLICT: "WRITE_ROOT_CONFLICT",
+  SYNTHETIC_FIXTURE_FORBIDDEN: "SYNTHETIC_FIXTURE_FORBIDDEN",
+  FALLBACK_DESIGN_FORBIDDEN: "FALLBACK_DESIGN_FORBIDDEN",
+  CLAIM_BINDING_REQUIRED: "CLAIM_BINDING_REQUIRED",
+  UNSUPPORTED_MODEL_PROVIDER: "UNSUPPORTED_MODEL_PROVIDER",
+  PRO_SHA_CEREMONY_SKIPPED: "PRO_SHA_CEREMONY_SKIPPED",
 });
 
 export class BridgeUserError extends Error {
@@ -259,13 +268,16 @@ export function isBlindIsolated(mandateOrTask) {
  */
 export function inferModelAdapter({ assignedTo = null, requiredModel = null } = {}) {
   const normModel = normalizeModelId(requiredModel);
+  if (normModel && /(?:^|-)astra(?:-|$)/.test(normModel)) {
+    return "gpt_contract";
+  }
   if (
     normModel &&
     /(^|-)(chatgpt-pro|gpt-[0-9.a-z]*-pro|o1-pro|o3-pro)(-|$)/.test(normModel)
   ) {
     return "pro_macro";
   }
-  if (normModel.includes("gemini") || assignedTo === "antigravity") {
+  if (normModel.includes("gemini") || normModel.includes("carbon") || normModel.includes("argon") || assignedTo === "antigravity") {
     return "gemini_panoramic";
   }
   if (normModel.includes("claude") || assignedTo === "claude-code") {
@@ -274,6 +286,8 @@ export function inferModelAdapter({ assignedTo = null, requiredModel = null } = 
   if (
     normModel.includes("gpt") ||
     normModel.includes("codex") ||
+    normModel.includes("luna") ||
+    normModel.includes("sol") ||
     assignedTo === "codex"
   ) {
     return "gpt_contract";

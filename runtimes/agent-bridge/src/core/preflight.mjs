@@ -275,6 +275,37 @@ export function runTaskPreflight({
   const forbiddenOperations = Array.isArray(permissions.forbiddenOperations)
     ? permissions.forbiddenOperations
     : [];
+  const forbiddenSet = new Set(forbiddenOperations.map((op) => String(op).toLowerCase()));
+
+  const incompatibleCommands = [];
+  for (const cmd of explicitCommands) {
+    const rawCmd = String(cmd ?? "").trim();
+    if (!rawCmd) continue;
+    if (forbiddenSet.has("ssh") && /\b(?:ssh|scp|sftp)\b/i.test(rawCmd)) {
+      incompatibleCommands.push({
+        command: rawCmd,
+        reason: "Command blocked by forbiddenOperations ('ssh').",
+      });
+    }
+    if (
+      forbiddenSet.has("local_tests") &&
+      /\b(?:pytest|npm\s+test|unittest|node\s+--test)\b/i.test(rawCmd)
+    ) {
+      incompatibleCommands.push({
+        command: rawCmd,
+        reason: "Local test execution blocked by forbiddenOperations ('local_tests').",
+      });
+    }
+    if (
+      (forbiddenSet.has("git_push") || forbiddenSet.has("git_commit")) &&
+      /\bgit\s+(?:push|commit)\b/i.test(rawCmd)
+    ) {
+      incompatibleCommands.push({
+        command: rawCmd,
+        reason: "Git commit/push commands are reserved for explicit user authorization.",
+      });
+    }
+  }
 
   // Mandatory MCP lifecycle tools that must be pre-authorized as a bundle
   const requiredMcpTools = [
@@ -385,7 +416,9 @@ export function runTaskPreflight({
   return {
     ok: Boolean(RUNTIME_TOOL_CAPABILITIES[runtime]) &&
       ["direct", "read_only", "mcp_structured_patch"].includes(deliveryMode) &&
-      missingReadRoots.length === 0 && incompatibleTools.length === 0 &&
+      missingReadRoots.length === 0 &&
+      incompatibleTools.length === 0 &&
+      incompatibleCommands.length === 0 &&
       (deliveryMode !== "direct" || directoryChecks.every((c) => c.mode !== "write" || c.writable)) &&
       (deliveryMode !== "read_only" || writeRoots.length === 0) &&
       (deliveryMode !== "mcp_structured_patch" || writeRoots.length > 0) &&
@@ -398,6 +431,7 @@ export function runTaskPreflight({
     recommendedDeliveryMode,
     doNotRetryTools: incompatibleTools.map((t) => t.tool),
     incompatibleTools,
+    incompatibleCommands,
     consolidatedPermissionChecklist: {
       mcpTools: effectiveToolList,
       requestedTools,
@@ -506,6 +540,12 @@ export function buildAgySessionSettings({
   if (forbiddenSet.has("ssh")) {
     deny.push("command(ssh)", "command(scp)", "command(sftp)");
   }
+  if (forbiddenSet.has("local_tests")) {
+    deny.push("command(pytest)", "command(unittest)");
+  }
+  if (forbiddenSet.has("git_push") || forbiddenSet.has("git_commit")) {
+    deny.push("command(git commit)", "command(git push)");
+  }
 
   const permissions = {
     allow: [...new Set(allow)],
@@ -517,6 +557,50 @@ export function buildAgySessionSettings({
   return {
     toolPermission: "proceed-in-sandbox",
     permissions,
+  };
+}
+
+/**
+ * Evaluate GPU schedulability by free VRAM (not host 100%-idle exclusivity),
+ * excluding faulty GPUs and requiring `freeVramMb >= requiredVramMb + safetyMarginMb`.
+ *
+ * @param {object} options
+ * @param {Array<{ index: number, freeMb: number, faulty?: boolean }>} [options.gpus]
+ * @param {number} [options.requiredVramMb]
+ * @param {number} [options.safetyMarginMb]
+ * @param {number[]} [options.excludedIndices]
+ */
+export function evaluateGpuPlacement({
+  gpus = [],
+  requiredVramMb = 0,
+  safetyMarginMb = 2048,
+  excludedIndices = [],
+} = {}) {
+  const excluded = new Set(excludedIndices || []);
+  const needed = Math.max(0, Number(requiredVramMb) || 0) + Math.max(0, Number(safetyMarginMb) || 0);
+  const eligible = [];
+  const rejected = [];
+
+  for (const gpu of gpus || []) {
+    const idx = gpu?.index;
+    const freeMb = Number(gpu?.freeMb ?? 0);
+    if (gpu?.faulty || excluded.has(idx)) {
+      rejected.push({ index: idx, reason: "faulty_or_excluded" });
+      continue;
+    }
+    if (freeMb < needed) {
+      rejected.push({ index: idx, reason: "insufficient_free_vram", freeMb, needed });
+      continue;
+    }
+    eligible.push({ index: idx, freeMb });
+  }
+  eligible.sort((a, b) => b.freeMb - a.freeMb);
+  return {
+    schedulable: eligible.length > 0,
+    selectedGpu: eligible[0] ?? null,
+    eligible,
+    rejected,
+    neededVramMb: needed,
   };
 }
 

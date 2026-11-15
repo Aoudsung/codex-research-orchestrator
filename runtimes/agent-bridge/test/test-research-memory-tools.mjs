@@ -157,8 +157,8 @@ test('BRIDGE_TOOL_PROFILE prunes worker and exec_only schemas while keeping comp
   assert.ok(lead.schemaChars <= 19500, `Expected compressed lead schema <= 19500 chars, got ${lead.schemaChars}`);
 
   const worker = collect('worker');
-  assert.equal(worker.defs.length, 9);
-  assert.ok(worker.schemaChars <= 6500, `Expected worker schema <= 6500 chars, got ${worker.schemaChars}`);
+  assert.equal(worker.defs.length, 11);
+  assert.ok(worker.schemaChars <= 8500, `Expected worker schema <= 8500 chars, got ${worker.schemaChars}`);
   assert.deepEqual(
     worker.defs.map(d => d.name).sort(),
     ['research_search', 'research_read', ...WORKER_BRIDGE_TOOLS].sort()

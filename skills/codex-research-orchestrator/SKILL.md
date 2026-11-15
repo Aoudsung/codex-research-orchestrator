@@ -10,15 +10,15 @@ metadata:
 
 Keep the scientific question, evidence, and next action connected. Protect the user's research object and authorization; revise mechanisms, decisions, and candidate claims whenever evidence warrants it.
 
-**Default topology does not include Claude:** Codex works alone or alongside `Antigravity` (`Gemini`) and authorized `ChatGPT Pro`; include `Claude` (`claude-code`) **only when the user explicitly declares it available** in the current instruction, `controls.md`, or `project.md`.
+**Default topology disables Claude:** Coordinator (`Codex` Lead, non-coding) schedules `ChatGPT Web Pro`, `Codex` workers (`GPT Astra` / `6.1 Sol` / `Luna`), `Antigravity` (`Gemini Carbon` / `Argon`), and PI open-weight workers (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`). Mechanical constraints are enforced by runtime admission guards and `python3 scripts/research_setup.py lint --project .`—do **not** duplicate rule lists into `AGENTS.md` or handoffs.
 
 ## Non-Negotiable Architecture Rules
 
-1. **Lazy Phase Loading (<=1–2 Reference Cards per Turn):** Read `SKILL.md` and **only** the 1–2 reference files needed for your active phase. Never preload the whole `references/` tree.
-2. **SQLite Single-Write Authority:** `controls.md` holds immutable user constraints. `.research-memory/memory.sqlite3` (`research_record`) is the single runtime source of truth for claims, evidence, decisions, evaluations, and tombstones. Write **once** per milestone/round via `research_record`—do **not** triple-write `state.md`, `rounds/RNN/record.md`, and `worklog.jsonl` every turn. Export or update `state.md` only at user briefings, pause/compaction, or final delivery.
-3. **Zero-Copy Context Assembly:** Never manually re-type `controls.md`, role instructions, or stance prose into handoffs. Call `research_context(query, profile, recipient_profile, role, stance)` so controls, `Role & Stance Contract`, allowed records, and `JIT Recency Check` are deterministically compiled in the KV-cache prefix/tail; write only a concise task delta (`<= 150–300` words).
-4. **Tiered Tool Profiles:** Primary peer uses `lead`; execution workers use `worker`; secondary peers use `exec_only` (zero duplicated shared schemas via `research_setup.py connect`).
-5. **Finish-and-Exit, Zero Busy-Wait:** Never spin on shell `sleep`, `bridge_poll_updates` loops, or long idle `bridge_wait_for_delivery` calls after completing your own phase work. Bind reactive wakeup (`callerSessionId` / `autoWakeup`) or submit `bridge_submit_task_receipt(outcome="waiting_external" | "delivered")`, then **end the turn immediately** so peer replies or human/Web `Pro` returns wake the session on arrival.
+1. **Lazy Phase Loading (<=1–2 Reference Cards per Turn):** Read `SKILL.md` and only the 1–2 reference files needed for your active phase.
+2. **SQLite Single-Write Authority:** `controls.md` holds immutable constraints & lint switches. `.research-memory/memory.sqlite3` (`research_record`) is the single runtime ledger for claims, evidence, decisions, evaluations, and compact tombstones (`<=40` words). Write **once** per milestone—never double-write flat `research-log.md` / `open-questions.md` or turn-by-turn `state.md`. Export `state.md` only at user briefings, pause, or delivery.
+3. **Zero-Copy Context Assembly & Lint-First Gates:** Call `research_context(query, profile, recipient_profile, role, stance)` instead of re-typing constraints. Run `research_setup.py lint` rather than appending defensive prohibition prose into docs.
+4. **Tiered Tool Profiles:** Primary peer uses `lead`; execution workers use `worker` (11 tools incl. `bridge_claim_task` / `bridge_complete_task`); extra MCP peers use `exec_only`.
+5. **Finish-and-Exit, Zero Busy-Wait:** Never spin on shell `sleep`, `bridge_poll_updates` loops, or long idle waits. Bind reactive wakeup (or check Web `Pro` every 15 min via `Luna` at `low` effort) and end the turn.
 
 ## Task Scope & Role Routing
 
@@ -40,12 +40,11 @@ Determine task type (Original research / Reproduction / Survey / Bounded support
 ## Authority Separation & Core Loop
 
 - **Authority:** Verbatim user constraints (`controls.md` / `charter.md`) change only on user instruction. Decisions change when evidence warrants. Candidate claims track status (`conjecture | derived | supported | refuted`) and refutation criteria. Never shrink the research object for convenience.
-- **Construction Loop:**
-  1. *Ground the bottleneck:* Connect the difficulty to user constraints, latest SOTA assumptions, and a Tier-1 real-baseline diagnostic before building machinery.
-  2. *Unify before patching:* Derive representation, operator, and feedback from one core relationship; assign a main author (`Codex` default, or opt-in `Claude`) and complementary probes.
-  3. *Test SOTA & reality:* Check de-jargonized operator overlap, boundary counterexamples, and Tier-0/1/2 evidence.
-  4. *Endogenous repair & Two-Patch Escape:* Fix inside the core operator first and prune uncoupled modules (destructive deletion test). After `>=2` failed patches without simplification, escalate via `abductive_pioneer` / `pro_macro`.
-  5. *Epistemic-delta convergence:* Advance multi-round disputes only with new derivations, counterexamples, or data; break 2-turn zero-delta loops with a targeted probe or controlled two-branch fork.
+- **Construction & Endogenous Loop:**
+  1. *Ground & complete before formal runs:* Inspect real benchmarks and baselines before building machinery. Finish core method + baseline implementations together before launching unified formal suites.
+  2. *Endogenous first principles:* Derive representation, operator, and update from one invariant relationship; reject fallback wrappers, heuristic gates, staged releases, calibration layers, or synthetic/toy stand-ins (enforced at task intake).
+  3. *Claim-bound verification & Two-Patch Escape:* Bind every experiment and self-only ablation to explicit paper claims (`C1`/`C2`...). After `>=2` failed local patches without simplification, freeze patching and escalate via `Web Pro` / `Carbon`.
+  4. *Single-writer safety & Epistemic-delta gate:* Lead coordinator never edits business code; keep one active writer per target path; break zero-delta loops via discriminative probes or two-branch forks.
 
 ## Stopping & Delivery
 

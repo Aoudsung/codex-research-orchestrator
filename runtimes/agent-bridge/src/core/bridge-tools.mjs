@@ -35,6 +35,8 @@ export const BRIDGE_TOOL_PROFILES = Object.freeze([
 ]);
 
 export const WORKER_BRIDGE_TOOLS = Object.freeze([
+  "bridge_claim_task",
+  "bridge_complete_task",
   "bridge_get_task_overview",
   "bridge_read_messages",
   "bridge_read_card",

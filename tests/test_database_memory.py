@@ -211,4 +211,20 @@ class DatabaseTests(unittest.TestCase):
         self.assertIn('=== JIT Recency Check ===',pkt_text)
         self.assertLess(pkt_text.index('=== JIT Recency Check ==='),pkt_text.index('Assembled at '))
 
+    def test_tombstone_word_cap_and_strict_hygiene(self):
+        src = self.save(kind='source', title='S1', body='Measured baseline metric.')
+        long_reason = ' '.join(['word'] * 41)
+        with self.assertRaises(m.MemoryError):
+            self.save(kind='source', title='S2', body='Updated baseline.', supersedes=src['id'], reason=long_reason)
+        with self.assertRaises(m.MemoryError):
+            self.mem.save(
+                dict(kind='decision', title='D1', summary='Pick method', scope='all', body='Use operator X.', author='lead'),
+                strict_hygiene=True,
+            )
+        ok_dec = self.mem.save(
+            dict(kind='decision', title='D2', summary='Pick method', scope='all', body='Use operator X.', author='lead', depends_on=[src['id']]),
+            strict_hygiene=True,
+        )
+        self.assertEqual('current', ok_dec['state'])
+
 if __name__=='__main__':unittest.main()

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.2.0 — Lint-First Guards, Three Session Lanes & Runtime Wakeup Fixes
+
+Released on 2026-11-15.
+
+- **Runtime Intake & Preflight Admission Guards (`intake.mjs`, `policy.mjs`, `preflight.mjs`):** Enforces three session lanes (`GPT -> Codex`, `Gemini -> Antigravity`, `Kimi/DeepSeek -> .pi/sessions/` with legacy `dyschop/*` banned), bars `Carbon` from `blind_review`, locks `Luna` to read-only L0 observation, disables `claude-code` by default, enforces non-coding coordinator boundaries and `writeRoots` exclusivity, blocks synthetic/mock/`fallback`/`staged`/unclaimed tasks, and schedules remote GPUs via `evaluateGpuPlacement` (`free VRAM >= required + safetyMargin`, excluding faulty GPUs).
+- **Static Read-Only Project Linter (`setup.py lint` / `research_lint.py`):** Checks `DOC-001`..`MEM-001` over read-only SQLite URIs, replacing prose bloat in `AGENTS.md`; updates `pack_pro_bundle.py` (`.pi` ignored, SHA-256 table optional via `--include-sha256`) and `research_memory.py` (`<=40`-word tombstone cap & `--strict-hygiene`).
+- **Bridge Session Wakeup & Worker Tooling (`agent-bridge`):** Fixes same-provider distinct-session delivery wakeups while suppressing lead self-wakeups, watches `domain/` for MCP hot reload, and exposes `bridge_claim_task` / `bridge_complete_task` in the 11-tool `worker` profile.
+
 ## v1.1.0 — 任务接续与通知改进
 
 Updated on 2026-11-05.

@@ -55,6 +55,41 @@ export function resolveDeclaredPeersFromControls(
   return [...peers].sort();
 }
 
+/**
+ * Parse automated lint/admission policy switches from `controls.md`.
+ * Moves repeatable rules into deterministic runtime checks rather than relying on prose reminders.
+ *
+ * @param {string} [controlsText]
+ */
+export function parseControlsLintPolicy(controlsText = "") {
+  const text = String(controlsText ?? "");
+  const readFlag = (key, defaultVal) => {
+    const match = text.match(
+      new RegExp(`${key}\\s*[:：=]\\s*(true|false|on|off|1|0)`, "i")
+    );
+    if (!match) return defaultVal;
+    return /^(?:true|on|1)$/i.test(match[1]);
+  };
+  const claudeExplicitlyDisabled =
+    /(?:disable|forbid|exclude|no)\s+claude(?:-code)?|(?:禁用|不启用|不使用|排除)\s*claude/i.test(
+      text
+    );
+  const declaredPeers = resolveDeclaredPeersFromControls(text, {
+    optInClaudeOnly: false,
+  });
+  return {
+    forbidClaudeCode:
+      readFlag("forbid_claude_code", claudeExplicitlyDisabled) ||
+      (Array.isArray(declaredPeers) && !declaredPeers.includes("claude-code")),
+    strictWriteLocks: readFlag("strict_write_locks", true),
+    forbidSyntheticFallbacks: readFlag("forbid_synthetic_fallbacks", true),
+    requireClaimBinding: readFlag("require_claim_binding", true),
+    skipProShaCeremony: readFlag("skip_pro_sha_ceremony", true),
+    forbidCoordinatorCoding: readFlag("forbid_coordinator_coding", true),
+    enforceModelRoleTopology: readFlag("enforce_model_role_topology", true),
+  };
+}
+
 export function normalizePolicyInput({
   controlsText = "",
   acceptMode = null,

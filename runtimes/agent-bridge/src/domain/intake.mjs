@@ -1,9 +1,12 @@
+import path from "node:path";
 import {
   BridgeUserError,
   REASONS,
   SUBSCRIPTION_MODES,
   isBlindIsolated,
+  normalizeModelId,
   resolveCognitiveProfile,
+  resolveIsolationProfile,
 } from "./model.mjs";
 
 export const MAX_ROUTING_NOTE_WORDS = 60;
@@ -63,6 +66,13 @@ export function validateProMacroPrompt(
       throw new BridgeUserError(
         REASONS.PRO_MACRO_PROMPT_CLUTTER,
         `Invalid proGrounding channel '${String(channel)}': expected 'github_repo' or 'upload_bundle'.`,
+        { proGrounding: metadata.proGrounding }
+      );
+    }
+    if (metadata.proGrounding?.requireSha256 === true || metadata.proGrounding?.shaCeremony === true) {
+      throw new BridgeUserError(
+        REASONS.PRO_SHA_CEREMONY_SKIPPED,
+        "Web Pro macro consultation skips per-file SHA-256 verification ceremonies; keep upload bundles minimal and direct.",
         { proGrounding: metadata.proGrounding }
       );
     }
@@ -180,4 +190,335 @@ export function defaultTaskThreadId(task) {
     task?.metadata?.thread_id ||
     `example-${task.id}`
   );
+}
+
+const CLAUSE_PROHIBITION_RE =
+  /(?:禁止|严禁|不许|不可|不要|不得|切勿|绝不|禁用|避免|杜绝|无需|不用|免于|without\s+using|without|do\s+not\s+use|don't\s+use|never\s+use|forbid(?:den|s)?|prohibit(?:ed|s)?|ban(?:ned)?|must\s+not|should\s+not|cannot\s+use|avoid(?:ed|ing)?|free\s+of|\bno\s+(?:any\s+|a\s+)?(?:synthetic|toy|mock|dummy|fake|fallback|heuristic|wrapper|staged|calibration|certification|sha256))/i;
+
+/**
+ * Strip prohibition/negated clauses before positive pattern matching so quoting
+ * controls (e.g. "禁止使用合成环境") does not false-positive as a synthetic task.
+ *
+ * @param {string} text
+ */
+export function stripNegatedProhibitionLines(text = "") {
+  const clauses = String(text ?? "").split(/[\r\n。；;！!]+/);
+  return clauses
+    .map((c) => c.trim())
+    .filter((c) => c && !CLAUSE_PROHIBITION_RE.test(c))
+    .join("\n");
+}
+
+function normalizeRootPath(cwd, root) {
+  const raw = String(root ?? "").trim();
+  if (!raw) return "";
+  if (path.isAbsolute(raw)) return path.normalize(raw);
+  return cwd ? path.resolve(cwd, raw) : path.normalize(raw);
+}
+
+function rootsOverlap(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a === "." || b === ".") return true;
+  const aPrefix = a.endsWith(path.sep) ? a : `${a}${path.sep}`;
+  const bPrefix = b.endsWith(path.sep) ? b : `${b}${path.sep}`;
+  return a.startsWith(bPrefix) || b.startsWith(aPrefix);
+}
+
+/**
+ * Validate model-to-session-channel and model-to-role topology alignment:
+ * - No `dyschop/*` provider; opt-out `claude-code` blocked when forbidden.
+ * - Three lanes: GPT -> Codex, Gemini (Carbon/Argon) -> Antigravity, Kimi/DeepSeek -> PI.
+ * - Carbon excluded from blind_review / formal_falsification; Luna excluded from coding/heavy review.
+ */
+export function validateModelRoleAndChannel({
+  assignedTo = null,
+  requiredModel = null,
+  role = null,
+  taskKind = null,
+  provider = null,
+  metadata = {},
+  contract = null,
+  permissions = {},
+  policyFlags = {},
+} = {}) {
+  const normModel = normalizeModelId(requiredModel);
+  const rawProvider = String(
+    provider || metadata?.provider || metadata?.piProvider || metadata?.backend || ""
+  ).trim().toLowerCase();
+  const effectiveChannel =
+    rawProvider === "pi" || metadata?.runner === "pi" ? "pi" : assignedTo;
+  const effectiveRole = String(
+    role ||
+      metadata?.role ||
+      metadata?.workerRole ||
+      contract?.cognitiveProfile?.role ||
+      taskKind ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  const isolation = resolveIsolationProfile({ metadata, contract });
+  const writeRoots = Array.isArray(permissions?.writeRoots)
+    ? permissions.writeRoots
+    : Array.isArray(metadata?.writeRoots)
+      ? metadata.writeRoots
+      : [];
+
+  if (
+    policyFlags?.forbidClaudeCode === true &&
+    (assignedTo === "claude-code" || /claude/.test(normModel) || rawProvider === "claude-code")
+  ) {
+    throw new BridgeUserError(
+      REASONS.UNSUPPORTED_MODEL_PROVIDER,
+      "Claude / claude-code participant is disabled by active research policy.",
+      { assignedTo, requiredModel, provider: rawProvider }
+    );
+  }
+
+  if (/dyschop/i.test(`${rawProvider} ${normModel} ${metadata?.piModel || ""}`)) {
+    throw new BridgeUserError(
+      REASONS.MODEL_CHANNEL_MISMATCH,
+      "Legacy 'dyschop/*' backend is prohibited: route Kimi / DeepSeek via explicit PI sessions using magpie 'auto/*' with retries=0.",
+      { rawProvider, requiredModel }
+    );
+  }
+
+  if (policyFlags?.enforceModelRoleTopology === false) {
+    return { ok: true, enforced: false };
+  }
+
+  const isGeminiFamily = /\b(?:gemini|carbon|argon)\b/i.test(normModel);
+  const isGptFamily = /\b(?:gpt-|codex|astra|luna|sol\b)/i.test(normModel);
+  const isPiOpenFamily = /\b(?:kimi|deepseek|moonshot)\b/i.test(normModel);
+
+  if (effectiveChannel === "pi" && (isGeminiFamily || isGptFamily)) {
+    throw new BridgeUserError(
+      REASONS.MODEL_CHANNEL_MISMATCH,
+      `Model '${requiredModel}' cannot run via PI session: GPT uses Codex chats/subagents and Gemini uses pinned Antigravity desktop conversations (long PI history triggers Vertex 429). PI is reserved for Kimi / DeepSeek ('magpie' auto/*).`,
+      { assignedTo, effectiveChannel, requiredModel }
+    );
+  }
+  if (assignedTo === "antigravity" && (isGptFamily || isPiOpenFamily)) {
+    throw new BridgeUserError(
+      REASONS.MODEL_CHANNEL_MISMATCH,
+      `Model '${requiredModel}' cannot run via Antigravity: GPT uses Codex and Kimi/DeepSeek use PI sessions; Antigravity is reserved for Gemini (Carbon/Argon).`,
+      { assignedTo, requiredModel }
+    );
+  }
+  if (assignedTo === "codex" && isGeminiFamily) {
+    throw new BridgeUserError(
+      REASONS.MODEL_CHANNEL_MISMATCH,
+      `Gemini model '${requiredModel}' should run in a pinned Antigravity conversation, not a Codex worker session.`,
+      { assignedTo, requiredModel }
+    );
+  }
+
+  if (/\bcarbon\b|gemini.*pro.*high/i.test(normModel)) {
+    if (
+      isolation === "blind_review" ||
+      /blind[_-]?review|formal[_-]?falsif/i.test(effectiveRole)
+    ) {
+      throw new BridgeUserError(
+        REASONS.MODEL_ROLE_MISMATCH,
+        "Gemini Carbon is scoped to mechanism/architecture co-design and is barred from independent blind_review / formal_falsification; assign GPT Astra instead.",
+        { requiredModel, effectiveRole, isolation }
+      );
+    }
+  }
+
+  if (/\bluna\b/i.test(normModel)) {
+    const writesCode =
+      writeRoots.length > 0 ||
+      /implement|coder|writer|architecture|blind[_-]?review|formal[_-]?falsif/i.test(
+        effectiveRole
+      );
+    if (writesCode) {
+      throw new BridgeUserError(
+        REASONS.MODEL_ROLE_MISMATCH,
+        "GPT-6 Luna (low) is restricted to read-only L0 observation (remote server runs & 15-min Web Pro status checks), never coding or deep review.",
+        { requiredModel, effectiveRole, writeRoots }
+      );
+    }
+  }
+
+  return { ok: true, enforced: true };
+}
+
+/**
+ * Enforce Lead Coordinator non-coding boundary:
+ * coordinator/lead roles own scheduling, contracts, and integration only, never business edits.
+ */
+export function validateCoordinatorWriteBoundary({
+  role = null,
+  metadata = {},
+  permissions = {},
+  policyFlags = {},
+} = {}) {
+  if (policyFlags?.forbidCoordinatorCoding === false || metadata?.allowCoordinatorWrite === true) {
+    return { ok: true, enforced: false };
+  }
+  const effectiveRole = String(role || metadata?.role || metadata?.workerRole || "")
+    .trim()
+    .toLowerCase();
+  const isCoordinatorRole =
+    ["coordinator", "lead", "lead_researcher", "orchestrator"].includes(effectiveRole) ||
+    metadata?.isCoordinator === true;
+  const writeRoots = Array.isArray(permissions?.writeRoots)
+    ? permissions.writeRoots
+    : Array.isArray(metadata?.writeRoots)
+      ? metadata.writeRoots
+      : [];
+  const hasWriteScope = writeRoots.length > 0 || metadata?.editsBusinessCode === true;
+
+  if (hasWriteScope && (isCoordinatorRole || metadata?.coordinationOnly === true)) {
+    throw new BridgeUserError(
+      REASONS.COORDINATOR_CODING_FORBIDDEN,
+      "Lead coordinator / coordinationOnly tasks must not hold direct business writeRoots; dispatch business implementation to a bounded worker/implementer.",
+      { effectiveRole, writeRoots, coordinationOnly: Boolean(metadata?.coordinationOnly) }
+    );
+  }
+  return { ok: true, enforced: true };
+}
+
+/**
+ * Enforce single-writer exclusivity on overlapping `writeRoots` across active tasks.
+ */
+export function validateWriteRootExclusivity({
+  taskId = null,
+  cwd = "",
+  assignedTo = null,
+  requiredConversationId = null,
+  boundConversationId = null,
+  permissions = {},
+  metadata = {},
+  existingTasks = [],
+  strict = false,
+} = {}) {
+  const incomingRoots = Array.isArray(permissions?.writeRoots)
+    ? permissions.writeRoots
+    : Array.isArray(metadata?.writeRoots)
+      ? metadata.writeRoots
+      : [];
+  if (incomingRoots.length === 0) {
+    return { ok: true, checked: false };
+  }
+
+  const normalizedIncoming = incomingRoots.map((r) => normalizeRootPath(cwd, r)).filter(Boolean);
+  const incomingSession = boundConversationId || requiredConversationId || null;
+
+  for (const active of existingTasks || []) {
+    if (!active || active.id === taskId) continue;
+    if (["completed", "failed", "cancelled"].includes(active.status)) continue;
+
+    const existingRootsRaw = Array.isArray(active.permissions?.writeRoots)
+      ? active.permissions.writeRoots
+      : [];
+    if (existingRootsRaw.length === 0) continue;
+
+    const existingSession = active.bound_conversation_id || active.required_conversation_id || null;
+    const sameWorkerSession =
+      !strict &&
+      assignedTo &&
+      active.assigned_to === assignedTo &&
+      incomingSession &&
+      existingSession &&
+      incomingSession === existingSession;
+    if (sameWorkerSession) continue;
+
+    const normalizedExisting = existingRootsRaw
+      .map((r) => normalizeRootPath(active.cwd || cwd, r))
+      .filter(Boolean);
+
+    for (const a of normalizedIncoming) {
+      for (const b of normalizedExisting) {
+        if (rootsOverlap(a, b)) {
+          throw new BridgeUserError(
+            REASONS.WRITE_ROOT_CONFLICT,
+            `Write-root conflict with active task '${active.id}' (${active.assigned_to || "unassigned"}): '${a}' overlaps '${b}'. Maintain one active writer per target path (do not bypass via parallel git worktree).`,
+            { conflictingTaskId: active.id, incomingRoot: a, existingRoot: b }
+          );
+        }
+      }
+    }
+  }
+  return { ok: true, checked: true };
+}
+
+const SYNTHETIC_FIXTURE_RE =
+  /(?:\bsynthetic\s+(?:env|environment|benchmark|dataset|data|sample|trajectory|rollout|replay|distribution|noise|matrix|graph|corrupt)\b|\btoy\s+(?:benchmark|dataset|env|environment|problem|simulation|model)\b|\bmock\s+(?:model|checkpoint|weight|sampler|dataset|benchmark|eval|metric|env|environment)\b|\bdummy\s+(?:checkpoint|weight|dataset|benchmark|env|model|data)\b|\bfake\s+(?:data|checkpoint|weight|metric|benchmark)\b|合成(?:环境|数据|基准|任务|样本|轨迹|分布|数据集)|造假数据|玩具(?:模型|数据|环境|基准))/i;
+
+const FALLBACK_DESIGN_RE =
+  /(?:(?:添加|加一个|加一层|引入|构建|实现|保留|使用|启用|设计|add|implement|use|keep|build|introduce|wrap\s+with)\s+(?:a\s+|an\s+|the\s+)?(?:fallback|heuristic\s+(?:gate|switch|rule|fallback|patch)|wrapper\s+layer|calibration\s+(?:layer|wrapper)|certification\s+wrapper|staged\s+release)|兜底(?:逻辑|分支|机制|策略|包装)|逐阶段放行|认证兜底|启发式门控|fallback\s+wrapper|calibration\s+(?:layer|wrapper)|certification\s+wrapper|staged\s+release)/i;
+
+/**
+ * Enforce empirical research discipline at task intake:
+ * - Forbid synthetic/toy benchmarks or mock checkpoints;
+ * - Forbid fallback wrappers / heuristic gates / staged release / calibration patches;
+ * - Require claim binding (C1/C2...) for declared experiment/ablation/verification runs,
+ *   and forbid baseline edits inside ablation tasks.
+ */
+export function validateResearchTaskDiscipline({
+  prompt = "",
+  contract = null,
+  metadata = {},
+  role = null,
+  taskKind = null,
+  policyFlags = {},
+} = {}) {
+  const combinedActive = stripNegatedProhibitionLines(
+    [prompt, contract?.objective].filter(Boolean).join("\n")
+  );
+
+  if (policyFlags?.forbidSyntheticFallbacks !== false) {
+    if (metadata?.allowSyntheticFixture !== true && SYNTHETIC_FIXTURE_RE.test(combinedActive)) {
+      throw new BridgeUserError(
+        REASONS.SYNTHETIC_FIXTURE_FORBIDDEN,
+        "Research task rejected: synthetic/toy environments or mock checkpoints/samplers are forbidden. Run against real benchmarks, real checkpoints, and real environment rollouts.",
+        { matchedPattern: "synthetic_fixture" }
+      );
+    }
+    if (metadata?.allowFallbackDesign !== true && FALLBACK_DESIGN_RE.test(combinedActive)) {
+      throw new BridgeUserError(
+        REASONS.FALLBACK_DESIGN_FORBIDDEN,
+        "Research task rejected: fallback wrappers, heuristic gates, staged releases, or calibration/certification layers are forbidden. Repair the endogenous first-principles formulation directly.",
+        { matchedPattern: "fallback_design" }
+      );
+    }
+  }
+
+  const effectiveKind = String(taskKind || metadata?.taskKind || role || metadata?.role || "")
+    .trim()
+    .toLowerCase();
+  const isExperimentTask =
+    ["experiment", "ablation", "verification", "benchmark"].includes(effectiveKind) ||
+    Boolean(metadata?.experimentSpec);
+
+  if (policyFlags?.requireClaimBinding !== false && isExperimentTask) {
+    const expSpec = metadata?.experimentSpec || {};
+    const claimIds = [
+      ...(Array.isArray(metadata?.claimIds) ? metadata.claimIds : []),
+      ...(Array.isArray(expSpec.claimIds) ? expSpec.claimIds : []),
+      ...(Array.isArray(contract?.claimIds) ? contract.claimIds : []),
+    ].filter(Boolean);
+    const inlineClaims = String(`${prompt} ${contract?.objective || ""}`).match(/\bC\d+\b/g) || [];
+    if (claimIds.length === 0 && inlineClaims.length === 0) {
+      throw new BridgeUserError(
+        REASONS.CLAIM_BINDING_REQUIRED,
+        "Experiment/ablation/verification task must bind explicitly to paper claim(s) via `claimIds` (e.g. `['C1']`) or `C1`/`C2` claim tags.",
+        { effectiveKind }
+      );
+    }
+    const isAblation =
+      effectiveKind === "ablation" || expSpec.isAblation === true;
+    if (isAblation && expSpec.modifiesBaseline === true) {
+      throw new BridgeUserError(
+        REASONS.CLAIM_BINDING_REQUIRED,
+        "Ablation tasks must be self-only component comparisons and must not alter external baselines.",
+        { effectiveKind, expSpec }
+      );
+    }
+  }
+
+  return { ok: true };
 }

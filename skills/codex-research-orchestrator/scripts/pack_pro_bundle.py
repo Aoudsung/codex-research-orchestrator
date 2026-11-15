@@ -27,6 +27,7 @@ BLOCKED_SECRET_PATTERNS = (
 
 BLOCKED_DIRS = {
     ".git",
+    ".pi",
     ".agent-bridge",
     ".research-memory",
     ".research-orchestrator",
@@ -125,6 +126,7 @@ def build_pro_bundle(
     includes: list[str],
     prompt_file: str | None = None,
     max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
+    include_sha256: bool = False,
 ) -> dict:
     project = project.resolve()
     if not project.is_dir():
@@ -209,7 +211,7 @@ def build_pro_bundle(
     with zipfile.ZipFile(output_resolved, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for rel_posix in sorted(selected):
             data = selected[rel_posix].read_bytes()
-            sha = hashlib.sha256(data).hexdigest()
+            sha = hashlib.sha256(data).hexdigest() if include_sha256 else None
             lines = _line_count_label(data)
             total_bytes += len(data)
             manifest_rows.append((rel_posix, lines, len(data), sha))
@@ -229,15 +231,26 @@ def build_pro_bundle(
         ]
         if prompt_rel:
             manifest_lines.append(f"- Included Prompt: `PRO_PROMPT.md` (from `{prompt_rel}`)")
-        manifest_lines.extend(
-            [
-                "",
-                "| Path | Lines | Bytes | SHA256 |",
-                "|---|---|---|---|",
-            ]
-        )
-        for rel_posix, lines, size, sha in manifest_rows:
-            manifest_lines.append(f"| `{rel_posix}` | {lines} | {size} | `{sha[:16]}` |")
+        if include_sha256:
+            manifest_lines.extend(
+                [
+                    "",
+                    "| Path | Lines | Bytes | SHA256 |",
+                    "|---|---|---|---|",
+                ]
+            )
+            for rel_posix, lines, size, sha in manifest_rows:
+                manifest_lines.append(f"| `{rel_posix}` | {lines} | {size} | `{sha[:16]}` |")
+        else:
+            manifest_lines.extend(
+                [
+                    "",
+                    "| Path | Lines | Bytes |",
+                    "|---|---|---|",
+                ]
+            )
+            for rel_posix, lines, size, _sha in manifest_rows:
+                manifest_lines.append(f"| `{rel_posix}` | {lines} | {size} |")
         zf.writestr("BUNDLE_MANIFEST.md", "\n".join(manifest_lines) + "\n")
 
     return {
@@ -258,6 +271,7 @@ def main(argv=None):
     parser.add_argument("--include", action="append", default=[])
     parser.add_argument("--prompt-file", default=None)
     parser.add_argument("--max-file-bytes", type=int, default=DEFAULT_MAX_FILE_BYTES)
+    parser.add_argument("--include-sha256", action="store_true", help="Include truncated SHA-256 column in BUNDLE_MANIFEST.md")
     args = parser.parse_args(argv)
 
     try:
@@ -267,6 +281,7 @@ def main(argv=None):
             includes=args.include,
             prompt_file=args.prompt_file,
             max_file_bytes=args.max_file_bytes,
+            include_sha256=args.include_sha256,
         )
     except Exception as exc:
         print(json.dumps({"ok": False, "error": str(exc)}), file=sys.stderr)

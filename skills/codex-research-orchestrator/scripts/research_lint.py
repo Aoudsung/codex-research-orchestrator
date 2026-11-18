@@ -43,6 +43,102 @@ SECRET_OR_LEDGER_GIT_RE = re.compile(
 
 MAX_TOMBSTONE_WORDS = 40
 PI_BLOAT_TOKENS = 180_000
+DEFAULT_SOFT_JSONL_BYTES = 8 * 1024 * 1024
+
+NEGATED_DYSCHOP_RE = re.compile(
+    r"(?:(?:禁(?:用|止)?|严禁|不(?:准|许|可|要|得|使用|启用|允许)|avoid|without|forbid(?:den|s)?|prohibit(?:ed|s)?|ban(?:ned)?|never\s+use|do\s+not\s+use|don't\s+use|\bno\b)[^。\n]*?\bdyschop\b)"
+    r"|(?:\bdyschop\b[^。\n]*?(?:disabled|banned|prohibited|forbidden|禁用|禁止|不用))",
+    re.IGNORECASE,
+)
+
+NEGATED_LUNA_RE = re.compile(
+    r"(?:禁止|严禁|勿|不要|不得|不可|never|do\s+not|don't|forbid(?:den)?|prohibit(?:ed)?|not\s+use|only\s+for\s+effort|仅用于[^\n。]*?强度|effort[_\s-]*judge[_\s-]*only)",
+    re.IGNORECASE,
+)
+
+LUNA_EXEC_PAIR_RE = re.compile(
+    r"(?:agent_type\s*=\s*['\"]?Luna['\"]?[^\n。]*?(?:monitor|watch|observe|status|ssh|log|exec|worker|写|读|监控|状态|巡检|执行))"
+    r"|(?:(?:monitor|watch|observe|status|ssh|log|exec|worker|监控|状态|巡检|执行)[^\n。]*?agent_type\s*=\s*['\"]?Luna['\"]?)",
+    re.IGNORECASE,
+)
+
+
+def _strip_historical_sections(text: str) -> str:
+    lines = text.splitlines()
+    kept = []
+    skip_level = None
+    for ln in lines:
+        m = re.match(r"^(#{1,6})\s+(.*)$", ln)
+        if m:
+            level = len(m.group(1))
+            heading = m.group(2)
+            if skip_level is not None and level <= skip_level and not re.search(r"历史指令|historical", heading, re.IGNORECASE):
+                skip_level = None
+            if re.search(r"历史指令|historical\s+instructions", heading, re.IGNORECASE):
+                skip_level = level
+                continue
+        if skip_level is None:
+            kept.append(ln)
+    return "\n".join(kept)
+
+
+def _has_active_dyschop(text: str, strip_history: bool = False) -> bool:
+    src = _strip_historical_sections(text) if strip_history else text
+    for raw_line in src.splitlines():
+        for clause in re.split(r"[。；;，,！!\r\n\"']+", raw_line):
+            c = clause.strip()
+            if not c or not re.search(r"\bdyschop\b", c, re.IGNORECASE):
+                continue
+            if not NEGATED_DYSCHOP_RE.search(c):
+                return True
+    return False
+
+
+def _load_collaborator_policy(project: Path) -> dict | None:
+    collab_path = project / ".agent-bridge" / "collaborators.json"
+    if not collab_path.is_file() or collab_path.is_symlink():
+        return None
+    try:
+        data = json.loads(collab_path.read_text(encoding="utf-8", errors="replace"))
+        return data if isinstance(data, dict) else None
+    except ValueError:
+        return None
+
+
+def _is_pinned_project_session(entry: object, proj_resolved: Path) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("status") == "historical_not_selected_for_future_dispatch":
+        return False
+    sid = entry.get("sessionId")
+    if not isinstance(sid, str) or not sid.strip():
+        return False
+    raw_cwd = entry.get("cwd") or entry.get("workspaceRoot")
+    if not isinstance(raw_cwd, str) or not raw_cwd.strip():
+        return False
+    cpath = Path(raw_cwd).resolve(strict=False)
+    return cpath == proj_resolved or cpath.is_relative_to(proj_resolved)
+
+
+HISTORICAL_OR_PROSE_KEYS = frozenset({"authority", "note", "notes", "reason", "description"})
+
+
+def _strip_historical_json(obj: object) -> object:
+    if isinstance(obj, dict):
+        if obj.get("status") == "historical_not_selected_for_future_dispatch":
+            return None
+        cleaned = {}
+        for k, v in obj.items():
+            kl = str(k).lower()
+            if kl in HISTORICAL_OR_PROSE_KEYS or re.match(r"^(?:previous|historical|archive)", kl):
+                continue
+            cv = _strip_historical_json(v)
+            if cv is not None:
+                cleaned[k] = cv
+        return cleaned
+    if isinstance(obj, list):
+        return [cv for cv in (_strip_historical_json(x) for x in obj) if cv is not None]
+    return obj
 
 
 def _finding(rule_id: str, severity: str, path: str, message: str, detail: dict | None = None) -> dict:
@@ -312,9 +408,9 @@ def _check_mcp(project: Path, controls_text: str, findings: list[dict], checked:
 
 
 def _check_routing_and_pi(project: Path, controls_text: str, findings: list[dict], checked: list[str]) -> None:
-    if re.search(r"\bdyschop\b", controls_text, re.IGNORECASE):
+    if _has_active_dyschop(controls_text, strip_history=True):
         findings.append(
-            _finding("ROUTE-001", "error", "controls.md", "controls.md references prohibited legacy provider 'dyschop/*'; use magpie 'auto/*' for PI.")
+            _finding("ROUTE-001", "error", "controls.md", "controls.md enables prohibited legacy provider 'dyschop/*'; use magpie 'auto/*' for PI.")
         )
 
     pi_dir = project / ".pi"
@@ -328,38 +424,83 @@ def _check_routing_and_pi(project: Path, controls_text: str, findings: list[dict
             rel = json_file.relative_to(project).as_posix()
             checked.append(rel)
             txt = json_file.read_text(encoding="utf-8", errors="replace")
-            if re.search(r"\bdyschop\b", txt, re.IGNORECASE):
+            try:
+                payload = json.loads(txt)
+            except ValueError:
+                payload = None
+            if isinstance(payload, dict) and (
+                "transportOutcome" in payload or payload.get("status") == "historical_not_selected_for_future_dispatch"
+            ):
+                continue
+            if isinstance(payload, dict):
+                cleaned_str = json.dumps(_strip_historical_json(payload), ensure_ascii=False)
+                if _has_active_dyschop(cleaned_str):
+                    findings.append(_finding("ROUTE-001", "error", rel, f"{rel} references prohibited 'dyschop/*' provider."))
+            elif _has_active_dyschop(txt):
                 findings.append(_finding("ROUTE-001", "error", rel, f"{rel} references prohibited 'dyschop/*' provider."))
 
     if pi_dir.is_dir():
         for pfile in sorted(pi_dir.rglob("*.json"))[:40]:
             if pfile.is_symlink() or not pfile.is_file():
                 continue
+            rel_parts = pfile.relative_to(project).parts
+            if any(part in {"pi-runs", "executions"} for part in rel_parts):
+                continue
             rel = pfile.relative_to(project).as_posix()
             checked.append(rel)
             txt = pfile.read_text(encoding="utf-8", errors="replace")
-            if re.search(r"\bdyschop\b", txt, re.IGNORECASE):
-                findings.append(_finding("ROUTE-001", "error", rel, f"{rel} uses banned 'dyschop/*' gateway."))
             try:
                 payload = json.loads(txt)
             except ValueError:
+                if re.search(r"\bdyschop\b", txt, re.IGNORECASE):
+                    findings.append(_finding("ROUTE-001", "error", rel, f"{rel} uses banned 'dyschop/*' gateway."))
                 continue
-            serialized = json.dumps(payload, ensure_ascii=False).lower()
-            if re.search(r'"model"\s*:\s*"[^"]*(?:gemini|carbon|argon|gpt-|codex|astra)', serialized):
+            if isinstance(payload, dict) and (
+                "transportOutcome" in payload or payload.get("status") == "historical_not_selected_for_future_dispatch"
+            ):
+                continue
+            cleaned_payload = _strip_historical_json(payload)
+            serialized = json.dumps(cleaned_payload, ensure_ascii=False).lower()
+            if _has_active_dyschop(serialized):
+                findings.append(_finding("ROUTE-001", "error", rel, f"{rel} uses banned 'dyschop/*' gateway."))
+
+            # Permit user-pinned project Gemini PI sessions; flag unpinned Gemini or any GPT/Codex/Astra in PI
+            if re.search(r'"model"\s*:\s*"[^"]*(?:gpt-|codex|astra)', serialized):
                 findings.append(
                     _finding(
                         "ROUTE-001",
                         "warning",
                         rel,
-                        f"{rel} routes Gemini/GPT inside PI; keep GPT in Codex, Gemini in Antigravity, and PI exclusively for Kimi/DeepSeek.",
+                        f"{rel} routes GPT/Codex/Astra inside PI; keep GPT exclusively in Codex.",
                     )
                 )
-            if isinstance(payload, dict):
+            elif re.search(r'"model"\s*:\s*"[^"]*(?:gemini|carbon|argon)', serialized):
+                sessions_map = cleaned_payload.get("sessions") if isinstance(cleaned_payload, dict) else None
+                unpinned_found = False
+                if isinstance(sessions_map, dict) and sessions_map:
+                    for entry in sessions_map.values():
+                        if isinstance(entry, dict) and re.search(r"gemini|carbon|argon", str(entry.get("model") or ""), re.IGNORECASE):
+                            if not _is_pinned_project_session(entry, proj_resolved):
+                                unpinned_found = True
+                                break
+                elif not _is_pinned_project_session(cleaned_payload, proj_resolved):
+                    unpinned_found = True
+                if unpinned_found:
+                    findings.append(
+                        _finding(
+                            "ROUTE-001",
+                            "warning",
+                            rel,
+                            f"{rel} configures unpinned/external-cwd Gemini in PI; PI Gemini requires a pinned project session (otherwise fall back to Antigravity).",
+                        )
+                    )
+
+            if isinstance(cleaned_payload, dict):
                 cwds = []
-                if isinstance(payload.get("cwd"), str):
-                    cwds.append(payload["cwd"])
+                if isinstance(cleaned_payload.get("cwd"), str):
+                    cwds.append(cleaned_payload["cwd"])
                 for key in ("sessions", "workers", "roles"):
-                    sub = payload.get(key)
+                    sub = cleaned_payload.get(key)
                     if isinstance(sub, dict):
                         for item in sub.values():
                             if isinstance(item, dict) and isinstance(item.get("cwd"), str):
@@ -378,6 +519,8 @@ def _check_routing_and_pi(project: Path, controls_text: str, findings: list[dict
 
         for jsonl in sorted(pi_dir.rglob("*.jsonl"))[:30]:
             if jsonl.is_symlink() or not jsonl.is_file():
+                continue
+            if any(part in {"pi-runs", "executions"} for part in jsonl.relative_to(project).parts):
                 continue
             rel = jsonl.relative_to(project).as_posix()
             checked.append(rel)
@@ -575,6 +718,197 @@ def _check_memory_db(project: Path, findings: list[dict], checked: list[str]) ->
                         )
 
 
+def _check_collaboration_health(
+    project: Path,
+    controls_text: str,
+    collab_policy: dict | None,
+    findings: list[dict],
+    checked: list[str],
+) -> None:
+    """Context-aware checks ROUTE-002 (epoch/retiring reuse) and ROUTE-003 (lock/Luna/effort/size)."""
+    # ROUTE-003: Stale 'No delegation is allowed' lock or agent_type='Luna' monitoring misuse in docs
+    for rel in ("AGENTS.md", "controls.md"):
+        doc_path = project / rel
+        if not doc_path.is_file() or doc_path.is_symlink():
+            continue
+        raw = doc_path.read_text(encoding="utf-8", errors="replace")
+        active = _strip_historical_sections(raw) if rel == "controls.md" else raw
+        if re.search(r"No delegation is allowed", active, re.IGNORECASE):
+            findings.append(
+                _finding(
+                    "ROUTE-003",
+                    "error",
+                    rel,
+                    f"{rel} contains stale 'No delegation is allowed' lock incompatible with orchestrated collaboration.",
+                )
+            )
+        for line in active.splitlines():
+            for clause in re.split(r"[。；;！!\r\n]+", line):
+                c = clause.strip()
+                if not c or NEGATED_LUNA_RE.search(c):
+                    continue
+                if LUNA_EXEC_PAIR_RE.search(c):
+                    findings.append(
+                        _finding(
+                            "ROUTE-003",
+                            "error",
+                            rel,
+                            f"{rel} pairs agent_type=\"Luna\" with monitoring/execution; use default/explorer + model=\"gpt-6-luna\" (low) instead.",
+                        )
+                    )
+                    break
+
+    if not collab_policy:
+        return
+
+    proj_resolved = project.resolve()
+    active_epoch = collab_policy.get("protocolEpoch")
+    lifecycle = collab_policy.get("subagentLifecyclePolicy") or {}
+    retiring_map = lifecycle.get("retireAfterTaskHandback") or {}
+    soft_limit = int(lifecycle.get("softSizeRotationBytes") or DEFAULT_SOFT_JSONL_BYTES)
+
+    # ROUTE-003: Pinned PI JSONL soft rotation advisory (> 8 MiB)
+    for key, entry in (collab_policy.get("pinnedSessions") or {}).get("pi", {}).items():
+        if not isinstance(entry, dict):
+            continue
+        sp = entry.get("sessionPath")
+        if not isinstance(sp, str) or not sp.strip():
+            continue
+        spath = Path(sp)
+        if not spath.is_absolute():
+            spath = proj_resolved / spath
+        if spath.is_file() and not spath.is_symlink():
+            try:
+                sz = spath.stat().st_size
+                if sz > soft_limit:
+                    findings.append(
+                        _finding(
+                            "ROUTE-003",
+                            "warning",
+                            ".agent-bridge/collaborators.json",
+                            f"Pinned PI session '{key}' JSONL is {sz / (1024 * 1024):.1f} MiB (> {soft_limit / (1024 * 1024):.1f} MiB advisory); consider fresh spawn/rotation on next milestone.",
+                            {"sessionKey": key, "bytes": sz, "softLimitBytes": soft_limit},
+                        )
+                    )
+            except OSError:
+                pass
+
+    # ROUTE-003: Check state.md / project.md recorded effort drift vs collaborators.json
+    if isinstance(retiring_map, dict) and retiring_map:
+        for rel in ("state.md", "project.md"):
+            doc_path = project / rel
+            if not doc_path.is_file() or doc_path.is_symlink():
+                continue
+            txt = doc_path.read_text(encoding="utf-8", errors="replace")
+            for sub_key, info in retiring_map.items():
+                if not isinstance(info, dict):
+                    continue
+                rec_eff = str(info.get("recordedEffort") or "").strip().lower()
+                rec_mod = str(info.get("recordedModel") or "").strip().lower()
+                if not rec_eff or not rec_mod:
+                    continue
+                short_tok = "sol" if "sol" in rec_mod else ("astra" if "astra" in rec_mod else ("argon" if "argon" in rec_mod else ("carbon" if "carbon" in rec_mod else rec_mod)))
+                pat = re.compile(rf"\b{re.escape(short_tok)}\s*\(\s*(minimal|low|medium|high|xhigh)\b", re.IGNORECASE)
+                for m in pat.finditer(txt):
+                    doc_eff = m.group(1).lower()
+                    if doc_eff != rec_eff:
+                        findings.append(
+                            _finding(
+                                "ROUTE-003",
+                                "warning",
+                                rel,
+                                f"{rel} reports '{m.group(0)})' which drifts from recorded effort '{rec_eff}' for '{sub_key}' in collaborators.json.",
+                                {"subagentKey": sub_key, "docEffort": doc_eff, "recordedEffort": rec_eff},
+                            )
+                        )
+
+    # ROUTE-002: Context-aware bridge task inspection (retiring reuse / epoch mismatch)
+    db_path = project / ".agent-bridge" / "bridge.sqlite"
+    if not db_path.is_file():
+        return
+    conn = _open_sqlite_ro(db_path)
+    if conn is None:
+        return
+    with closing(conn):
+        cols = _table_columns(conn, "tasks")
+        if not cols or "id" not in cols or "status" not in cols:
+            return
+        wanted = [c for c in ("id", "status", "bound_conversation_id", "required_conversation_id", "session_id", "metadata_json") if c in cols]
+        rows = conn.execute(
+            f"SELECT {', '.join(wanted)} FROM tasks WHERE status NOT IN ('completed', 'failed', 'cancelled')"
+        ).fetchall()
+        retire_by_session = {}
+        for sub_key, info in retiring_map.items():
+            if isinstance(info, dict) and info.get("boundTaskId") and info.get("sessionId"):
+                retire_by_session[str(info["sessionId"])] = (sub_key, str(info["boundTaskId"]))
+        retire_by_subkey = {
+            sub_key: str(info["boundTaskId"])
+            for sub_key, info in retiring_map.items()
+            if isinstance(info, dict) and info.get("boundTaskId")
+        }
+        protected_task_ids = set(retire_by_subkey.values())
+
+        for row in rows:
+            rec = dict(row)
+            tid = str(rec["id"])
+            meta = {}
+            try:
+                meta = json.loads(rec.get("metadata_json") or "{}")
+            except ValueError:
+                pass
+            if isinstance(meta.get("agentType"), str) and meta["agentType"].lower() == "luna":
+                findings.append(
+                    _finding(
+                        "ROUTE-003",
+                        "error",
+                        ".agent-bridge/bridge.sqlite",
+                        f"Active task '{tid}' sets agentType='Luna'; monitoring must use default/explorer + model='gpt-6-luna'.",
+                    )
+                )
+
+            conv_ids = {
+                str(v)
+                for v in (rec.get("bound_conversation_id"), rec.get("required_conversation_id"), rec.get("session_id"))
+                if v
+            }
+            for cid in conv_ids:
+                if cid in retire_by_session:
+                    skey, bound_tid = retire_by_session[cid]
+                    if tid != bound_tid:
+                        findings.append(
+                            _finding(
+                                "ROUTE-002",
+                                "warning",
+                                ".agent-bridge/bridge.sqlite",
+                                f"Active task '{tid}' reuses retiring session '{skey}' ({cid[:8]}) bound to '{bound_tid}' instead of spawning a fresh subagent.",
+                                {"taskId": tid, "retiringSubagent": skey, "boundTaskId": bound_tid},
+                            )
+                        )
+            sub_ref = meta.get("subagentKey") or meta.get("agentPath")
+            if isinstance(sub_ref, str) and sub_ref in retire_by_subkey and tid != retire_by_subkey[sub_ref]:
+                findings.append(
+                    _finding(
+                        "ROUTE-002",
+                        "warning",
+                        ".agent-bridge/bridge.sqlite",
+                        f"Active task '{tid}' reuses retiring subagent '{sub_ref}' instead of spawning fresh after '{retire_by_subkey[sub_ref]}'.",
+                        {"taskId": tid, "retiringSubagent": sub_ref, "boundTaskId": retire_by_subkey[sub_ref]},
+                    )
+                )
+
+            task_epoch = meta.get("protocolEpoch") or (meta.get("dispatchSelection") or {}).get("protocolEpoch")
+            if active_epoch and task_epoch and task_epoch != active_epoch and tid not in protected_task_ids:
+                findings.append(
+                    _finding(
+                        "ROUTE-002",
+                        "warning",
+                        ".agent-bridge/bridge.sqlite",
+                        f"Active task '{tid}' runs under stale protocolEpoch '{task_epoch}' (active '{active_epoch}').",
+                        {"taskId": tid, "taskEpoch": task_epoch, "activeEpoch": active_epoch},
+                    )
+                )
+
+
 def lint_project(project: Path | str, strict: bool = False) -> dict:
     root = Path(project).expanduser().resolve()
     if not root.is_dir():
@@ -588,6 +922,8 @@ def lint_project(project: Path | str, strict: bool = False) -> dict:
     _check_mcp(root, controls_text, findings, checked)
     _check_routing_and_pi(root, controls_text, findings, checked)
     _check_bridge_tasks(root, findings, checked)
+    collab_policy = _load_collaborator_policy(root)
+    _check_collaboration_health(root, controls_text, collab_policy, findings, checked)
     _check_memory_db(root, findings, checked)
 
     error_count = sum(1 for item in findings if item["severity"] == "error")

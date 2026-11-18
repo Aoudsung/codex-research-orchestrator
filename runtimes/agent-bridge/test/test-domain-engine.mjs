@@ -1134,15 +1134,37 @@ test("16. Runtime intake lint guards: negation stripping, channels, carbon/luna 
   assert.throws(
     () =>
       engine.createTask({
-        taskId: "bad-channel-pi",
+        taskId: "bad-channel-pi-gpt",
         fromAgent: "codex",
         assignedTo: "codex",
-        requiredModel: "gemini-carbon-high",
+        requiredModel: "gpt-6.1-sol",
         metadata: { provider: "pi" },
         prompt: "Audit long horizon context",
       }),
     (err) => err instanceof BridgeUserError && err.code === REASONS.MODEL_CHANNEL_MISMATCH
   );
+  assert.throws(
+    () =>
+      engine.createTask({
+        taskId: "bad-channel-pi-unpinned-gemini",
+        fromAgent: "codex",
+        assignedTo: "antigravity",
+        requiredModel: "gemini-4-carbon",
+        metadata: { provider: "pi" },
+        prompt: "Audit long horizon context",
+      }),
+    (err) => err instanceof BridgeUserError && err.code === REASONS.MODEL_CHANNEL_MISMATCH
+  );
+  const pinnedPiGemini = engine.createTask({
+    taskId: "good-channel-pi-pinned-gemini",
+    fromAgent: "codex",
+    assignedTo: "antigravity",
+    requiredModel: "gemini-4-carbon",
+    requiredConversationId: "00000000-0000-7000-8000-000000000002",
+    metadata: { provider: "pi", sessionId: "00000000-0000-7000-8000-000000000002" },
+    prompt: "Co-design sample causal optimization",
+  });
+  assert.equal(pinnedPiGemini.id, "good-channel-pi-pinned-gemini");
   assert.throws(
     () =>
       engine.createTask({

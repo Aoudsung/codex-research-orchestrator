@@ -34,8 +34,9 @@ export class DemoReader {
     if (cursor) rows = rows.filter(r => compare(key(r), cursor.key) < 0 || (compare(key(r), cursor.key) === 0 && compare(r.id, cursor.id) < 0));
     const shown = rows.slice(0, limit);
     return pageResult(shown.map(r => {
-      const { prompt, result, error, content, body, text, ...summary } = r;
-      if (resource === 'tasks') Object.assign(summary, { promptPreview: (prompt || r.promptPreview || '').slice(0, PREVIEW), resultPreview: (result || r.resultPreview || '').slice(0, PREVIEW) || null, errorPreview: (error || r.errorPreview || '').slice(0, PREVIEW) || null });
+      const { prompt, result, error, content, body, text, workRun, ...summary } = r;
+      if (resource === 'tasks') Object.assign(summary, { promptPreview: (prompt || r.promptPreview || '').slice(0, PREVIEW), resultPreview: (result || r.resultPreview || '').slice(0, PREVIEW) || null, errorPreview: (error || r.errorPreview || '').slice(0, PREVIEW) || null,
+        workMode: workRun?.workMode ?? null, requestedWorkMode: workRun?.requestedMode ?? r.requestedWorkMode ?? null });
       if (resource === 'messages') Object.assign(summary, { preview: (content || r.preview || '').slice(0, PREVIEW), charLength: content?.length ?? r.charLength });
       return summary;
     }), rows.length > limit, shown.length ? { key: key(shown.at(-1)), id: shown.at(-1).id } : null, signature);
@@ -43,11 +44,12 @@ export class DemoReader {
   rawTask(id) { const task = this.data.tasks.find(t => t.id === id); if (!task) throw fail('NOT_FOUND', 'Task not found', 404); return task; }
   task(id) {
     const raw = this.rawTask(id);
-    const { prompt, result, error, ...task } = raw;
-    Object.assign(task, { promptPreview: (prompt || raw.promptPreview || '').slice(0, PREVIEW), resultPreview: (result || raw.resultPreview || '').slice(0, PREVIEW) || null, errorPreview: (error || raw.errorPreview || '').slice(0, PREVIEW) || null });
+    const { prompt, result, error, workRun = null, ...task } = raw;
+    Object.assign(task, { promptPreview: (prompt || raw.promptPreview || '').slice(0, PREVIEW), resultPreview: (result || raw.resultPreview || '').slice(0, PREVIEW) || null, errorPreview: (error || raw.errorPreview || '').slice(0, PREVIEW) || null,
+      workMode: workRun?.workMode ?? null, requestedWorkMode: workRun?.requestedMode ?? raw.requestedWorkMode ?? null });
     const children = {}, limits = {};
     for (const key of ['messages', 'patches', 'validations']) { children[key] = this.list(key, new URLSearchParams({ taskId: id })).items; limits[key] = this.data[key].filter(r => r.taskId === id).length - children[key].length; }
-    return { task, ...children, limits, operation: null, route: this.data.routes.find(r => r.taskId === id) || null };
+    return { task, workRun, ...children, limits, operation: null, route: this.data.routes.find(r => r.taskId === id) || null };
   }
   source(params) {
     const kind = params.get('kind'), id = params.get('id');

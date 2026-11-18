@@ -30,6 +30,7 @@ export class MemoryRepositories {
       subscriptions: new Map(), // `${threadId}::${taskId}` -> sub
       decisions: new Map(),
       messages: new Map(),
+      memberMessages: new Map(),
       routes: new Map(),
       patches: new Map(),
       validations: new Map(),
@@ -137,7 +138,7 @@ export class MemoryRepositories {
       p === "urgent" ? 1 : p === "high" ? 2 : p === "normal" ? 3 : 4;
     const candidates = [...this._state.tasks.values()].filter(
       (t) =>
-        t.assigned_to === agent &&
+        t.assigned_to === agent && !t.metadata?.workRun && !t.metadata?.workRunBinding &&
         (t.status === "pending" || t.status === "in_progress")
     );
     candidates.sort((a, b) => {
@@ -307,6 +308,23 @@ export class MemoryRepositories {
     return this.getMessage(msg.id);
   }
 
+  getMemberMessage(messageId) {
+    return deepClone(this._state.memberMessages.get(messageId) || null);
+  }
+
+  findMemberEvent(runId, fromMemberId, eventId) {
+    for (const row of this._state.memberMessages.values()) {
+      if (row.run_id === runId && row.from_member_id === fromMemberId && row.event_id === eventId) {
+        return deepClone(row);
+      }
+    }
+    return null;
+  }
+
+  putMemberMessage(row) {
+    this._state.memberMessages.set(row.message_id, deepClone(row));
+  }
+
   queryMessages({
     toAgent = null,
     fromAgent = null,
@@ -314,9 +332,22 @@ export class MemoryRepositories {
     taskId = null,
     afterSeq = null,
     unreadOnly = false,
+    actorAgent = null,
+    actorSessionId = null,
+    runId = null,
+    wakeupSessionId = null,
     limit = 50,
   } = {}) {
-    let items = [...this._state.messages.values()];
+    const namedRecipient = actorAgent && actorSessionId;
+    let items = [...this._state.messages.values()].filter((m) => {
+      const directed = this._state.memberMessages.get(m.id);
+      if (!directed) return !runId;
+      if (wakeupSessionId) {
+        return directed.to_session_id === wakeupSessionId && m.wakeup_target_session === wakeupSessionId;
+      }
+      return namedRecipient && m.to_agent === actorAgent && directed.to_session_id === actorSessionId &&
+        (!runId || directed.run_id === runId);
+    });
     if (toAgent && toAgent !== "*") {
       items = items.filter(
         (m) => m.to_agent === toAgent || m.to_agent === "all"
@@ -329,7 +360,8 @@ export class MemoryRepositories {
       items = items.filter((m) => m.thread_id === threadId);
     }
     if (taskId) {
-      items = items.filter((m) => m.task_id === taskId);
+      items = items.filter((m) => m.task_id === taskId ||
+        (namedRecipient && this._state.memberMessages.get(m.id)?.root_task_id === taskId));
     }
     if (afterSeq !== null && afterSeq !== undefined) {
       items = items.filter((m) => Number(m.seq) > Number(afterSeq));
@@ -351,14 +383,15 @@ export class MemoryRepositories {
 
   findFirstReply(messageId) {
     const replies = [...this._state.messages.values()]
-      .filter((m) => m.reply_to === messageId)
+      .filter((m) => m.reply_to === messageId && !this._state.memberMessages.has(m.id))
       .sort((a, b) => Number(a.seq) - Number(b.seq));
     return replies[0] ? this._formatMessage(replies[0]) : null;
   }
 
   markPriorTaskMessagesProcessed({ taskId, toAgent, nowIso }) {
     for (const m of this._state.messages.values()) {
-      if (m.task_id === taskId && m.to_agent === toAgent && m.status === "read") {
+      if (m.task_id === taskId && m.to_agent === toAgent && m.status === "read" &&
+          !this._state.memberMessages.has(m.id)) {
         if (!m.processed_at) m.processed_at = nowIso;
       }
     }

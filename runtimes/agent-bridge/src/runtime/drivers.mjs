@@ -9,13 +9,82 @@ import { messageCard } from "../domain/cards.mjs";
 import { ALLOWED_WAKEUP_DRIVERS_BY_AGENT, stanceWakeupGuidance } from "../domain/model.mjs";
 import { deliverViaClaudeDesktopInbox } from "../core/claude-desktop-wakeup.mjs";
 import { deliverViaAntigravityDesktop } from "../core/antigravity-desktop-wakeup.mjs";
+import { buildCollaborationRecoveryDigest } from "../core/collaborator-registry.mjs";
+
+const PROGRESS_MARKER_RE = /\b(progress|heartbeat|tick|polling|status_check|observing)\b/i;
+const CRITICAL_MARKER_RE = /\b(deliver|complete|block|fail|error|handback|decision|control|urgent|accept|refut|reject)\b/i;
+
+/**
+ * Returns true when an unread bridge message represents a critical lifecycle event
+ * (failure, delivery, handback, decision, control notice) that must never be folded away.
+ */
+export function isCriticalWakeupMessage(msg) {
+  if (!msg || typeof msg !== "object") return true;
+  const meta = msg.metadata || {};
+  if (meta.critical === true || meta.progressOnly === false) return true;
+  if (meta.ownershipOffer || meta.decisionId || meta.controlVersion || meta.handbackReason) return true;
+  const outcome = String(meta.outcome || "").toLowerCase();
+  if (["delivered", "blocked", "completed", "cancelled", "waiting_user", "retryable_failure", "failed"].includes(outcome)) {
+    return true;
+  }
+  const kind = String(meta.artifactKind || meta.noticeKind || meta.kind || meta.event || "").toLowerCase();
+  if (kind && CRITICAL_MARKER_RE.test(kind)) return true;
+  const subj = String(msg.subject || "");
+  if (CRITICAL_MARKER_RE.test(subj)) return true;
+  if (meta.progressOnly === true || outcome === "progress" || kind === "progress" || PROGRESS_MARKER_RE.test(subj)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Fold intermediate non-critical progress messages so only the newest progress card + count are shown,
+ * while preserving every failure, delivery, handback, control notice, or decision card in full.
+ */
+export function coalesceWakeupMessages(messages = []) {
+  if (!Array.isArray(messages) || messages.length <= 1) {
+    return { kept: messages || [], foldedProgressCount: 0 };
+  }
+  let newestProgressIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (!isCriticalWakeupMessage(messages[i])) {
+      newestProgressIdx = i;
+      break;
+    }
+  }
+  if (newestProgressIdx === -1) {
+    return { kept: messages, foldedProgressCount: 0 };
+  }
+  const kept = [];
+  let foldedProgressCount = 0;
+  for (let i = 0; i < messages.length; i += 1) {
+    const m = messages[i];
+    if (isCriticalWakeupMessage(m) || i === newestProgressIdx) {
+      kept.push(m);
+    } else {
+      foldedProgressCount += 1;
+    }
+  }
+  return { kept, foldedProgressCount };
+}
 
 /**
  * Format compact wakeup prompt combining backwards-compatible header with v1.0.0 Inline Cards,
- * Spill `bridge://message/<id>` pointers, optional Cognitive Profile stance reminder, and Watchdog `RecoveryNote`.
+ * Spill `bridge://message/<id>` pointers, selective progress folding, optional Cognitive Profile,
+ * Watchdog `RecoveryNote`, and post-compaction `[Collaboration Recovery]` digest for coordinators.
  */
-export function buildDriverWakeupPrompt({ route, claim, task = null }) {
+export function buildDriverWakeupPrompt({
+  route,
+  claim,
+  task = null,
+  recoveryDigest = null,
+}) {
   const messages = claim.messages || [];
+  if (messages[0]?.metadata?.memberEnvelope) {
+    const runId = messages[0].metadata.workRunId;
+    return `[MCP Inbox Wakeup] A directed message is ready. Call bridge_read_messages(runId=${JSON.stringify(runId)}, unreadOnly=true) in this session.`;
+  }
+  const { kept, foldedProgressCount } = coalesceWakeupMessages(messages);
   const recoveryNotes = [
     ...new Set(
       messages
@@ -24,7 +93,7 @@ export function buildDriverWakeupPrompt({ route, claim, task = null }) {
     ),
   ];
 
-  const cardLines = messages.map((m) => {
+  const cardLines = kept.map((m) => {
     const card = messageCard(m);
     return `- [seq=${card.seq}] (${card.fromAgent} -> ${card.toAgent}) ${
       card.subject || "(no subject)"
@@ -32,6 +101,9 @@ export function buildDriverWakeupPrompt({ route, claim, task = null }) {
       card.read
     })`;
   });
+  if (foldedProgressCount > 0) {
+    cardLines.push(`- (+${foldedProgressCount} earlier intermediate progress message(s) coalesced)`);
+  }
 
   const lines = [
     `[MCP Inbox Wakeup] Unread message(s) [${claim.messageIds.join(
@@ -40,6 +112,16 @@ export function buildDriverWakeupPrompt({ route, claim, task = null }) {
       route.task_id
     }, threadId=${route.thread_id}.`,
   ];
+
+  const isCoordinatorRoute =
+    Boolean(recoveryDigest?.coordinatorSessionId && route?.target_session_id === recoveryDigest.coordinatorSessionId) ||
+    Boolean(route?.target_session_id && task?.metadata?.leadThreadId && route.target_session_id === task.metadata.leadThreadId) ||
+    Boolean(task && task.from_agent && task.from_agent === route?.to_agent && route?.to_agent !== task.assigned_to) ||
+    Boolean(route?.to_agent === "codex" && task?.from_agent === "codex" && task?.assigned_to !== "codex");
+
+  if (recoveryDigest?.textBlock && (isCoordinatorRoute || recoveryDigest.forceInclude)) {
+    lines.push(recoveryDigest.textBlock);
+  }
 
   const stanceLine = stanceWakeupGuidance(task?.metadata?.cognitiveProfile);
   if (stanceLine) {
@@ -52,6 +134,15 @@ export function buildDriverWakeupPrompt({ route, claim, task = null }) {
 
   if (cardLines.length > 0) {
     lines.push("Messages:", ...cardLines);
+  }
+
+  if (route.driver === "antigravity_desktop") {
+    lines.push(
+      `Use the project MCP connection for workspace ${route.cwd}; global bridge connections have separate queues.`,
+      `Before doing task work, call bridge_claim_task(taskId="${route.task_id}", agent="antigravity", conversationId="${route.target_session_id}"). Preserve the current native model and conversation.`,
+      `Requested model: ${route.model || "not specified"}. This value records the request. Execution-model identity is reported independently by the native runtime. Claim with the actual model unreported. Include an exact model ID and its native runtime source in your execution receipt only when the execution reports it; otherwise leave model omitted. Never infer it from this request, UI text, or historical executors. Report any model mismatch without switching model, session or provider.`,
+      `Read bridge_get_task_overview(taskId="${route.task_id}") for the current contract, then consume the task inbox with bridge_read_messages. Do not use an obsolete task prompt or start work before claim succeeds.`
+    );
   }
 
   lines.push(
@@ -85,12 +176,6 @@ export async function executeTaskWakeupDriver(
     taskId,
     route: engine.getWakeupRoute(taskId, toAgent),
   };
-
-  // Only the app-managed sidecar may submit to this native conversation.
-  if (lastOutcome.route?.driver === "antigravity_desktop" &&
-      !process.env.ANTIGRAVITY_EXECUTABLE_DATA_DIR) {
-    return { ...lastOutcome, ok: true, reason: "waiting_for_antigravity_sidecar" };
-  }
 
   while (true) {
     const claim = engine.claimPendingWakeup(taskId, {
@@ -140,7 +225,7 @@ export async function executeTaskWakeupDriver(
       engine.repos.atomic(() => {
         const nowIso = new Date().toISOString();
         for (const id of claim.messageIds) {
-          const m = engine.getMessageById(id);
+          const m = engine.repos.getMessage(id);
           if (m && m.wakeup_status === "dispatched") {
             engine.repos.putMessage({ ...m, wakeup_status: "pending" });
           }
@@ -165,10 +250,19 @@ export async function executeTaskWakeupDriver(
       };
     }
 
+    const taskObj = engine.getTaskById?.(taskId) || null;
+    const recoveryDigest =
+      claim.messages[0]?.metadata?.memberEnvelope ? null :
+      engine.repos?.dbPath && engine.repos.dbPath !== ":memory:"
+        ? buildCollaborationRecoveryDigest({ dbPath: engine.repos.dbPath, engine })
+        : engine._projectRoot
+          ? buildCollaborationRecoveryDigest({ projectRoot: engine._projectRoot, engine })
+          : null;
     const prompt = buildDriverWakeupPrompt({
       route,
       claim,
-      task: engine.getTaskById?.(taskId) || null,
+      task: taskObj,
+      recoveryDigest,
     });
 
     if (driver === "claude_desktop" || driver === "antigravity_desktop") {
@@ -181,7 +275,7 @@ export async function executeTaskWakeupDriver(
         // Commit uncertainty before native I/O: a crash must not enqueue a second send.
         engine.repos.atomic(() => {
           for (const id of claim.messageIds) {
-            const message = engine.getMessageById(id);
+            const message = engine.repos.getMessage(id);
             if (message) engine.repos.putMessage({ ...message, wakeup_status: "unconfirmed" });
           }
         });
@@ -189,6 +283,7 @@ export async function executeTaskWakeupDriver(
         const desktop = await deliver({
           targetSessionId: route.target_session_id, prompt,
           notificationId: claim.notificationId, model: route.model, effort: route.effort,
+          cwd: route.cwd,
         });
         submitted = true;
         const updatedRoute = engine.completeWakeupDelivery(taskId, claim.messageIds, {
@@ -202,7 +297,7 @@ delivered: true, maxSeq: claim.maxSeq, receipt: desktop.receipt,
           engine.recordWakeupFailure(taskId, claim.messageIds, error?.message || String(error), route.to_agent);
           if (submitted || error?.deliveryAttempted) {
             for (const id of claim.messageIds) {
-              const message = engine.getMessageById(id);
+              const message = engine.repos.getMessage(id);
               if (message) engine.repos.putMessage({ ...message, wakeup_status: "unconfirmed" });
             }
           }

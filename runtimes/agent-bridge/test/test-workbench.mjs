@@ -172,7 +172,12 @@ test('provider execution entry guards include every execution tool and leave rea
   for(const name of names) assert.throws(()=>server.tools.get(name).handler({}),e=>e.code==='BRIDGE_PAUSED');
   assert.equal(server.tools.get('bridge_send_message').handler({}),1);
   // Inspect actual provider registrations, without importing their executable top-level scripts.
-  for(const [file,expected] of [['codex',names.slice(0,4)],['claude-code',names.slice(4,7)],['antigravity',names.slice(7)]]) {
+  const serverExpected = {
+    codex: ['codex_exec', 'codex_resume', 'codex_fork', 'codex_review', 'pi_exec', 'bridge_plan_dispatch'],
+    'claude-code': ['claude_exec', 'claude_resume', 'claude_review', 'pi_exec', 'bridge_plan_dispatch'],
+    antigravity: ['antigravity_exec', 'pi_exec', 'bridge_plan_dispatch'],
+  };
+  for(const [file,expected] of Object.entries(serverExpected)) {
     const source=fs.readFileSync(new URL(`../src/servers/${file}-mcp.mjs`,import.meta.url),'utf8');
     const guarded = JSON.parse(source.match(/names: new Set\((\[[^\]]+\])\)/)[1]);
     assert.deepEqual(guarded,expected);

@@ -9,16 +9,16 @@ Record only settings active for this project; preserve explicit authorizations a
 - Lead researcher & code/data/evaluation entry points:
 
 ## Participants & Session Lanes
-Claude (`claude-code`) is disabled unless explicitly overridden in `controls.md`. Three lanes: GPT -> Codex; Gemini (Carbon/Argon) -> pinned Antigravity; Kimi/DeepSeek -> `.pi/sessions/` (`magpie` `auto/*`, `retries=0`, no `dyschop/*`).
+Claude (`claude-code`) is disabled unless explicitly overridden in `controls.md`. Three lanes: GPT -> Codex (`Astra` / `Sol` / `default|explorer` + `gpt-6-luna` `low`; `agent_type="Luna"` reserved for tool-free effort judging); Gemini (`Carbon`/`Argon`) -> pinned project PI session first, falling back to pinned/dedicated Antigravity; Kimi/DeepSeek -> explicit `.pi/sessions/` (`magpie` `auto/*`, `retries=0`, no `dyschop/*`). Use `bridge_plan_dispatch` before delegating; store fixed bindings in `.agent-bridge/collaborators.json`.
 
 | Responsibility | Model / Participant | Session Lane | Read/Write Scope | Effort |
 |---|---|---|---|---|
 | Coordinator (non-coding) | Codex Lead | Codex | Control/ledger only | high |
-| Chief Macro Architect | ChatGPT Web Pro | Web Project (15m Luna check) | Grounding bundle/repo | pro_max |
-| Co-Design & Panoramic Scan | Gemini Carbon | Antigravity (short deltas) | Read-only + diff proposal | high |
-| Formalization & Blind Review | GPT Astra | Codex (isolated) | Review-only | high/xhigh |
-| Implementation & Server Runs | Gemini Argon / GPT-6.1 Sol / Kimi / DeepSeek | Agy / Codex / PI | Exclusive `writeRoots` | medium |
-| L0 Server & Pro Observer | GPT-6 Luna | Codex subagent | Read-only | low |
+| Chief Macro Architect | ChatGPT Web Pro | Web Project (15m `Luna` check) | Grounding bundle/repo | pro_max |
+| Co-Design & Panoramic Scan | Gemini Carbon | Pinned PI -> Antigravity | Read-only + diff proposal | high |
+| Formalization, Efficiency & Blind Review | GPT Astra | Codex (`architect`/`reviewer`) | Read/review only | judged (`high`/`xhigh`) |
+| Implementation & Server Runs | Gemini Argon / GPT Sol (project catalog) / Kimi / DeepSeek | Pinned PI/Agy / Codex / PI | Exclusive `writeRoots` | judged per task |
+| L0 Server & Pro Observer | GPT-6 Luna | Codex `default`/`explorer` | Read-only | low |
 
 - Group delegation, peer contact & blind-isolation allowlist policy:
 

@@ -96,7 +96,64 @@
         "notes/observation-scope.md"
       ],
       "resultPreview": "Draft revision separates the observed support from unobserved conditions. Independent review is still required.",
-      "errorPreview": null
+      "errorPreview": null,
+      "workRun": {
+        "runId": "demo-observation-scope",
+        "taskId": "task-103",
+        "requestedMode": "auto",
+        "workMode": "milestone",
+        "selectionReason": "The plan declares milestone steps with dependencies.",
+        "version": 2,
+        "status": "active",
+        "acceptor": "codex",
+        "readySteps": ["revise-scope"],
+        "members": [
+          { "memberId": "scope-author", "agent": "codex" },
+          { "memberId": "scope-reviewer", "agent": "claude-code" }
+        ],
+        "steps": [
+          {
+            "stepId": "record-counterexample",
+            "memberId": "scope-reviewer",
+            "kind": "milestone",
+            "dependsOn": [],
+            "blockedBy": [],
+            "status": "delivered",
+            "version": 1,
+            "receipt": {
+              "receiptId": "demo-gap-receipt",
+              "stepVersion": 1,
+              "summary": "Correlated gaps break the population-level argument.",
+              "evidenceRefs": ["task-102"]
+            }
+          },
+          {
+            "stepId": "revise-scope",
+            "memberId": "scope-author",
+            "kind": "milestone",
+            "dependsOn": ["record-counterexample"],
+            "blockedBy": [],
+            "status": "ready",
+            "version": 2,
+            "receipt": null
+          },
+          {
+            "stepId": "review-scope",
+            "memberId": "scope-reviewer",
+            "kind": "review",
+            "dependsOn": ["revise-scope"],
+            "blockedBy": ["revise-scope"],
+            "status": "waiting",
+            "version": 1,
+            "receipt": null
+          }
+        ],
+        "requirements": [
+          { "requirementId": "counterexample", "description": "Record the correlated-gap counterexample.", "stepIds": ["record-counterexample"] },
+          { "requirementId": "scope", "description": "Deliver and review the revised observation scope.", "stepIds": ["revise-scope", "review-scope"] }
+        ],
+        "acceptance": null
+      }
     },
     {
       "id": "task-104",

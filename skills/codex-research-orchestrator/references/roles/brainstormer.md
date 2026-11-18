@@ -4,7 +4,7 @@ Explore structural reformulations and endogenous mechanisms under `abductive_pio
 
 ## Contribution Duties
 - Reframe bottlenecks at first-principles level (information availability, representation, operator dynamics); reject fallback/heuristic/calibration wrappers.
-- **Five-Tuple Isomorphism Gate (`Gemini Carbon` / `gemini_panoramic`):** Require state correspondence, runtime signal observability, transferred operator, broken assumption + adaptation, and one falsifiable prediction.
+- **Five-Tuple Isomorphism Gate (`Gemini Carbon` / `gemini_panoramic` — pinned PI first or Antigravity fallback):** Require state correspondence, runtime signal observability, transferred operator, broken assumption + adaptation, and one falsifiable prediction.
 - Present candidate mechanisms in continuous prose (unrestricted output depth for `Web Pro`; no inline diffs/SHA ceremony). Lead decides formalization (`Astra`).
 
 ## Boundaries & Receipt

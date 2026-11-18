@@ -8,6 +8,8 @@ import {
   verifyModelMatch,
   classifyExecutionError,
   checkExecutionReadiness,
+  captureWorkRunExecution,
+  nativeWorkRunCompletion,
 } from "../core/preflight.mjs";
 
 const server = new McpStdioServer({
@@ -19,7 +21,7 @@ const server = new McpStdioServer({
 
 const bridgeDb = new BridgeDatabase();
 server.executionAdmission = {
-  names: new Set(["claude_exec", "claude_resume", "claude_review"]),
+  names: new Set(["claude_exec", "claude_resume", "claude_review", "pi_exec", "bridge_plan_dispatch"]),
   admit: () => bridgeDb.admitExecution(),
 };
 const defaultCaller = process.env.MCP_CALLER_AGENT || "antigravity";
@@ -197,6 +199,7 @@ server.registerTool(
           type: "boolean",
           description: "Whether to mark the bound task as 'completed' immediately when CLI exits.",
         },
+        evidenceRefs: { type: "array", items: { type: "string" }, description: "Evidence references for a completed work run step." },
         waitForBridgeIfCliMissing: {
           type: "boolean",
           description: "If true and `claude` CLI is not found, wait for an active Claude Code session to complete the queued bridge task.",
@@ -212,10 +215,12 @@ server.registerTool(
   async (args) => {
     const claudeBin = resolveBinary("claude", "CLAUDE_BIN");
     const original = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
+    const execution = captureWorkRunExecution(bridgeDb.engine, original, "claude-cli");
     const cwd = args.cwd || original?.cwd || process.cwd();
     const effectiveModel = args.model || args.requiredModel || original?.required_model || null;
     const requiredModel = args.requiredModel || args.model || null;
-    if (args.requiredModel && args.model && !verifyModelMatch(args.requiredModel, args.model, "cli_flag").ok) throw new Error("Requested model conflicts with requiredModel");
+    const customAliases = bridgeDb.getCollaboratorPolicy(cwd)?.modelAliases || null;
+    if (args.requiredModel && args.model && !verifyModelMatch(args.requiredModel, args.model, "cli_flag", { customAliases }).ok) throw new Error("Requested model conflicts with requiredModel");
 
     const taskRecord = bridgeDb.createTask({
       taskId: args.taskId || null,
@@ -290,7 +295,8 @@ server.registerTool(
         const modelCheck = verifyModelMatch(
           requiredModel,
           parsed.actualModel,
-          "claude_json_output"
+          "claude_json_output",
+          { customAliases }
         );
         if (!modelCheck.ok) {
           return {
@@ -325,6 +331,7 @@ server.registerTool(
             result: parsed.response,
             sessionId: parsed.sessionId,
             model: reportedModel,
+            ...nativeWorkRunCompletion(execution, "claude-code", parsed.sessionId, args.evidenceRefs),
           })
         : bridgeDb.updateTaskPhase({
             taskId: taskRecord.id,
@@ -347,6 +354,7 @@ server.registerTool(
         sessionId: parsed.sessionId,
         taskId: taskRecord.id,
         binding: finalTask.binding,
+        ...(execution && shouldComplete ? { workRunReceipt: finalTask } : {}),
         taskPhase: {
           phase: finalTask.phase,
           phaseLabel: finalTask.phase_label,
@@ -456,6 +464,7 @@ server.registerTool(
 
     const boundTask = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
     if (args.taskId && !boundTask) throw new Error("Task not found");
+    captureWorkRunExecution(bridgeDb.engine, boundTask, "claude-cli resume");
     if (boundTask) {
       bridgeDb.createTask({ taskId: args.taskId, assignedTo: "claude-code", requiredModel: args.model, cwd: args.cwd });
       if (!boundTask.bound_conversation_id || (args.sessionId && args.sessionId !== boundTask.bound_conversation_id)) throw new Error("Resume session binding mismatch or missing identity");

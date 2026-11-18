@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOT_FILES = {'package.json', 'README.md', 'LICENSE', 'release-manifest.json'}
-TREES = {'src', 'scripts', 'docs', 'test'}
+TREES = {'src', 'scripts', 'docs', 'examples', 'test'}
 
 
 def managed(root):
@@ -61,6 +61,16 @@ def install(destination, manifest, backup_root=None):
         if destination.exists():
             shutil.copytree(destination, stage, dirs_exist_ok=True, symlinks=True,
                             ignore=shutil.ignore_patterns('.backups', '__pycache__', 'node_modules'))
+            prior_manifest = stage / 'release-manifest.json'
+            if prior_manifest.is_file() and not prior_manifest.is_symlink():
+                previous = json.loads(prior_manifest.read_text())['files']
+                for target in managed(stage):
+                    name = target.relative_to(stage).as_posix()
+                    if name not in previous or name in manifest['files'] or target == prior_manifest:
+                        continue
+                    if hashlib.sha256(target.read_bytes()).hexdigest() != previous[name]:
+                        raise ValueError(f'Retired managed file has local edits: {name}')
+                    target.unlink()
         for source in managed(ROOT):
             target = stage / source.relative_to(ROOT)
             if target.is_symlink() or any(p.is_symlink() for p in target.parents if p != stage.parent):

@@ -3,14 +3,17 @@ name: codex-research-orchestrator
 description: Coordinate sustained research in Codex with independent construction, focused authorship, constructive review, and source-backed continuation. Use to start or resume research or coordinate authorized work across Codex, Claude Code, and Antigravity. For a bounded contribution, load only the relevant role and guidance.
 license: MIT
 metadata:
-  version: "1.2.0"
+  version: "1.4.3"
 ---
 
 # Codex Research Orchestrator
 
 Keep the scientific question, evidence, and next action connected. Protect the user's research object and authorization; revise mechanisms, decisions, and candidate claims whenever evidence warrants it.
 
-**Default topology disables Claude:** Coordinator (`Codex` Lead, non-coding) schedules `ChatGPT Web Pro`, `Codex` workers (`GPT Astra` / `6.1 Sol` / `Luna`), `Antigravity` (`Gemini Carbon` / `Argon`), and PI open-weight workers (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`). Mechanical constraints are enforced by runtime admission guards and `python3 scripts/research_setup.py lint --project .`—do **not** duplicate rule lists into `AGENTS.md` or handoffs.
+**Default topology disables Claude:** Coordinator (`Codex` Lead, non-coding) delegates by task need (full-team participation every turn is unnecessary) across `ChatGPT Web Pro`, `Codex` (`GPT Astra` / `6.2 Sol` / `gpt-6-luna` via `default`|`explorer`), `Gemini Carbon` / `Argon` (**pinned project PI sessions preferred**, falling back to pinned `Antigravity` or explicit Antigravity assignments), user-authorized `explicitPiRoutes` (e.g., `google-vertex/gemini-4-hydrogen`), and PI open-weight workers (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`). Call `bridge_plan_dispatch` (using `.agent-bridge/collaborators.json`) before delegating to jointly pick model, channel, and task-scoped `Luna` effort. Mechanical constraints are enforced by runtime guards and `setup.py lint`—do **not** duplicate rule lists into `AGENTS.md`.
+- **PI Authorization Reuse & Boundary Hygiene:** Check `receipt.authorizationReuse.reusableTaskAuthorization` after `pi_exec`—pre-transport local adapter errors (`beforeGenerationTransport === true`) and `output_limit` partials (`stopReason: "length"`) reuse existing task authorization directly without re-asking user approval, and never modify global `~/.pi` SDK releases during project tasks.
+
+For independent report sections, use lightweight parallel authorship. Have a fresh verifier reproduce claims that could change the conclusion and apply authorized, evidence-backed corrections directly. For dependent milestones, reopen the affected steps when upstream evidence changes. The [work-run protocol](references/work-modes.md) covers these paths, investigations and timed diagnostics. Honor the user’s mode and the project model catalog.
 
 ## Non-Negotiable Architecture Rules
 

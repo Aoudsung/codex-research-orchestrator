@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { resolveCognitiveProfile } from './model.mjs';
+import { submitBoundWorkRunReceipt } from './work-run.mjs';
 
 const peers = new Set(['codex', 'antigravity', 'claude-code']);
 const outcomes = new Set(['progress', 'waiting_external', 'waiting_user', 'retryable_failure', 'delivered', 'cancelled', 'blocked']);
@@ -25,6 +26,9 @@ function transact(engine, args, kind, id, apply) {
   return engine.repos.atomic(() => {
     const task = fetch(engine, args.taskId);
     agent(args.actorAgent);
+    if (kind === 'receipt' && (task.metadata.workRun || task.metadata.workRunBinding)) {
+      return submitBoundWorkRunReceipt(engine, task, args);
+    }
     const eventId = `${task.id}:${kind}:${id}`;
     const payloadHash = crypto.createHash('sha256').update(canonical(args)).digest('hex');
     const prior = engine.repos.getTaskEvent(eventId);
@@ -57,8 +61,13 @@ function notice(engine, task, w, type, summary, id) {
 }
 function ownerMessage(engine, task, w, subject, content, metadata = {}) {
   const from = task.from_agent;
+  const sessions =
+    from === w.owner.agent && metadata.internalContinuation
+      ? workflowNotificationSessions(engine, task, w.owner.agent)
+      : null;
   const message = engine.sendMessage({ allowSelfSend: true, taskId: task.id, fromAgent: from,
-    toAgent: w.owner.agent, subject, content, metadata: { protocolVersion: 2, ...metadata } });
+    toAgent: w.owner.agent, subject, content, metadata: { protocolVersion: 2,
+      ...(sessions ? { workflowNotification: sessions } : {}), ...metadata } });
   if (from === w.owner.agent) {
     const route = engine.repos.getRoute(task.id, w.owner.agent);
     const ownerSession = w.owner.conversationId || task.bound_conversation_id || task.session_id;
@@ -100,6 +109,14 @@ export function updateTaskContract(engine, args) {
     // Preserve a pending action only when its semantics remain unchanged.
     const semanticKeys = ['objective','scope','permissions','resourceLimits','allowedContinuation','deliveryCriteria','cognitiveProfile'];
     const changed = semanticKeys.some(k => canonical(k === 'permissions' ? permissions : old[k]) !== canonical(w.contract[k]));
+    if (task.metadata.workRun || task.metadata.workRunBinding) {
+      if (changed || old.acceptor !== w.contract.acceptor || canonical(old.successCriteria) !== canonical(w.contract.successCriteria)) {
+        fail('The work run fixes its task contract and acceptance criteria');
+      }
+      if (task.metadata.workRun) task.metadata.workRun = {
+        ...task.metadata.workRun, contractVersion: w.contract.version, version: task.metadata.workRun.version + 1,
+      };
+    }
     if (changed) { w.continuation = null; w.pendingHandoff = null; }
     else if (w.continuation) {
       w.continuation.contractVersion = w.contract.version;
@@ -213,6 +230,7 @@ export function submitTaskReceipt(engine, args) {
 }
 export function acceptTaskDelivery(engine, args) {
   return transact(engine, args, 'acceptance', args.eventId, (task, w) => {
+    if (task.metadata.workRun || task.metadata.workRunBinding) fail('Submit requirement-level acceptance on the work run');
     if (agent(args.actorAgent) !== w.contract.acceptor) fail('Only the configured acceptor can accept delivery');
     if (args.contractVersion !== w.contract.version || args.ownerEpoch !== w.owner.epoch) fail('Acceptance version is stale');
     if (w.status !== 'delivered') fail('Task has not delivered its result');
@@ -252,6 +270,7 @@ export function signalTaskEvent(engine, args) {
 export function processTaskContinuation(engine, args) {
   return engine.repos.atomic(() => {
     const task = fetch(engine, args.taskId); const w = structuredClone(task.metadata.workflow); const c = w.continuation;
+    if (task.metadata.workRun || task.metadata.workRunBinding) return { continued: false, reason: 'work_run_managed' };
     if (!c || c.receiptId !== args.receiptId || c.contractVersion !== w.contract.version || c.ownerEpoch !== w.owner.epoch) return { continued: false, reason: 'superseded' };
     if (engine.getControlState().paused || w.status === 'waiting_user' || w.pendingHandoff) return { continued: false, deferred: true, retryAfterMs: 30000, reason: 'paused_or_waiting' };
     if (c.trigger && args.triggerEvent !== c.trigger) return { continued: false, deferred: true, retryAfterMs: 30000, reason: 'waiting_event' };

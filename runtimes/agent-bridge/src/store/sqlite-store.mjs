@@ -97,6 +97,21 @@ export class SqliteStore {
           CREATE INDEX IF NOT EXISTS idx_messages_reply_to
             ON messages(reply_to);
 
+          CREATE TABLE IF NOT EXISTS member_messages (
+            message_id TEXT PRIMARY KEY,
+            root_task_id TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            from_member_id TEXT NOT NULL,
+            to_member_id TEXT NOT NULL,
+            from_session_id TEXT NOT NULL,
+            to_session_id TEXT NOT NULL,
+            body_json TEXT NOT NULL,
+            UNIQUE(run_id, from_member_id, event_id)
+          );
+          CREATE INDEX IF NOT EXISTS idx_member_messages_inbox
+            ON member_messages(to_session_id, run_id, root_task_id);
+
           CREATE TABLE IF NOT EXISTS tasks (
             id TEXT PRIMARY KEY,
             from_agent TEXT NOT NULL,
@@ -857,6 +872,7 @@ export class SqliteStore {
     const next = this.db
       .prepare(
         `SELECT id FROM tasks WHERE assigned_to = ? AND status IN ('pending', 'in_progress')
+         AND json_extract(metadata_json, '$.workRun') IS NULL AND json_extract(metadata_json, '$.workRunBinding') IS NULL
          ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END ASC,
          CASE priority
            WHEN 'urgent' THEN 1
@@ -1221,6 +1237,28 @@ export class SqliteStore {
     return this.getMessage(msg.id);
   }
 
+  getMemberMessage(messageId) {
+    const row = this.db.prepare("SELECT * FROM member_messages WHERE message_id = ?").get(messageId);
+    return row ? { ...row, body: JSON.parse(row.body_json) } : null;
+  }
+
+  findMemberEvent(runId, fromMemberId, eventId) {
+    const row = this.db.prepare(
+      "SELECT message_id FROM member_messages WHERE run_id = ? AND from_member_id = ? AND event_id = ?"
+    ).get(runId, fromMemberId, eventId);
+    return row ? this.getMemberMessage(row.message_id) : null;
+  }
+
+  putMemberMessage(row) {
+    this.db.prepare(`
+      INSERT INTO member_messages (
+        message_id, root_task_id, run_id, event_id, from_member_id, to_member_id,
+        from_session_id, to_session_id, body_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(row.message_id, row.root_task_id, row.run_id, row.event_id, row.from_member_id,
+      row.to_member_id, row.from_session_id, row.to_session_id, JSON.stringify(row.body));
+  }
+
   queryMessages({
     toAgent = null,
     fromAgent = null,
@@ -1228,10 +1266,30 @@ export class SqliteStore {
     taskId = null,
     afterSeq = null,
     unreadOnly = false,
+    actorAgent = null,
+    actorSessionId = null,
+    runId = null,
+    wakeupSessionId = null,
     limit = 50,
   } = {}) {
     const conditions = [];
     const params = [];
+    const namedRecipient = actorAgent && actorSessionId;
+    if (wakeupSessionId) {
+      conditions.push("(mm.message_id IS NULL OR (mm.to_session_id = ? AND m.wakeup_target_session = ?))");
+      params.push(wakeupSessionId, wakeupSessionId);
+    } else if (namedRecipient) {
+      if (runId) {
+        conditions.push("mm.run_id = ? AND m.to_agent = ? AND mm.to_session_id = ?");
+        params.push(runId, actorAgent, actorSessionId);
+      } else {
+        conditions.push("(mm.message_id IS NULL OR (m.to_agent = ? AND mm.to_session_id = ?))");
+        params.push(actorAgent, actorSessionId);
+      }
+    } else {
+      if (runId) return [];
+      conditions.push("mm.message_id IS NULL");
+    }
 
     if (toAgent && toAgent !== "*") {
       conditions.push(`(to_agent = ? OR to_agent = 'all')`);
@@ -1246,8 +1304,9 @@ export class SqliteStore {
       params.push(threadId);
     }
     if (taskId) {
-      conditions.push(`task_id = ?`);
+      conditions.push(namedRecipient ? "(m.task_id = ? OR mm.root_task_id = ?)" : "m.task_id = ?");
       params.push(taskId);
+      if (namedRecipient) params.push(taskId);
     }
     if (afterSeq !== null && afterSeq !== undefined) {
       conditions.push(`seq > ?`);
@@ -1264,7 +1323,8 @@ export class SqliteStore {
 
     let rows = this.db
       .prepare(
-        `SELECT * FROM messages ${whereClause} ORDER BY seq ${orderDirection} LIMIT ?`
+        `SELECT m.* FROM messages m LEFT JOIN member_messages mm ON mm.message_id = m.id
+          ${whereClause} ORDER BY seq ${orderDirection} LIMIT ?`
       )
       .all(...params, limit);
 
@@ -1277,7 +1337,9 @@ export class SqliteStore {
   findFirstReply(messageId) {
     const row = this.db
       .prepare(
-        `SELECT * FROM messages WHERE reply_to = ? ORDER BY seq ASC LIMIT 1`
+        `SELECT m.* FROM messages m WHERE m.reply_to = ?
+          AND NOT EXISTS (SELECT 1 FROM member_messages mm WHERE mm.message_id = m.id)
+          ORDER BY m.seq ASC LIMIT 1`
       )
       .get(messageId);
     return row ? this._deserializeMessage(row) : null;
@@ -1286,7 +1348,8 @@ export class SqliteStore {
   markPriorTaskMessagesProcessed({ taskId, toAgent, nowIso }) {
     this.db
       .prepare(
-        `UPDATE messages SET processed_at = COALESCE(processed_at, ?) WHERE task_id = ? AND to_agent = ? AND status = 'read'`
+        `UPDATE messages SET processed_at = COALESCE(processed_at, ?) WHERE task_id = ? AND to_agent = ?
+          AND status = 'read' AND NOT EXISTS (SELECT 1 FROM member_messages mm WHERE mm.message_id = messages.id)`
       )
       .run(nowIso, taskId, toAgent);
   }

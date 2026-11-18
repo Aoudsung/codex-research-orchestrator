@@ -121,6 +121,13 @@ export class McpStdioServer {
     this._buffer = Buffer.alloc(0);
     this.bootMtimeMs = this._getMaxSourceMtimeMs();
     this._watchers = [];
+    this._lastToolsSignature = null;
+  }
+
+  _computeToolsSignature(tools = []) {
+    return JSON.stringify(
+      tools.map((t) => ({ name: t.name, inputSchema: t.inputSchema }))
+    );
   }
 
   /**
@@ -300,7 +307,7 @@ export class McpStdioServer {
 
   _setupHotReloadWatchers() {
     let debounceTimer = null;
-    for (const sub of ["core", "servers"]) {
+    for (const sub of ["core", "servers", "domain"]) {
       const dir = path.join(SRC_ROOT, sub);
       try {
         const watcher = fs.watch(dir, { persistent: false }, (_event, filename) => {
@@ -313,6 +320,7 @@ export class McpStdioServer {
             });
           }, 150);
         });
+        watcher.on("error", () => watcher.close()); // tools/list and tools/call still inspect source mtime.
         this._watchers.push(watcher);
       } catch {
         // ignore if fs.watch is unavailable
@@ -482,6 +490,18 @@ export class McpStdioServer {
       ) {
         const delegated = await this._delegateToFreshWorker(msg);
         if (delegated) {
+          if (method === "tools/list" && Array.isArray(delegated.result?.tools)) {
+            const baseSig =
+              this._lastToolsSignature ??
+              this._computeToolsSignature(
+                Array.from(this.tools.values()).map((t) => t.definition)
+              );
+            const nextSig = this._computeToolsSignature(delegated.result.tools);
+            if (nextSig !== baseSig) {
+              this.sendNotification("notifications/tools/list_changed");
+            }
+            this._lastToolsSignature = nextSig;
+          }
           this._send(delegated);
           return;
         }
@@ -496,6 +516,12 @@ export class McpStdioServer {
           )
             ? requestedVersion
             : "2024-11-05";
+
+          if (this._lastToolsSignature === null) {
+            this._lastToolsSignature = this._computeToolsSignature(
+              Array.from(this.tools.values()).map((t) => t.definition)
+            );
+          }
 
           result = {
             protocolVersion: negotiatedVersion,
@@ -521,8 +547,14 @@ export class McpStdioServer {
         }
 
         case "tools/list": {
+          const toolsList = Array.from(this.tools.values()).map((t) => t.definition);
+          const nextSig = this._computeToolsSignature(toolsList);
+          if (this._lastToolsSignature !== null && nextSig !== this._lastToolsSignature) {
+            this.sendNotification("notifications/tools/list_changed");
+          }
+          this._lastToolsSignature = nextSig;
           result = {
-            tools: Array.from(this.tools.values()).map((t) => t.definition),
+            tools: toolsList,
           };
           break;
         }

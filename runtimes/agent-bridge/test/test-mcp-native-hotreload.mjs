@@ -18,12 +18,12 @@ test('a project worker can claim its bound task and submit completion through it
       registerResource() {}, sendNotification() {} }, bdb, { toolProfile: 'worker' });
     bdb.createTask({ taskId: 'native-worker', fromAgent: 'codex', assignedTo: 'antigravity',
       prompt: 'Complete the authorized native task', protocolVersion: 2, requiredModel: 'gemini-pro-orchestrator',
-      boundConversationId: '197ac346-74b5-4748-8567-86bd23917808' });
+      boundConversationId: '00000000-0000-4000-8000-000000000101' });
     const claimed = await tools.get('bridge_claim_task')({ taskId: 'native-worker', agent: 'antigravity',
-      conversationId: '197ac346-74b5-4748-8567-86bd23917808', model: 'gemini-pro-orchestrator' });
+      conversationId: '00000000-0000-4000-8000-000000000101', model: 'gemini-pro-orchestrator' });
     assert.equal(claimed.claimed, true);
     const completed = await tools.get('bridge_complete_task')({ taskId: 'native-worker',
-      sessionId: '197ac346-74b5-4748-8567-86bd23917808', model: 'gemini-pro-orchestrator', result: 'complete' });
+      sessionId: '00000000-0000-4000-8000-000000000101', model: 'gemini-pro-orchestrator', result: 'complete' });
     assert.equal(completed.ok, true);
     assert.equal(completed.businessReceipt.accepted, true);
     assert.equal(completed.task.metadata.workflow.status, 'delivered');

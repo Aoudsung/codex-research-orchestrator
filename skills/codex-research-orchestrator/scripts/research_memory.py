@@ -31,10 +31,10 @@ STANCES = ("abductive_pioneer", "deductive_auditor", "zero_drift_executor")
 ROLE_CONTRACTS = {
     "researcher": "Own problem formulation, mechanism hypotheses, falsifiable claim-bound checks, and synthesis (Codex Lead coordinator never edits business code directly).",
     "reviewer": "Independent blind_review / formal_falsification via GPT Astra (never Gemini Carbon); surface counterexamples, tail failures, and fallback/coupling bloat.",
-    "implementer": "Execute scoped code & real-benchmark validation via Gemini Argon or GPT-6.1 Sol (one active writer per target path; complete core + baselines before formal runs).",
-    "brainstormer": "Web Pro chief macro architect + Gemini Carbon mechanism co-designer; search first-principles endogenous operators with zero fallback/wrapper layers.",
+    "implementer": "Execute scoped code & real-benchmark validation via Gemini Argon (pinned PI first, Antigravity fallback), GPT Sol (project catalog), or PI Kimi/DeepSeek (one active writer per target path; complete core + baselines before formal runs).",
+    "brainstormer": "Web Pro chief macro architect + Gemini Carbon (pinned PI first, Antigravity fallback) mechanism co-designer; search first-principles endogenous operators with zero fallback/wrapper layers.",
     "optimizer": "Promote recurring process failures into automated lint/admission guards rather than bloating AGENTS.md or instruction prose.",
-    "fact_observer": "GPT-6 Luna (low) read-only L0 observer for remote server scheduling (free VRAM >= peak + margin, excluding faulty GPUs) and 15-min Web Pro status checks.",
+    "fact_observer": "Codex default/explorer read-only role paired with gpt-6-luna (low) for remote server scheduling (free VRAM >= peak + margin, excluding faulty GPUs) and 15-min Web Pro status checks (never invoke agent_type='Luna' for monitoring).",
 }
 STANCE_CONTRACTS = {
     "abductive_pioneer": "Search first-principles mechanisms, invariant reformulations, and cross-domain operator mappings; state explicit assumptions before deriving consequences.",
@@ -102,6 +102,80 @@ def compile_role_stance_block(role=None, stance=None):
         lines.append("Stance (" + stance + "): " + STANCE_CONTRACTS[stance])
     lines.append("=== End Role & Stance Contract ===")
     return "\n".join(lines) + "\n"
+
+
+def compile_collaboration_recovery_card(project_root: Path):
+    """Build a read-only compact [Collaboration Recovery] summary for resume contexts."""
+    reg_path = project_root / ".agent-bridge" / "collaborators.json"
+    if not reg_path.is_file() or reg_path.is_symlink():
+        return ""
+    try:
+        reg = json.loads(reg_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    if not isinstance(reg, dict):
+        return ""
+
+    collab_ver = str(reg.get("collaborationPolicyVersion") or "unversioned")
+    epoch = str(reg.get("protocolEpoch") or "unspecified")
+    gemini_pref = reg.get("channelPreferences", {}).get("gemini") or ["pi_pinned", "antigravity_pinned"]
+    gemini_str = " -> ".join(str(x) for x in gemini_pref)
+
+    in_flight = []
+    terminal = {"completed", "failed", "cancelled"}
+    tasks_by_id = {}
+    db_path = project_root / ".agent-bridge" / "bridge.sqlite"
+    if db_path.is_file() and not db_path.is_symlink():
+        conn = None
+        try:
+            conn = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True, timeout=2.0)
+            conn.row_factory = sqlite3.Row
+            for row in conn.execute(
+                "SELECT id, assigned_to, status, phase, required_model, metadata_json FROM tasks ORDER BY updated_at DESC LIMIT 100"
+            ):
+                rid = row["id"]
+                tasks_by_id[rid] = row
+                if str(row["status"] or "").lower() not in terminal:
+                    effort = ""
+                    try:
+                        meta = json.loads(row["metadata_json"] or "{}")
+                        effort = meta.get("effort") or meta.get("dispatchSelection", {}).get("selectedEffort") or ""
+                    except ValueError:
+                        effort = ""
+                    tag = f"{rid}({row['assigned_to']}/{row['required_model'] or 'auto'}" + (f":{effort}" if effort else "") + f"/{row['phase']})"
+                    in_flight.append(tag)
+        except sqlite3.Error:
+            pass
+        finally:
+            if conn is not None:
+                conn.close()
+
+    special_items = []
+    agy_sessions = reg.get("pinnedSessions", {}).get("antigravity", {})
+    if isinstance(agy_sessions, dict):
+        for key, entry in agy_sessions.items():
+            if isinstance(entry, dict) and entry.get("dedicatedScope") and entry.get("conversationId"):
+                special_items.append(f"{key}->Agy:{str(entry['conversationId'])[:8]}({entry['dedicatedScope']})")
+    retiring = reg.get("subagentLifecyclePolicy", {}).get("retireAfterTaskHandback", {})
+    if isinstance(retiring, dict):
+        for sub_key, info in retiring.items():
+            if isinstance(info, dict) and info.get("boundTaskId"):
+                b_id = str(info["boundTaskId"])
+                t_row = tasks_by_id.get(b_id)
+                still_live = bool(t_row and str(t_row["status"] or "").lower() not in terminal)
+                tag = f"retire_after({b_id})" if still_live else f"RETIRED({b_id} {t_row['status'] if t_row else 'done'})"
+                special_items.append(f"{sub_key}[{info.get('recordedModel', 'sol')}/{info.get('recordedEffort', 'medium')}]->{tag}")
+
+    in_flight_str = "none" if not in_flight else ", ".join(in_flight[:4]) + (f" (+{len(in_flight) - 4} more)" if len(in_flight) > 4 else "")
+    lines = [
+        f"[Collaboration Recovery] policy={collab_ver} | epoch={epoch}",
+        f"Collaborators: WebPro(project) | Gemini Carbon/Argon({gemini_str}) | Codex(Astra, 6.1-Sol, gpt-6-luna low via default|explorer; agent_type=Luna=effort_judge_only) | PI(magpie auto/kimi-k3.1-pro, auto/deepseek-v4.1-flash; no dyschop)",
+    ]
+    if special_items:
+        lines.append("Special/Retiring: " + "; ".join(special_items))
+    lines.append(f"In-flight tasks ({len(in_flight)}): {in_flight_str}")
+    lines.append("Next dispatch: call bridge_plan_dispatch(objective, workload, ...) before delegating; fork_turns='none' requires complete materials, controls & boundaries.")
+    return "\n".join(lines)
 
 
 def compile_jit_recency_card(profile="resume", recipient_profile="default", role=None, stance=None):
@@ -472,6 +546,11 @@ class Memory:
         role_block = compile_role_stance_block(role, stance)
         emit_jit = (profile == "review" or recipient_profile != "default" or role is not None or stance is not None)
         jit_card = compile_jit_recency_card(profile, recipient_profile, role, stance) if emit_jit else None
+        recovery_card = (
+            compile_collaboration_recovery_card(self.project)
+            if profile == "resume" and recipient_profile != "pro_macro"
+            else ""
+        )
         effective_fill_recent = True if recipient_profile == "gemini_panoramic" else fill_recent
         packet_path = relative_path(self.project, output) if output else None
         manifest_path = Path(str(packet_path) + ".manifest.json") if output else None
@@ -533,6 +612,8 @@ class Memory:
                          + " admitted records. Indexed below: " + str(len(indexed)) + ". " + pointer + "\n")
             parts.extend(indexed)
             parts.append("=== End not shown ===\n")
+            if recovery_card:
+                parts.append("\n=== Collaboration Recovery ===\n" + recovery_card + "\n")
             if jit_card:
                 parts.append("\n=== JIT Recency Check ===\n" + jit_card + "\n")
             parts.append("\nAssembled at " + timestamp + ".\n")
@@ -793,6 +874,7 @@ class Memory:
         stance=normalize_stance(stance)
         role_block=compile_role_stance_block(role,stance)
         jit_card=compile_jit_recency_card(profile,recipient_profile,role,stance)
+        recovery_card=(compile_collaboration_recovery_card(self.project) if profile=='resume' and recipient_profile!='pro_macro' else '')
         candidates=self._candidates(profile,allow,target)
         ranked=self.query(query,limit=100,profile=profile,allow=allow,target=target)['results']
         mandatory=list(dict.fromkeys(([target] if target else [])+list(required)))
@@ -849,6 +931,8 @@ class Memory:
         def render(ids):
             parts=[prefix]+[render_item(i,rid) for i,rid in enumerate(ids,1)]
             parts.append('\nNot shown: '+str(len(candidates)-len(ids))+' admitted records.\n')
+            if recovery_card:
+                parts.append('=== Collaboration Recovery ===\n'+recovery_card+'\n')
             if jit_card:
                 parts.append('=== JIT Recency Check ===\n'+jit_card+'\n')
             return '\n'.join(parts)

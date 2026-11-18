@@ -45,7 +45,7 @@ Required checks:
 
 ## 3. Panoramic Cross-Domain / Literature / Log Delta (`gemini_panoramic`)
 
-Assemble raw primary papers, module trees, or logs via `research_context(..., recipient_profile="gemini_panoramic", role="brainstormer", stance="abductive_pioneer")` (or `role="researcher"` for SOTA collision):
+Assemble raw primary papers, module trees, or logs via `research_context(..., recipient_profile="gemini_panoramic", role="brainstormer", stance="abductive_pioneer")` (or `role="researcher"` for SOTA collision), dispatched to Gemini `Carbon` / `Argon` via pinned project PI session first (or pinned Antigravity fallback):
 
 ```markdown
 Question: {SOTA shared-assumption audit | Stage-2 operator collision | cross-domain transfer | whole-log failure trace}
@@ -68,5 +68,6 @@ Return Receipt: status (complete|partial|blocked), diff scope, exact commands + 
 
 ## 5. Multi-Round Follow-up & Format Repair
 
-- Follow-ups send **delta only**: `Continue {task/cursor}`, `Current revision`, `Epistemic delta / new question`, `Evidence pointers` (keep Antigravity/PI history concise; avoid re-pasting full logs). After 2 zero-delta turns, switch to a discriminative real-benchmark probe or two-branch fork.
+- Before new delegation or stage transitions, call `bridge_plan_dispatch` against `.agent-bridge/collaborators.json` to select model, channel, and task-scoped `Luna` effort; when `fork_turns="none"`, always include complete materials, active constraints, and write boundaries.
+- Follow-ups send **delta only**: `Continue {task/cursor}`, `Current revision`, `Epistemic delta / new question`, `Evidence pointers` (keep Antigravity/PI history concise; preserve pinned PI retry/compaction settings). After 2 zero-delta turns, switch to a discriminative real-benchmark probe or two-branch fork.
 - If an output violates a required JSON/schema contract, resend the schema and minimal valid example naming only the violated field/type—never echo the broken output in full.

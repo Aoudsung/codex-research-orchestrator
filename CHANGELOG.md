@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.4.3 — Stable collaboration workflows
+
+Parallel reports can use targeted independent replay and directly apply verified corrections to a frozen draft. Milestone runs track versioned dependencies, addressed handoffs and per-requirement acceptance. Timed investigations retain phase and provider measurements. The in-turn patch proposal from the v1.4.2 trial stays in the experimental archive. See [the trial results and selection criteria](docs/stable-collaboration.md).
+
+## v1.4.2 — Direct verified errata and in-turn patch proposals
+
+A coordinator can fold a verifier's exact, evidence-backed correction into a frozen report using the installed errata helper. A bound Antigravity structured-patch call can publish scoped proposals through a private live journal. Each proposal is checked before a separate reviewer receives an immutable candidate. The final task and its approval remain distinct from the provisional snapshot.
+
+## v1.4.1 — Reproduction receipts and bounded investigations
+
+Antigravity CLI can return the command and output digests, session, step and observed exit status for real verifier actions. The benchmark workflow measures the initial author phase, budgets subsequent review, and records claim-specific reproductions.
+
+## v1.4.0 — Named work runs and evidence-linked acceptance
+
+Coordinators can open single, parallel, investigation and milestone runs through the existing task interface. Members share addressed handoffs and consumption receipts. Dependent steps advance from versioned evidence, independent PI reviews use frozen input packets, and task detail shows the current owners, blockers and requirements. Projects can configure eligible models and channels per workload.
+
+## v1.3.0 — Compaction-Resilient Collaboration Recovery, Dynamic Cross-Channel Dispatch & Detached PI Executor
+
+Released on 2026-11-16.
+
+- **Three-Surface Collaboration Recovery (`collaborator-registry.mjs`, `drivers.mjs`, `engine.mjs`, `research_memory.py`):** Stores user policy & pinned sessions in `.agent-bridge/collaborators.json` separate from `bridge.sqlite` runtime truth; automatically injects `[Collaboration Recovery]` across coordinator wakeups, `bridge_get_task_overview`, and `research_context(profile="resume")` (omitted on `pro_macro` bundles).
+- **Dynamic Cross-Channel Dispatch & Task-Scoped `Luna` Effort Judge (`bridge_plan_dispatch`, `dispatch-planner.mjs`, `effort-judge.mjs`):** Jointly selects across `Web Pro`, `Codex` (`gpt-6-astra`, `gpt-6.1-sol`, `default`/`explorer` + `gpt-6-luna low`), `Gemini Carbon`/`Argon` (pinned PI session preferred -> pinned Antigravity fallback when PI busy/unavailable + `gemini-pro-orchestrator*` native ID matching), and explicit PI (`magpie auto/*`), caches `gpt-6-luna` effort judgments per `(task, model)` without silent defaults, and enforces plan binding at `bridge_create_task(planId)`.
+- **Detached Dual-Mode PI Executor (`pi_exec`, `pi-executor.mjs`, `pi-worker.mjs`) & Wakeup/Lint Hardening:** Spawns detached surviving PI workers with pinned config/retry/compaction preservation vs `task_explicit` `retries=0, compaction=false`, selective progress coalescing in `superagent-daemon.mjs`, `notifications/tools/list_changed` on schema updates, and `research_lint.py` `ROUTE-001`/`ROUTE-002`/`ROUTE-003` fixes.
+
 ## v1.2.0 — Lint-First Guards, Three Session Lanes & Runtime Wakeup Fixes
 
 Released on 2026-11-15.

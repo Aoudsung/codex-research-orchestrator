@@ -10,7 +10,7 @@ import { EffectsQueue, Later } from "../store/effects-queue.mjs";
 import { RouterService } from "./router-service.mjs";
 import { WatchdogService, isProcessAlive } from "./watchdog-service.mjs";
 import { PassesPump } from "./passes.mjs";
-import { executeTaskWakeupDriver } from "./drivers.mjs";
+import { executeTaskWakeupDriver, isCriticalWakeupMessage } from "./drivers.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -181,7 +181,7 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
         JSON.stringify(
           {
             pid: process.pid,
-            version: "1.2.0",
+            version: "1.4.3",
             dbPath: resolvedDbPath,
             codeMtimeMs: bootMtimeMs,
             startedAt: bootIso,
@@ -220,6 +220,8 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
   });
 
   const coalesceMs = Number(process.env.BRIDGE_WAKEUP_COALESCE_MS ?? 800);
+  const progressCoalesceMs = Number(process.env.BRIDGE_PROGRESS_COALESCE_MS ?? 5000);
+  const maxCoalesceWaitMs = Number(process.env.BRIDGE_MAX_COALESCE_WAIT_MS ?? 15000);
   const unconfirmedGraceMs = Number(
     process.env.BRIDGE_UNCONFIRMED_DISPATCH_GRACE_MS ?? 3500
   );
@@ -246,6 +248,7 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
       .queryMessages({
         toAgent: route.to_agent,
         taskId,
+        wakeupSessionId: route.target_session_id,
         unreadOnly: true,
         limit: 50,
       })
@@ -258,13 +261,15 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
     }
 
     const nowMs = Date.now();
+    const oldestCreatedMs = Date.parse(candidates[0].created_at || "") || nowMs;
     const newest = candidates[candidates.length - 1];
     const newestCreatedMs = Date.parse(newest.created_at || "") || nowMs;
-    if (nowMs - newestCreatedMs < coalesceMs) {
-      throw new Later(
-        Math.max(100, coalesceMs - (nowMs - newestCreatedMs)),
-        "quiet_window_coalescing"
-      );
+    const allProgressOnly = candidates.every((c) => !isCriticalWakeupMessage(c));
+    const effectiveCoalesceMs = allProgressOnly ? progressCoalesceMs : coalesceMs;
+    const maxDeadlineMs = oldestCreatedMs + maxCoalesceWaitMs;
+    const targetWaitMs = Math.min(newestCreatedMs + effectiveCoalesceMs, maxDeadlineMs);
+    if (nowMs < targetWaitMs) {
+      throw new Later(Math.max(100, targetWaitMs - nowMs), "quiet_window_coalescing");
     }
 
     const hasPending = candidates.some(
@@ -414,6 +419,7 @@ export async function runSuperagentDaemonLoop(dbPath = resolveBridgeDbPath()) {
               .queryMessages({
                 toAgent: r.to_agent,
                 taskId: r.task_id,
+                wakeupSessionId: r.target_session_id,
                 unreadOnly: true,
                 limit: 10,
               })

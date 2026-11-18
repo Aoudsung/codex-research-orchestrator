@@ -87,6 +87,8 @@ export function parseControlsLintPolicy(controlsText = "") {
     skipProShaCeremony: readFlag("skip_pro_sha_ceremony", true),
     forbidCoordinatorCoding: readFlag("forbid_coordinator_coding", true),
     enforceModelRoleTopology: readFlag("enforce_model_role_topology", true),
+    requirePinnedPiGemini: readFlag("require_pinned_pi_gemini", true),
+    allowAdhocPiGemini: readFlag("allow_adhoc_pi_gemini", false),
   };
 }
 

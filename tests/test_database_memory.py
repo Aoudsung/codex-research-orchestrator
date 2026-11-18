@@ -227,4 +227,41 @@ class DatabaseTests(unittest.TestCase):
         )
         self.assertEqual('current', ok_dec['state'])
 
+    def test_resume_context_injects_collaboration_recovery_readonly_and_skips_pro_macro(self):
+        bridge_dir = self.root / '.agent-bridge'
+        bridge_dir.mkdir(exist_ok=True)
+        (bridge_dir / 'collaborators.json').write_text(json.dumps({
+            'collaborationPolicyVersion': '2000-01-01-fixture-collab-v1',
+            'protocolEpoch': 'fixture-protocol-v3',
+            'channelPreferences': {'gemini': ['pi_pinned', 'antigravity_pinned']},
+            'subagentLifecyclePolicy': {
+                'retireAfterTaskHandback': {
+                    '/root/fixture_worker': {
+                        'boundTaskId': 'fixture-deployment-task',
+                        'recordedModel': 'gpt-6-sol',
+                        'recordedEffort': 'medium',
+                    }
+                }
+            },
+        }), encoding='utf-8')
+        bconn = sqlite3.connect(bridge_dir / 'bridge.sqlite')
+        bconn.execute("CREATE TABLE tasks(id TEXT, assigned_to TEXT, status TEXT, phase TEXT, required_model TEXT, metadata_json TEXT)")
+        bconn.execute(
+            "INSERT INTO tasks VALUES (?,?,?,?,?,?)",
+            ('fixture-deployment-task', 'codex', 'in_progress', 'in_progress', 'gpt-6-sol', json.dumps({'effort': 'medium'})),
+        )
+        bconn.commit()
+        bconn.close()
+
+        self.save(kind='question', title='Resume Target', body='Check collaboration recovery injection alpha.')
+        resumed = m.dispatch('context', self.root, {'query': 'alpha', 'profile': 'resume'})
+        self.assertIn('=== Collaboration Recovery ===', resumed['text'])
+        self.assertIn('2000-01-01-fixture-collab-v1', resumed['text'])
+        self.assertIn('fixture-protocol-v3', resumed['text'])
+        self.assertIn('fixture-deployment-task', resumed['text'])
+        self.assertFalse((bridge_dir / 'bridge.sqlite-wal').exists())
+
+        pro_pkt = m.dispatch('context', self.root, {'query': 'alpha', 'profile': 'resume', 'recipient_profile': 'pro_macro'})
+        self.assertNotIn('=== Collaboration Recovery ===', pro_pkt['text'])
+
 if __name__=='__main__':unittest.main()

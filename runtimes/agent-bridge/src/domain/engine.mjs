@@ -1,4 +1,6 @@
 import * as workflow from './task-workflow.mjs';
+import { startWorkRun, assertWorkRunTaskReady, workRunOverview } from './work-run.mjs';
+import * as memberTransport from "./member-transport.mjs";
 import crypto from "node:crypto";
 import { beginDeliveryMetadata, deliveryAttempts, deliveryState, finishDeliveryMetadata,
   notificationEnvelope, retryDue } from "../core/wakeup-policy.mjs";
@@ -8,6 +10,7 @@ import {
   REASONS,
   ROUTER_MODES,
   areTaskPermissionsCompatible,
+  areModelsEquivalent,
   attentionStage,
   buildValidationEscalationGuidance,
   computePatchApplyOrder,
@@ -67,6 +70,8 @@ export class BridgeEngine {
    * @param {() => boolean} [options.isWakeupGuarded]
    * @param {() => string} [options.defaultCwd]
    * @param {(pid: number) => boolean} [options.isPidAlive]
+   * @param {() => object | null} [options.collaboratorPolicyProvider]
+   * @param {(engine: BridgeEngine) => object | null} [options.collaborationRecoveryProvider]
    */
   constructor({
     repos,
@@ -74,6 +79,8 @@ export class BridgeEngine {
     isWakeupGuarded = () => false,
     defaultCwd = () => "",
     isPidAlive = () => true,
+    collaboratorPolicyProvider = () => null,
+    collaborationRecoveryProvider = () => null,
   }) {
     if (!repos) {
       throw new Error("BridgeEngine requires a repository implementation");
@@ -83,11 +90,30 @@ export class BridgeEngine {
     this.isWakeupGuarded = isWakeupGuarded;
     this.defaultCwd = defaultCwd;
     this.isPidAlive = isPidAlive;
+    this.collaboratorPolicyProvider = collaboratorPolicyProvider;
+    this.collaborationRecoveryProvider = collaborationRecoveryProvider;
     this.onMessageCommitted = null;
     this.onEffectsEnqueued = null;
     this._policyFlags = {};
 
     this._ensureInitialPolicy();
+  }
+
+  _getCustomAliases(explicit = null) {
+    if (explicit) return explicit;
+    try {
+      return this.collaboratorPolicyProvider?.()?.modelAliases || null;
+    } catch {
+      return null;
+    }
+  }
+
+  getCollaborationRecoveryDigest() {
+    try {
+      return this.collaborationRecoveryProvider?.(this) || null;
+    } catch {
+      return null;
+    }
   }
 
   _nowIso() {
@@ -181,6 +207,7 @@ export class BridgeEngine {
           const pending = this.repos.queryMessages({
             toAgent: r.to_agent,
             taskId: r.task_id,
+            wakeupSessionId: r.target_session_id,
             unreadOnly: true,
             limit: 20,
           });
@@ -421,8 +448,20 @@ export class BridgeEngine {
     metadata = {},
     contract = null,
     protocolVersion = null,
+    planId = null,
+    workMode, workPlan, actorAgent, actorSessionId,
   }) {
     return this.repos.atomic(() => {
+      if (metadata?.workRun !== undefined || metadata?.workRunBinding !== undefined) {
+        throw new Error("Work run metadata is managed by the bridge. Provide workMode and workPlan.");
+      }
+      const attachRun = task => {
+        if (workMode === undefined && workPlan === undefined) return task;
+        if (!actorSessionId) throw new Error("A bound coordinator session is required to start a work run.");
+        startWorkRun(this, { taskId: task.id, eventId: "create", actorAgent, actorSessionId,
+          workMode: workMode ?? "auto", workPlan });
+        return this.repos.getTask(task.id);
+      };
       if (taskId) {
         const existing = this.repos.getTask(taskId);
         if (existing) {
@@ -469,7 +508,7 @@ export class BridgeEngine {
               { conflicts }
             );
           }
-          return existing;
+          return attachRun(existing);
         }
       }
 
@@ -488,24 +527,164 @@ export class BridgeEngine {
           { assignedTo, allowedPeers: activePolicy.allowedPeers }
         );
       }
+      const effectivePlanId = planId || metadata?.planId || null;
+      let dispatchPlan = null;
+      const customAliases = this._getCustomAliases();
+      let collabPolicy = null;
+      try {
+        collabPolicy = this.collaboratorPolicyProvider?.() || null;
+      } catch {
+        collabPolicy = null;
+      }
+
+      if (effectivePlanId) {
+        const planEntry = this.getContext(`dispatch_plans:${effectivePlanId}`);
+        if (planEntry?.value) {
+          try {
+            dispatchPlan =
+              typeof planEntry.value === "string"
+                ? JSON.parse(planEntry.value)
+                : planEntry.value;
+          } catch {
+            dispatchPlan = null;
+          }
+        }
+        if (!dispatchPlan || typeof dispatchPlan !== "object") {
+          throw new BridgeUserError(
+            REASONS.DISPATCH_PLAN_MISMATCH,
+            `Unknown or invalid dispatch plan '${effectivePlanId}'. Run bridge_plan_dispatch first.`,
+            { planId: effectivePlanId }
+          );
+        }
+        if (dispatchPlan.selectedAgent && assignedTo && assignedTo !== dispatchPlan.selectedAgent) {
+          throw new BridgeUserError(
+            REASONS.DISPATCH_PLAN_MISMATCH,
+            `Dispatch plan '${effectivePlanId}' requires assignedTo='${dispatchPlan.selectedAgent}', got '${assignedTo}'.`,
+            { planId: effectivePlanId, expectedAgent: dispatchPlan.selectedAgent, actualAgent: assignedTo }
+          );
+        }
+        const explicitReqModel =
+          requiredModel || metadata?.requiredModel || metadata?.model || null;
+        if (
+          explicitReqModel &&
+          dispatchPlan.selectedModel &&
+          !areModelsEquivalent(explicitReqModel, dispatchPlan.selectedModel, customAliases)
+        ) {
+          throw new BridgeUserError(
+            REASONS.DISPATCH_PLAN_MISMATCH,
+            `Dispatch plan '${effectivePlanId}' requires model '${dispatchPlan.selectedModel}', got '${explicitReqModel}'.`,
+            { planId: effectivePlanId, expectedModel: dispatchPlan.selectedModel, actualModel: explicitReqModel }
+          );
+        }
+        const explicitReqConv =
+          requiredConversationId ||
+          metadata?.requiredConversationId ||
+          metadata?.conversationId ||
+          sessionId ||
+          null;
+        if (
+          explicitReqConv &&
+          dispatchPlan.sessionMode === "pinned" &&
+          dispatchPlan.targetSessionId &&
+          explicitReqConv !== dispatchPlan.targetSessionId
+        ) {
+          throw new BridgeUserError(
+            REASONS.DISPATCH_PLAN_MISMATCH,
+            `Dispatch plan '${effectivePlanId}' binds pinned conversation '${dispatchPlan.targetSessionId}', got '${explicitReqConv}'.`,
+            { planId: effectivePlanId, expectedConversationId: dispatchPlan.targetSessionId, actualConversationId: explicitReqConv }
+          );
+        }
+        if (metadata?.isolationProfile && dispatchPlan.isolationProfile &&
+            metadata.isolationProfile !== dispatchPlan.isolationProfile) {
+          throw new BridgeUserError(REASONS.DISPATCH_PLAN_MISMATCH, "Task isolation conflicts with its dispatch plan.");
+        }
+        const explicitEffort = metadata?.effort || null;
+        if (
+          explicitEffort &&
+          dispatchPlan.selectedEffort &&
+          String(explicitEffort).toLowerCase() !== String(dispatchPlan.selectedEffort).toLowerCase()
+        ) {
+          throw new BridgeUserError(
+            REASONS.DISPATCH_PLAN_MISMATCH,
+            `Dispatch plan '${effectivePlanId}' requires effort '${dispatchPlan.selectedEffort}', got '${explicitEffort}'.`,
+            { planId: effectivePlanId, expectedEffort: dispatchPlan.selectedEffort, actualEffort: explicitEffort }
+          );
+        }
+      }
+
       const reqModel =
-        requiredModel || metadata?.requiredModel || metadata?.model || null;
+        requiredModel ||
+        metadata?.requiredModel ||
+        metadata?.model ||
+        dispatchPlan?.selectedModel ||
+        null;
+      const mergedMetadata = {
+        ...(metadata || {}),
+        ...(dispatchPlan?.isolationProfile ? { isolationProfile: dispatchPlan.isolationProfile } : {}),
+        ...(effectivePlanId ? { planId: effectivePlanId } : {}),
+        ...(metadata?.effort || dispatchPlan?.selectedEffort
+          ? { effort: metadata?.effort || dispatchPlan?.selectedEffort }
+          : {}),
+        ...(metadata?.role || dispatchPlan?.selectedRole
+          ? { role: metadata?.role || dispatchPlan?.selectedRole }
+          : {}),
+        ...(metadata?.channel || dispatchPlan?.selectedChannel
+          ? { channel: metadata?.channel || dispatchPlan?.selectedChannel }
+          : {}),
+        ...(metadata?.executor || dispatchPlan?.executor
+          ? { executor: metadata?.executor || dispatchPlan?.executor }
+          : {}),
+        ...(metadata?.provider || dispatchPlan?.provider
+          ? { provider: metadata?.provider || dispatchPlan?.provider }
+          : {}),
+        ...(metadata?.sessionMode || dispatchPlan?.sessionMode
+          ? { sessionMode: metadata?.sessionMode || dispatchPlan?.sessionMode }
+          : {}),
+        ...(metadata?.sessionPath || dispatchPlan?.sessionPath
+          ? { sessionPath: metadata?.sessionPath || dispatchPlan?.sessionPath }
+          : {}),
+        ...(metadata?.protocolEpoch || dispatchPlan?.protocolEpoch || collabPolicy?.protocolEpoch
+          ? { protocolEpoch: metadata?.protocolEpoch || dispatchPlan?.protocolEpoch || collabPolicy?.protocolEpoch }
+          : {}),
+        ...(dispatchPlan
+          ? {
+              dispatchSelection: {
+                planId: effectivePlanId,
+                selectedChannel: dispatchPlan.selectedChannel || null,
+                selectedAgent: dispatchPlan.selectedAgent || null,
+                selectedRole: dispatchPlan.selectedRole || null,
+                selectedModel: dispatchPlan.selectedModel || null,
+                selectedEffort: dispatchPlan.selectedEffort || null,
+                sessionMode: dispatchPlan.sessionMode || null,
+                targetSessionId: dispatchPlan.targetSessionId || null,
+                selectionReason: dispatchPlan.selectionReason || null,
+                collaborationPolicyVersion:
+                  dispatchPlan.collaborationPolicyVersion ||
+                  collabPolicy?.collaborationPolicyVersion ||
+                  null,
+                protocolEpoch:
+                  dispatchPlan.protocolEpoch || collabPolicy?.protocolEpoch || null,
+              },
+            }
+          : {}),
+      };
       const cognitiveProfile = resolveCognitiveProfile({
         assignedTo,
         requiredModel: reqModel,
-        metadata,
+        metadata: mergedMetadata,
         contract,
       });
       validateProMacroPrompt(prompt, {
         cognitiveProfile,
         requiredModel: reqModel,
-        metadata,
+        metadata: mergedMetadata,
       });
       const reqConv =
         requiredConversationId ||
         metadata?.requiredConversationId ||
         metadata?.conversationId ||
         sessionId ||
+        (dispatchPlan?.sessionMode === "pinned" ? dispatchPlan.targetSessionId : null) ||
         null;
       const boundConv = boundConversationId || sessionId || reqConv || null;
 
@@ -524,17 +703,18 @@ export class BridgeEngine {
       validateModelRoleAndChannel({
         assignedTo,
         requiredModel: reqModel,
-        role: metadata?.role,
-        taskKind: metadata?.taskKind,
-        provider: metadata?.provider,
-        metadata,
+        role: mergedMetadata.role,
+        taskKind: mergedMetadata.taskKind,
+        provider: mergedMetadata.provider,
+        metadata: mergedMetadata,
         contract,
         permissions: mergedPermissions,
         policyFlags,
+        collaboratorPolicy: collabPolicy,
       });
       validateCoordinatorWriteBoundary({
-        role: metadata?.role,
-        metadata,
+        role: mergedMetadata.role,
+        metadata: mergedMetadata,
         permissions: mergedPermissions,
         policyFlags,
       });
@@ -545,16 +725,16 @@ export class BridgeEngine {
         requiredConversationId: reqConv,
         boundConversationId: boundConv,
         permissions: mergedPermissions,
-        metadata,
+        metadata: mergedMetadata,
         existingTasks: this.repos.listTasks({ limit: 500 }),
-        strict: Boolean(policyFlags.strictWriteLocks || metadata?.strictWriteLocks),
+        strict: Boolean(policyFlags.strictWriteLocks || mergedMetadata.strictWriteLocks),
       });
       validateResearchTaskDiscipline({
         prompt,
         contract,
-        metadata,
-        role: metadata?.role,
-        taskKind: metadata?.taskKind,
+        metadata: mergedMetadata,
+        role: mergedMetadata.role,
+        taskKind: mergedMetadata.taskKind,
         policyFlags,
       });
 
@@ -583,7 +763,7 @@ export class BridgeEngine {
         error: null,
         session_id: boundConv,
         metadata: {
-          ...(metadata || {}),
+          ...mergedMetadata,
           ...(cognitiveProfile ? { cognitiveProfile } : {}),
         },
         created_at: now,
@@ -600,7 +780,7 @@ export class BridgeEngine {
         controlVersion: ctrl.control_version || "",
         controlsHash: ctrl.controls_hash || "",
         strength: metadata?.mandateStrength || "explicit",
-        isolationProfile: metadata?.isolationProfile || null,
+        isolationProfile: mergedMetadata.isolationProfile || null,
         matchedRuleIds: Array.isArray(metadata?.matchedRuleIds)
           ? metadata.matchedRuleIds
           : [],
@@ -623,7 +803,7 @@ export class BridgeEngine {
         });
       }
 
-      return savedTask;
+      return attachRun(savedTask);
     });
   }
 
@@ -648,6 +828,9 @@ export class BridgeEngine {
     conversationId = null,
     modelSource = "caller_declared",
     strictModel = true,
+    customAliases = null,
+    actualEffort = null,
+    actualChannel = null,
   }) {
     return this.repos.atomic(() => {
       const task = this.repos.getTask(taskId);
@@ -658,6 +841,7 @@ export class BridgeEngine {
         );
       }
 
+      const resolvedAliases = this._getCustomAliases(customAliases);
       const reported = [
         "runtime_init_metadata",
         "runtime_event_metadata",
@@ -669,7 +853,7 @@ export class BridgeEngine {
         modelSource === "complete_task" &&
         task.metadata?.modelEvidence === "runtime_reported" &&
         task.actual_model &&
-        (!actualModel || verifyModelMatch(task.actual_model, actualModel).ok);
+        (!actualModel || verifyModelMatch(task.actual_model, actualModel, modelSource, { customAliases: resolvedAliases }).ok);
 
       if (
         task.metadata?.requireVerifiedModel &&
@@ -692,7 +876,8 @@ export class BridgeEngine {
         const modelCheck = verifyModelMatch(
           task.required_model,
           effectiveActualModel,
-          modelSource
+          modelSource,
+          { customAliases: resolvedAliases }
         );
         if (!modelCheck.ok) {
           throw new BridgeUserError(modelCheck.code, modelCheck.error);
@@ -728,6 +913,25 @@ export class BridgeEngine {
             : task.metadata?.modelEvidence || "unverified",
         modelSource,
         requestedModel: task.required_model || actualModel || null,
+        executionObserved: {
+          ...(task.metadata?.executionObserved || {}),
+          channel:
+            actualChannel ||
+            task.metadata?.executionObserved?.channel ||
+            task.metadata?.dispatchSelection?.selectedChannel ||
+            task.metadata?.channel ||
+            null,
+          actualModel: newActualModel || actualModel || task.actual_model || null,
+          actualEffort:
+            actualEffort ||
+            task.metadata?.executionObserved?.actualEffort ||
+            task.metadata?.effort ||
+            null,
+          selectionReason:
+            task.metadata?.executionObserved?.selectionReason ||
+            task.metadata?.dispatchSelection?.selectionReason ||
+            null,
+        },
       };
       const newBoundConv =
         conversationId ||
@@ -756,6 +960,10 @@ export class BridgeEngine {
     agent,
     model = null,
     conversationId = null,
+    effort = null,
+    actualEffort = null,
+    actualChannel = null,
+    customAliases = null,
   }) {
     return this.repos.atomic(() => {
       let targetId = taskId;
@@ -766,6 +974,7 @@ export class BridgeEngine {
 
       const existing = this.repos.getTask(targetId);
       if (!existing) return null;
+      assertWorkRunTaskReady(this, existing);
 
       if (existing.assigned_to !== agent) {
         throw new Error("Task participant mismatch");
@@ -774,12 +983,16 @@ export class BridgeEngine {
         throw new Error("Required execution conversation identity is missing");
       }
 
+      const resolvedEffort = actualEffort || effort || null;
       if (existing.required_model && model) {
         this.verifyAndBindTask({
           taskId: targetId,
           actualModel: model,
           conversationId,
           modelSource: "claim_task",
+          customAliases,
+          actualEffort: resolvedEffort,
+          actualChannel,
         });
       } else if (model || conversationId) {
         this.verifyAndBindTask({
@@ -788,6 +1001,9 @@ export class BridgeEngine {
           conversationId,
           modelSource: "claim_task",
           strictModel: Boolean(existing.required_model && model),
+          customAliases,
+          actualEffort: resolvedEffort,
+          actualChannel,
         });
       }
 
@@ -797,11 +1013,23 @@ export class BridgeEngine {
           ? "in_progress"
           : refreshed.phase;
 
+      const updatedMetadata = resolvedEffort || actualChannel
+        ? {
+            ...(refreshed.metadata || {}),
+            executionObserved: {
+              ...(refreshed.metadata?.executionObserved || {}),
+              ...(actualChannel ? { channel: actualChannel } : {}),
+              ...(resolvedEffort ? { actualEffort: resolvedEffort } : {}),
+            },
+          }
+        : refreshed.metadata;
+
       return this.repos.putTask({
         ...refreshed,
         status: "in_progress",
         phase: nextPhase,
         phase_label: PHASE_LABELS[nextPhase] || nextPhase,
+        metadata: updatedMetadata,
         updated_at: this._nowIso(),
       });
     });
@@ -819,6 +1047,10 @@ export class BridgeEngine {
         throw new Error(`Task not found: ${taskId}`);
       }
       const now = this._nowIso();
+      if ((task.metadata?.workRun || task.metadata?.workRunBinding) &&
+          ["completed", "failed", "cancelled"].includes(phase)) {
+        throw new Error("Work-run lifecycle changes require a versioned work-run receipt.");
+      }
       const phaseLabel = PHASE_LABELS[phase] || phase;
 
       let status = task.status;
@@ -857,6 +1089,11 @@ export class BridgeEngine {
     sessionId = null,
     model = null,
     actorAgent = null,
+    actorSessionId = null,
+    workRun = null,
+    customAliases = null,
+    actualEffort = null,
+    actualChannel = null,
   }) {
     return this.repos.atomic(() => {
       if (model || sessionId) {
@@ -866,16 +1103,40 @@ export class BridgeEngine {
           conversationId: sessionId,
           modelSource: "complete_task",
           strictModel: Boolean(model),
+          customAliases,
+          actualEffort,
+          actualChannel,
         });
       }
 
       const task = this.repos.getTask(taskId);
       if (!task) return null;
 
-      if (task.metadata?.workflow) {
-        const w = task.metadata.workflow;
+      if (actualEffort || actualChannel || model) {
+        this.repos.putTask({
+          ...task,
+          metadata: {
+            ...(task.metadata || {}),
+            executionObserved: {
+              ...(task.metadata?.executionObserved || {}),
+              ...(actualChannel ? { channel: actualChannel } : {}),
+              ...(model ? { actualModel: model } : {}),
+              ...(actualEffort ? { actualEffort } : {}),
+              selectionReason:
+                task.metadata?.executionObserved?.selectionReason ||
+                task.metadata?.dispatchSelection?.selectionReason ||
+                null,
+            },
+          },
+          updated_at: this._nowIso(),
+        });
+      }
+      const latestTask = this.repos.getTask(taskId);
+
+      if (latestTask.metadata?.workflow) {
+        const w = latestTask.metadata.workflow;
         if (!actorAgent) throw new Error('Protocol 2 completion requires the authenticated actor');
-        return this.submitTaskReceipt({ taskId, receiptId: `legacy-complete:${w.owner.epoch}:${w.contract.version}:${sha256Hex(JSON.stringify({status,result,error}))}`, attemptId: `legacy:${taskId}`, contractVersion: w.contract.version, ownerEpoch: w.owner.epoch, outcome: status === 'completed' ? 'delivered' : status === 'cancelled' ? 'cancelled' : 'blocked', summary: result || error || '', actorAgent });
+        return this.submitTaskReceipt({ taskId, receiptId: `legacy-complete:${w.owner.epoch}:${w.contract.version}:${sha256Hex(JSON.stringify({status,result,error,...(workRun ? {workRun} : {})}))}`, attemptId: `legacy:${taskId}`, contractVersion: w.contract.version, ownerEpoch: w.owner.epoch, outcome: status === 'completed' ? 'delivered' : status === 'cancelled' ? 'cancelled' : 'blocked', summary: result || error || '', actorAgent, ...(workRun ? {workRun, actorSessionId} : {}) });
       }
 
       const resolvedPhase =
@@ -889,13 +1150,13 @@ export class BridgeEngine {
       const now = this._nowIso();
 
       this.repos.putTask({
-        ...task,
+        ...latestTask,
         status,
         phase: resolvedPhase,
         phase_label: phaseLabel,
-        result: result ?? task.result,
-        error: error ?? task.error,
-        session_id: sessionId ?? task.session_id,
+        result: result ?? latestTask.result,
+        error: error ?? latestTask.error,
+        session_id: sessionId ?? latestTask.session_id,
         updated_at: now,
         completed_at: now,
       });
@@ -1033,7 +1294,7 @@ export class BridgeEngine {
 
     if (replyTo) {
       const parent = this.repos.getMessage(replyTo);
-      if (!parent) {
+      if (!parent || this.repos.getMemberMessage(replyTo)) {
         throw new BridgeUserError(
           REASONS.REPLY_TARGET_NOT_FOUND,
           `Parent message for replyTo not found: ${replyTo}`
@@ -1104,6 +1365,7 @@ export class BridgeEngine {
       ...(resolvedTaskId ? { taskId: resolvedTaskId } : {}),
     };
     delete enrichedMeta.bridgeDelivery;
+    delete enrichedMeta.memberEnvelope;
 
     if (resolvedTaskId && fromAgent && !crossSessionWorkflow) {
       this.repos.markPriorTaskMessagesProcessed({
@@ -1236,6 +1498,10 @@ export class BridgeEngine {
 
   sendMessage(args) {
     return this.repos.atomic(() => {
+      const directedParent = args.replyTo ? this.repos.getMemberMessage(args.replyTo) : null;
+      if (args.runId || args.toMemberId || directedParent) {
+        return memberTransport.sendMemberMessage(this, args, directedParent);
+      }
       const saved = this._insertRawMessage(args);
 
       // Evaluate Research Router deterministic fan-out & policy rules
@@ -1305,8 +1571,12 @@ export class BridgeEngine {
     });
   }
 
-  getMessageById(id) {
-    return this.repos.getMessage(id);
+  getMessageById(id, actor) {
+    return memberTransport.recipientMessage(this, this.repos.getMessage(id), actor);
+  }
+
+  getMemberMessageReceipt(args) {
+    return memberTransport.getMemberMessageReceipt(this, args);
   }
 
   /**
@@ -1323,6 +1593,9 @@ export class BridgeEngine {
     markAsRead = true,
     markConsumed = null,
     consumeTurnId = null,
+    actorAgent = null,
+    actorSessionId = null,
+    runId = null,
     limit = 50,
   } = {}) {
     const shouldConsume =
@@ -1330,28 +1603,13 @@ export class BridgeEngine {
         ? Boolean(markConsumed)
         : Boolean(markAsRead);
 
-    if (!markAsRead && !shouldConsume) {
-      return this.repos.queryMessages({
-        toAgent,
-        fromAgent,
-        threadId,
-        taskId,
-        afterSeq,
-        unreadOnly,
-        limit,
-      });
-    }
+    const actor = { actorAgent, actorSessionId };
+    const query = { toAgent, fromAgent, threadId, taskId, afterSeq, unreadOnly, limit, runId, ...actor };
+    const expose = (rows) => rows.map((row) => memberTransport.recipientMessage(this, row, actor)).filter(Boolean);
+    if (!markAsRead && !shouldConsume) return expose(this.repos.queryMessages(query));
 
     return this.repos.atomic(() => {
-      const rows = this.repos.queryMessages({
-        toAgent,
-        fromAgent,
-        threadId,
-        taskId,
-        afterSeq,
-        unreadOnly,
-        limit,
-      });
+      const rows = this.repos.queryMessages(query);
       if (rows.length === 0) return rows;
 
       const now = this._nowIso();
@@ -1387,7 +1645,7 @@ export class BridgeEngine {
             stallAlert: { ...alert, resolvedAt: now } }, updated_at: now });
         }
       }
-      return updated;
+      return expose(updated);
     });
   }
 
@@ -1401,6 +1659,9 @@ export class BridgeEngine {
   }) {
     return this.repos.atomic(() => {
       const task = this.repos.getTask(taskId);
+      if (messageId && this.repos.getMemberMessage(messageId)) {
+        throw new BridgeUserError(REASONS.REPLY_TARGET_NOT_FOUND, "Directed handoffs use the run inbox and directed replies");
+      }
       const message = messageId ? this.repos.getMessage(messageId) : null;
       const ctrl = this.repos.getControl();
       const nowIso = this._nowIso();
@@ -1583,6 +1844,7 @@ export class BridgeEngine {
       const msgs = this.repos.queryMessages({
         toAgent: route?.to_agent || task.assigned_to,
         taskId,
+        wakeupSessionId: route?.target_session_id,
         unreadOnly: true,
         limit: 100,
       });
@@ -1717,7 +1979,9 @@ export class BridgeEngine {
       if (Array.isArray(messageIds) && messageIds.length > 0) {
         for (const id of messageIds) {
           const m = this.repos.getMessage(id);
-          if (m && m.task_id === taskId && m.to_agent === recipient && !this.validHostReceipt(m.wakeup_receipt, this.repos.getRoute(m.task_id, m.to_agent))) {
+          if (m && m.task_id === taskId && m.to_agent === recipient &&
+              (!m.metadata?.memberEnvelope || m.wakeup_target_session === selectedRoute.target_session_id) &&
+              !this.validHostReceipt(m.wakeup_receipt, selectedRoute)) {
             this.repos.putMessage({
               ...m,
               wakeup_status: "failed",
@@ -1732,6 +1996,7 @@ export class BridgeEngine {
         const msgs = this.repos.queryMessages({
           toAgent: recipient || toAgent,
           taskId,
+          wakeupSessionId: selectedRoute.target_session_id,
           limit: 200,
         });
         for (const m of msgs) {
@@ -1788,7 +2053,8 @@ export class BridgeEngine {
     const deadlines = [];
     for (const route of this.repos.listTaskRoutes(taskId)) {
       if (!route.enabled || Number(route.consecutive_failures || 0) >= 3) continue;
-      const unread = this.repos.queryMessages({ taskId, toAgent: route.to_agent, unreadOnly: true, limit: 200 });
+      const unread = this.repos.queryMessages({ taskId, toAgent: route.to_agent,
+        wakeupSessionId: route.target_session_id, unreadOnly: true, limit: 200 });
       for (const message of unread) {
         if (message.handback_reason || this.validHostReceipt(message.wakeup_receipt, route)) continue;
         if (message.wakeup_status === 'failed' && deliveryAttempts(message, route.target_session_id) < 3) {
@@ -1845,6 +2111,7 @@ export class BridgeEngine {
         const unread = this.repos.queryMessages({
           toAgent: route.to_agent,
           taskId,
+          wakeupSessionId: route.target_session_id,
           unreadOnly: true,
           limit: 200,
         });
@@ -1867,6 +2134,7 @@ export class BridgeEngine {
       const unreadMsgs = this.repos.queryMessages({
         toAgent: refreshed.to_agent,
         taskId,
+        wakeupSessionId: refreshed.target_session_id,
         unreadOnly: true,
         limit: 200,
       });
@@ -1889,7 +2157,12 @@ export class BridgeEngine {
       if (eligibleRows.length === 0) {
         return { claimed: false, reason: "no_unread_pending_messages" };
       }
-      const envelope = notificationEnvelope(eligibleRows, refreshed.target_session_id);
+      const namesRun = (row) => row.metadata?.memberEnvelope ? row.metadata.workRunId : null;
+      const directedRunId = namesRun(eligibleRows[0]);
+      const envelope = notificationEnvelope(
+        eligibleRows.filter((row) => namesRun(row) === directedRunId),
+        refreshed.target_session_id
+      );
       const pendingRows = envelope.messages;
 
       const lockedRoute = this.repos.putRoute({
@@ -1944,7 +2217,8 @@ export class BridgeEngine {
         if (
           !message ||
           message.task_id !== taskId ||
-          message.to_agent !== route?.to_agent
+          message.to_agent !== route?.to_agent ||
+          (message.metadata?.memberEnvelope && message.wakeup_target_session !== route.target_session_id)
         ) {
           throw new Error("Host receipt message binding mismatch");
         }
@@ -1959,7 +2233,7 @@ export class BridgeEngine {
 
       for (const id of messageIds) {
         const m = this.repos.getMessage(id);
-        if (!m) continue;
+        if (!m || m.wakeup_status === "skipped_work_run_closed") continue;
         this.repos.putMessage({
           ...m,
           wakeup_status: nextStatus,
@@ -2037,6 +2311,9 @@ export class BridgeEngine {
   } = {}) {
     if (!taskId) {
       throw new Error("taskId is required for confirmWakeupDelivery.");
+    }
+    if (Array.isArray(messageIds) && messageIds.some((id) => this.repos.getMemberMessage(id))) {
+      throw new Error("Directed message wakeup confirmation requires host transport evidence");
     }
     const route = this.repos.getRoute(taskId, toAgent || this.repos.getMessage(messageIds[0])?.to_agent || this.repos.listTaskRoutes(taskId).find((r) => r.target_session_id === receipt?.targetSessionId)?.to_agent);
     if (!this.validHostReceipt(receipt, route)) {
@@ -2458,7 +2735,7 @@ export class BridgeEngine {
     });
   }
 
-  getTaskOverview(taskId) {
+  getTaskOverview(taskId, actor = {}) {
     const task = this.repos.getTask(taskId);
     if (!task) return null;
 
@@ -2505,6 +2782,7 @@ export class BridgeEngine {
     });
 
     return {
+      ...(task.metadata?.workRun || task.metadata?.workRunBinding ? { workRun: workRunOverview(this, task, actor) } : {}),
       taskId: task.id,
       title: task.title,
       ...workflow.workflowOverview(this, task),
@@ -2538,6 +2816,7 @@ export class BridgeEngine {
         ...m,
         contentPreview: String(content || "").slice(0, 240),
       })),
+      collaborationRecovery: this.getCollaborationRecoveryDigest(),
       currentCursor: this.getCurrentSeq(),
     };
   }
@@ -2626,6 +2905,8 @@ export class BridgeEngine {
     field = null,
     offset = 0,
     limit = 4000,
+    actorAgent = null,
+    actorSessionId = null,
   } = {}) {
     const resolved = uri
       ? parseCardUri(uri)
@@ -2638,7 +2919,7 @@ export class BridgeEngine {
     const effectiveField = field || resolved.field || null;
 
     if (resolved.kind === "message") {
-      const msg = this.repos.getMessage(resolved.id);
+      const msg = this.getMessageById(resolved.id, { actorAgent, actorSessionId });
       if (!msg) {
         throw new BridgeUserError(
           REASONS.CARD_NOT_FOUND,

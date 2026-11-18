@@ -16,6 +16,8 @@ import {
   verifyModelMatch,
   classifyExecutionError,
   checkExecutionReadiness,
+  captureWorkRunExecution,
+  nativeWorkRunCompletion,
 } from "../core/preflight.mjs";
 
 const server = new McpStdioServer({
@@ -27,7 +29,7 @@ const server = new McpStdioServer({
 
 const bridgeDb = new BridgeDatabase();
 server.executionAdmission = {
-  names: new Set(["codex_exec", "codex_resume", "codex_fork", "codex_review"]),
+  names: new Set(["codex_exec", "codex_resume", "codex_fork", "codex_review", "pi_exec", "bridge_plan_dispatch"]),
   admit: () => bridgeDb.admitExecution(),
 };
 const defaultCaller = process.env.MCP_CALLER_AGENT || "antigravity";
@@ -166,6 +168,7 @@ server.registerTool(
           type: "boolean",
           description: "Whether to mark the bound task as 'completed' immediately when CLI exits (default: false; RC0 alone does not establish completion).",
         },
+        evidenceRefs: { type: "array", items: { type: "string" }, description: "Evidence references for a completed work run step." },
         timeoutMs: {
           type: "number",
           description: "Execution timeout in milliseconds (default: 300000).",
@@ -178,10 +181,12 @@ server.registerTool(
     const codexBin = resolveBinary("codex", "CODEX_BIN");
     if (args.effort && args.configOverrides?.some(value => /^\s*model_reasoning_effort\s*=/.test(value))) throw new Error("effort conflicts with model_reasoning_effort in configOverrides");
     const original = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
+    const execution = captureWorkRunExecution(bridgeDb.engine, original, "codex-cli");
     const cwd = args.cwd || original?.cwd || process.cwd();
     const effectiveModel = args.model || args.requiredModel || original?.required_model || null;
     const requiredModel = args.requiredModel || args.model || null;
-    if (args.requiredModel && args.model && !verifyModelMatch(args.requiredModel, args.model, "cli_flag").ok) throw new Error("Requested model conflicts with requiredModel");
+    const customAliases = bridgeDb.getCollaboratorPolicy(cwd)?.modelAliases || null;
+    if (args.requiredModel && args.model && !verifyModelMatch(args.requiredModel, args.model, "cli_flag", { customAliases }).ok) throw new Error("Requested model conflicts with requiredModel");
 
     const taskRecord = bridgeDb.createTask({
       taskId: args.taskId || null,
@@ -274,7 +279,8 @@ server.registerTool(
           const modelCheck = verifyModelMatch(
             requiredModel,
             parsed.actualModel,
-            parsed.modelVerifiedBy
+            parsed.modelVerifiedBy,
+            { customAliases }
           );
           if (!modelCheck.ok) {
             return {
@@ -309,6 +315,7 @@ server.registerTool(
               result: parsed.response,
               sessionId: parsed.sessionId,
               model: reportedModel,
+              ...nativeWorkRunCompletion(execution, "codex", parsed.sessionId, args.evidenceRefs),
             })
           : bridgeDb.updateTaskPhase({
               taskId: taskRecord.id,
@@ -331,6 +338,7 @@ server.registerTool(
           sessionId: parsed.sessionId,
           taskId: taskRecord.id,
           binding: finalTask.binding,
+          ...(execution && shouldComplete ? { workRunReceipt: finalTask } : {}),
           taskPhase: {
             phase: finalTask.phase,
             phaseLabel: finalTask.phase_label,
@@ -434,6 +442,7 @@ server.registerTool(
 
     const boundTask = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
     if (args.taskId && !boundTask) throw new Error("Task not found");
+    captureWorkRunExecution(bridgeDb.engine, boundTask, "codex-cli resume");
     if (boundTask) {
       bridgeDb.createTask({ taskId: args.taskId, assignedTo: "codex", requiredModel: args.model, cwd: args.cwd });
       if (!boundTask.bound_conversation_id || (args.sessionId && args.sessionId !== boundTask.bound_conversation_id)) throw new Error("Resume session binding mismatch or missing identity");

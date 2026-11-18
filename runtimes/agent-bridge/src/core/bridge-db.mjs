@@ -9,6 +9,11 @@ import { SqliteStore } from "../store/sqlite-store.mjs";
 import { executeTaskWakeupDriver } from "../runtime/drivers.mjs";
 import { WatchdogService, isProcessAlive } from "../runtime/watchdog-service.mjs";
 import { ensureResidentWakeupDaemon } from "./wakeup-daemon.mjs";
+import {
+  buildCollaborationRecoveryDigest,
+  loadCollaboratorPolicy,
+  resolveProjectRoot,
+} from "./collaborator-registry.mjs";
 
 export { PHASE_LABELS };
 
@@ -58,6 +63,13 @@ export class BridgeDatabase {
         process.env.BRIDGE_DISABLE_CLI_WAKEUP === "1",
       defaultCwd: () => process.cwd(),
       isPidAlive: isProcessAlive,
+      collaboratorPolicyProvider: () => this.getCollaboratorPolicy(),
+      collaborationRecoveryProvider: (eng) =>
+        buildCollaborationRecoveryDigest({
+          projectRoot: this.resolveProjectRoot(),
+          dbPath: this.dbPath,
+          engine: eng,
+        }),
     });
 
     this.watchdog = new WatchdogService({
@@ -83,6 +95,15 @@ export class BridgeDatabase {
   // ===========================================================================
   // Control, Policy & Cursor Sequence
   // ===========================================================================
+
+  resolveProjectRoot(explicitProjectRoot = null) {
+    return resolveProjectRoot(explicitProjectRoot, this.dbPath);
+  }
+
+  getCollaboratorPolicy(explicitProjectRoot = null) {
+    const root = this.resolveProjectRoot(explicitProjectRoot);
+    return root ? loadCollaboratorPolicy(root) : null;
+  }
 
   getControlState() {
     return this.engine.getControlState();
@@ -287,6 +308,10 @@ export class BridgeDatabase {
             }
           }
         );
+        this._fsWatcher.on("error", () => {
+          this._fsWatcher?.close();
+          this._fsWatcher = null; // Interval polling is already active.
+        });
       } catch {
         // Fallback to interval timer only
       }
@@ -552,8 +577,8 @@ export class BridgeDatabase {
     return this.engine.recordValidation(args);
   }
 
-  getTaskOverview(taskId) {
-    return this.engine.getTaskOverview(taskId);
+  getTaskOverview(taskId, actor) {
+    return this.engine.getTaskOverview(taskId, actor);
   }
 
   // ===========================================================================

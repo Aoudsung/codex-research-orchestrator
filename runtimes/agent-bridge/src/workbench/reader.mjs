@@ -67,6 +67,7 @@ export function normalizeTask(row) {
     isolationProfile: row.isolation_profile || metadata.isolationProfile || 'shared',
     handback: activeHandback, humanAction: activeHumanAction, stallAlert: activeStall,
     protocolVersion: metadata.protocolVersion || 1, workflow: metadata.workflow || null,
+    workMode: metadata.workRun?.workMode ?? null, requestedWorkMode: metadata.workRun?.requestedMode ?? null,
     resultPreview: row.result?.slice(0, PREVIEW) || null, errorPreview: row.error?.slice(0, PREVIEW) || null,
   };
 }
@@ -374,8 +375,16 @@ export class ProjectReader {
   }
   task(id) {
     return this.database('bridge', db => {
-      const raw = db.prepare(`SELECT ${SPECS.tasks.select} FROM tasks WHERE id = ?`).get(id);
+      const raw = db.prepare(`SELECT ${SPECS.tasks.select}, cwd FROM tasks WHERE id = ?`).get(id);
       if (!raw) throw fail('NOT_FOUND', 'Task not found', 404);
+      raw.metadata = parseJSON(raw.metadata_json);
+      let workRun = raw.metadata.workRun ?? null;
+      if (!workRun && raw.metadata.workRunBinding) {
+        const binding = raw.metadata.workRunBinding;
+        const parent = db.prepare('SELECT metadata_json FROM tasks WHERE id = ? AND cwd = ?').get(binding.taskId, raw.cwd);
+        const parentRun = parseJSON(parent?.metadata_json)?.workRun;
+        if (parentRun && parentRun.runId === binding.runId) workRun = parentRun;
+      }
       if (tableExists(db, 'bridge_mandates')) {
         const mandate = db.prepare('SELECT isolation_profile, control_version FROM bridge_mandates WHERE task_id = ?').get(id);
         if (mandate) { raw.isolation_profile = mandate.isolation_profile; raw.control_version = mandate.control_version; }
@@ -394,7 +403,10 @@ export class ProjectReader {
       const why = tableExists(db, 'bridge_task_events') ? db.prepare(
         'SELECT event_id id, kind, created_at createdAt FROM bridge_task_events WHERE task_id=? ORDER BY seq DESC LIMIT 20'
       ).all(id) : [];
-      return { task: normalizeTask(raw), ...children, route, operation: null, limits, why };
+      const task = normalizeTask(raw);
+      task.workMode = workRun?.workMode ?? null;
+      task.requestedWorkMode = workRun?.requestedMode ?? null;
+      return { task, workRun, ...children, route, operation: null, limits, why };
     });
   }
   rawTask(id) {

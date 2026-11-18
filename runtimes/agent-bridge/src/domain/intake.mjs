@@ -1,4 +1,5 @@
 import path from "node:path";
+import { getExplicitPiRoute } from "./dispatch-planner.mjs";
 import {
   BridgeUserError,
   REASONS,
@@ -241,13 +242,21 @@ export function validateModelRoleAndChannel({
   contract = null,
   permissions = {},
   policyFlags = {},
+  collaboratorPolicy = null,
 } = {}) {
   const normModel = normalizeModelId(requiredModel);
   const rawProvider = String(
     provider || metadata?.provider || metadata?.piProvider || metadata?.backend || ""
   ).trim().toLowerCase();
   const effectiveChannel =
-    rawProvider === "pi" || metadata?.runner === "pi" ? "pi" : assignedTo;
+    rawProvider === "pi" ||
+    rawProvider === "magpie" ||
+    metadata?.channel === "pi" ||
+    metadata?.runner === "pi" ||
+    metadata?.executor === "pi" ||
+    (rawProvider === "google-vertex" && Boolean(metadata?.sessionPath))
+      ? "pi"
+      : assignedTo;
   const effectiveRole = String(
     role ||
       metadata?.role ||
@@ -292,24 +301,55 @@ export function validateModelRoleAndChannel({
   const isGptFamily = /\b(?:gpt-|codex|astra|luna|sol\b)/i.test(normModel);
   const isPiOpenFamily = /\b(?:kimi|deepseek|moonshot)\b/i.test(normModel);
 
-  if (effectiveChannel === "pi" && (isGeminiFamily || isGptFamily)) {
+  if (effectiveChannel === "pi" && isGptFamily) {
     throw new BridgeUserError(
       REASONS.MODEL_CHANNEL_MISMATCH,
-      `Model '${requiredModel}' cannot run via PI session: GPT uses Codex chats/subagents and Gemini uses pinned Antigravity desktop conversations (long PI history triggers Vertex 429). PI is reserved for Kimi / DeepSeek ('magpie' auto/*).`,
+      `GPT model '${requiredModel}' cannot run via PI session: GPT uses Codex chats/subagents.`,
       { assignedTo, effectiveChannel, requiredModel }
     );
   }
-  if (assignedTo === "antigravity" && (isGptFamily || isPiOpenFamily)) {
+  if (effectiveChannel === "pi" && isGeminiFamily) {
+    const explicitPiRoute = getExplicitPiRoute(collaboratorPolicy, requiredModel);
+    if (explicitPiRoute && (rawProvider !== explicitPiRoute.provider || metadata?.sessionMode !== "task_explicit")) {
+      throw new BridgeUserError(
+        REASONS.MODEL_CHANNEL_MISMATCH,
+        `Registered PI model '${requiredModel}' requires task_explicit execution via '${explicitPiRoute.provider}'.`
+      );
+    }
+    const hasPinnedSessionBinding = Boolean(
+      metadata?.requiredConversationId ||
+        metadata?.sessionId ||
+        metadata?.sessionPath ||
+        metadata?.pinnedSession === true ||
+        policyFlags?.allowAdhocPiGemini === true ||
+        explicitPiRoute
+    );
+    if (policyFlags?.requirePinnedPiGemini !== false && !hasPinnedSessionBinding) {
+      throw new BridgeUserError(
+        REASONS.MODEL_CHANNEL_MISMATCH,
+        `Gemini '${requiredModel}' in PI requires a user-pinned project PI session (bind sessionId/sessionPath) or pinned Antigravity fallback; unpinned ad-hoc PI Gemini sessions are disallowed.`,
+        { assignedTo, effectiveChannel, requiredModel }
+      );
+    }
+  }
+  if (effectiveChannel === "antigravity" && (isGptFamily || isPiOpenFamily)) {
     throw new BridgeUserError(
       REASONS.MODEL_CHANNEL_MISMATCH,
-      `Model '${requiredModel}' cannot run via Antigravity: GPT uses Codex and Kimi/DeepSeek use PI sessions; Antigravity is reserved for Gemini (Carbon/Argon).`,
+      `Model '${requiredModel}' cannot run via Antigravity: GPT uses Codex and Kimi/DeepSeek use PI sessions; Antigravity is for Gemini (pinned fallback or dedicated Antigravity assignment).`,
       { assignedTo, requiredModel }
     );
   }
   if (assignedTo === "codex" && isGeminiFamily) {
     throw new BridgeUserError(
       REASONS.MODEL_CHANNEL_MISMATCH,
-      `Gemini model '${requiredModel}' should run in a pinned Antigravity conversation, not a Codex worker session.`,
+      `Gemini model '${requiredModel}' should run via its pinned PI session (or pinned Antigravity fallback), not a Codex worker session.`,
+      { assignedTo, requiredModel }
+    );
+  }
+  if (assignedTo === "codex" && isPiOpenFamily) {
+    throw new BridgeUserError(
+      REASONS.MODEL_CHANNEL_MISMATCH,
+      `Open-weight model '${requiredModel}' must run in an explicit project PI session ('magpie' auto/*), not a Codex worker session.`,
       { assignedTo, requiredModel }
     );
   }

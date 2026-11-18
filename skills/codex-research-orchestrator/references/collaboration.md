@@ -4,11 +4,12 @@ Delegate separable investigation, independent review, or scoped execution while 
 
 ## Three Session Lanes & Participant Policy
 
-- **Default team (`Claude` disabled):** `ChatGPT Web Pro`, `Codex` (`Astra` / `6.1 Sol` / `Luna`), `Antigravity` (`Carbon` / `Argon`), and PI open-weight models (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`).
+- **Default team (`Claude` disabled):** `ChatGPT Web Pro`, `Codex` (`Astra` / `6.2 Sol` / `gpt-6-luna`), `Gemini Carbon` / `Argon` (pinned PI first, pinned Antigravity fallback), and PI open-weight models (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`). Delegate by task need via `bridge_plan_dispatch`—full-team participation every turn is unnecessary.
 - **Lane isolation (`ROUTE-001`):**
-  1. `GPT` models -> `Codex` chats/subagents (`Astra` for formalization/`blind_review`, `6.1 Sol` for implementation, `Luna` low-effort for L0 observation).
-  2. `Gemini` models -> pinned `Antigravity` desktop conversations (`Carbon` for co-design/scan, `Argon` for implementation). Use short delta updates—do not run long Gemini threads inside PI (triggers `Vertex 429`).
+  1. `GPT` models -> `Codex` chats/subagents (`Astra` for formalization/efficiency/`blind_review`, `6.2 Sol` for implementation, `default`/`explorer` + `gpt-6-luna` `low` for L0 monitoring; `agent_type="Luna"` stays tool-free for effort judging).
+  2. `Gemini` models (`Carbon` / `Argon`) -> **pinned project PI sessions first** (preserving existing retry/compaction settings & max concurrency 1); fall back to **pinned Antigravity** conversations when PI is unavailable/busy or a task explicitly binds Antigravity (e.g., dedicated Colab session). Map native Antigravity IDs (`gemini-pro-orchestrator*`) via `collaborators.json`.
   3. `Kimi` / `DeepSeek` -> explicit project-rooted **PI** sessions (`.pi/sessions/`, `cwd=project`, `magpie` `auto/*`, `retries=0`; legacy `dyschop/*` banned).
+- **End-to-end binding & retirement:** Record `(planId, collaborationPolicyVersion, protocolEpoch, actualChannel, actualModel, actualEffort, selectionReason)` across `bridge_plan_dispatch -> createTask -> claim -> receipt`. Retire legacy subagents upon task handback rather than blindly `followup_task`-reusing mismatched `(model, effort, protocolEpoch)` sessions; `fork_turns="none"` always passes complete materials and boundaries.
 - **Single-writer & remote GPU discipline:** One active writer per `writeRoots` (`WORK_LOCK`; never dodge locks via parallel `git worktree` checkouts). Schedule remote GPU jobs whenever `free VRAM >= peak + margin` (excluding faulty GPUs), without waiting for 100% host idleness (`evaluateGpuPlacement`).
 
 ## Three Isolation Contexts

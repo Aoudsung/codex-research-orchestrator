@@ -131,6 +131,142 @@ class ResearchLintTests(unittest.TestCase):
         )
         self.assertEqual(1, proc.returncode)
 
+    def test_route_001_ignores_historical_and_negated_dyschop_and_allows_pinned_pi_gemini(self):
+        (self.project / "AGENTS.md").write_text(
+            "# Workspace\n监控使用 default/explorer + gpt-6-luna low；禁止把 agent_type=\"Luna\" 当作执行或监控角色。\n",
+            encoding="utf-8",
+        )
+        (self.project / "controls.md").write_text(
+            "# Controls\n"
+            "forbid_claude_code: true\n"
+            "## 常驻协作与路由政策\n"
+            "新Gemini调用优先用户固定PI会话，使用Magpie auto来源，禁Dyschop。\n"
+            "## 历史指令\n"
+            "旧版本曾用 dyschop/kimi-k2，已废弃。\n",
+            encoding="utf-8",
+        )
+        pi_dir = self.project / ".pi"
+        pi_dir.mkdir(parents=True)
+        (pi_dir / "model-sessions.json").write_text(
+            json.dumps({
+                "sessions": {
+                    "carbon": {
+                        "provider": "google-vertex",
+                        "model": "gemini-4-carbon",
+                        "sessionId": "00000000-0000-7000-8000-000000000002",
+                        "cwd": str(self.project),
+                    }
+                },
+                "previousOrchestratorSession": {
+                    "provider": "dyschop",
+                    "status": "historical_not_selected_for_future_dispatch",
+                },
+            }),
+            encoding="utf-8",
+        )
+        (pi_dir / "execution-sessions.json").write_text(
+            json.dumps({
+                "authority": "User-selected auto entries; Dyschop forbidden",
+                "sessions": {
+                    "kimi": {"provider": "magpie", "model": "auto/kimi-k3.1-pro", "cwd": str(self.project)},
+                },
+                "historicalSessions": {
+                    "kimi_old": {"provider": "magpie", "model": "dyschop/kimi-k3.1-pro", "cwd": str(self.project)},
+                },
+            }),
+            encoding="utf-8",
+        )
+        (self.project / ".agent-bridge").mkdir(exist_ok=True)
+        (self.project / ".agent-bridge" / "collaborators.json").write_text(
+            json.dumps({
+                "authority": "PI(magpie auto/*, no dyschop)",
+                "channelPreferences": {"gemini": ["pi_pinned", "antigravity_pinned"]},
+            }),
+            encoding="utf-8",
+        )
+
+        rep = research_lint.lint_project(self.project, strict=True)
+        self.assertTrue(rep["ok"], f"Expected clean lint, got {rep['findings']}")
+
+    def test_route_002_and_route_003_context_aware_guards(self):
+        (self.project / "AGENTS.md").write_text(
+            "# Workspace\nNo delegation is allowed. Spawn agent_type=\"Luna\" to monitor logs.\n",
+            encoding="utf-8",
+        )
+        (self.project / "controls.md").write_text("# Controls\nforbid_claude_code: true\n", encoding="utf-8")
+        (self.project / "project.md").write_text(
+            "# Project\nthe existing Sol(high) executor prepares deployment.\n",
+            encoding="utf-8",
+        )
+
+        pi_sessions = self.project / ".pi" / "sessions"
+        pi_sessions.mkdir(parents=True)
+        big_jsonl = pi_sessions / "carbon.jsonl"
+        big_jsonl.write_bytes(b"{}\n" + b" " * (8 * 1024 * 1024 + 64))
+
+        bridge_dir = self.project / ".agent-bridge"
+        bridge_dir.mkdir()
+        (bridge_dir / "collaborators.json").write_text(
+            json.dumps({
+                "protocolEpoch": "fixture-protocol-v3",
+                "pinnedSessions": {
+                    "pi": {
+                        "carbon": {
+                            "model": "gemini-4-carbon",
+                            "sessionId": "00000000-0000-7000-8000-000000000002",
+                            "sessionPath": str(big_jsonl),
+                            "cwd": str(self.project),
+                        }
+                    }
+                },
+                "subagentLifecyclePolicy": {
+                    "retireAfterTaskHandback": {
+                        "/root/fixture_worker": {
+                            "boundTaskId": "fixture-bound-task",
+                            "sessionId": "retiring-sol-session",
+                            "recordedModel": "gpt-6-sol",
+                            "recordedEffort": "medium",
+                        }
+                    },
+                    "softSizeRotationBytes": 8 * 1024 * 1024,
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        bconn = sqlite3.connect(bridge_dir / "bridge.sqlite")
+        bconn.execute(
+            "CREATE TABLE tasks(id TEXT, from_agent TEXT, assigned_to TEXT, status TEXT, prompt TEXT, cwd TEXT, permissions_json TEXT, required_model TEXT, bound_conversation_id TEXT, required_conversation_id TEXT, session_id TEXT, metadata_json TEXT)"
+        )
+        # Bound task is protected; new task reusing retiring session or wrong epoch triggers ROUTE-002
+        bconn.execute(
+            "INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("fixture-bound-task", "codex", "codex", "in_progress", "Wait test host", str(self.project), "{}", "gpt-6-sol", "retiring-sol-session", None, "retiring-sol-session", json.dumps({"protocolEpoch": "fixture-protocol-v3"})),
+        )
+        bconn.execute(
+            "INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("task-reused-bad", "codex", "codex", "in_progress", "New work on retiring", str(self.project), "{}", "gpt-6-sol", "retiring-sol-session", None, "retiring-sol-session", json.dumps({"protocolEpoch": "r2-old"})),
+        )
+        bconn.commit()
+        bconn.close()
+
+        rep = research_lint.lint_project(self.project, strict=True)
+        rules = {f["rule"] for f in rep["findings"]}
+        msgs = "\n".join(f["message"] for f in rep["findings"])
+        self.assertIn("ROUTE-002", rules)
+        self.assertIn("ROUTE-003", rules)
+        route002_tasks = {
+            f.get("detail", {}).get("taskId")
+            for f in rep["findings"]
+            if f["rule"] == "ROUTE-002"
+        }
+        self.assertIn("task-reused-bad", route002_tasks)
+        self.assertNotIn("fixture-bound-task", route002_tasks)
+        self.assertIn("No delegation is allowed", msgs)
+        self.assertIn('agent_type="Luna"', msgs)
+        self.assertIn("Sol(high", msgs)
+        self.assertIn("8.0 MiB", msgs)
+
 
 if __name__ == "__main__":
     unittest.main()

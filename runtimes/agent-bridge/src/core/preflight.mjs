@@ -1,12 +1,50 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  BridgeUserError,
+  REASONS,
   deriveRootRecommendedCommands,
   normalizeModelId,
+  sha256Hex,
   verifyModelMatch,
 } from "../domain/model.mjs";
+import { assertWorkRunTaskReady } from "../domain/work-run.mjs";
+import { normalizeReviewPacket } from "./review-packet.mjs";
 
 export { normalizeModelId, verifyModelMatch };
+
+export function captureWorkRunExecution(engine, task, runtime, stepId) {
+  if (!task?.metadata?.workRunBinding && !task?.metadata?.workRun) return null;
+  const { run, step, member } = assertWorkRunTaskReady(engine, task, { stepId: stepId ?? undefined });
+  const independent = step.kind === "independent";
+  if (independent && runtime !== "pi-task-explicit") {
+    throw new BridgeUserError(
+      REASONS.BLIND_ISOLATION_VIOLATION,
+      `${runtime} cannot enforce independent input isolation. Use a fresh packet-only PI execution for an authorized PI model, or explicitly plan a public review.`
+    );
+  }
+  if (independent && !member.conversationId) {
+    throw new BridgeUserError(REASONS.CONVERSATION_MISMATCH, "Independent execution requires a recorded member identity.");
+  }
+  return {
+    workRun: { runId: run.runId, stepId: step.stepId, stepVersion: step.version },
+    rootTaskId: run.taskId,
+    independentPacket: independent ? normalizeReviewPacket(step.inputPacket) : null,
+    memberSessionId: member.conversationId,
+  };
+}
+
+export function nativeWorkRunCompletion(execution, actorAgent, sessionId, evidenceRefs = []) {
+  if (!execution) return {};
+  if (!sessionId || (execution.memberSessionId && execution.memberSessionId !== sessionId)) {
+    throw new BridgeUserError(REASONS.CONVERSATION_MISMATCH, "Native completion requires the recorded member session in runtime output.");
+  }
+  return {
+    actorAgent,
+    actorSessionId: sessionId,
+    workRun: { ...execution.workRun, evidenceRefs },
+  };
+}
 
 /**
  * Parse NDJSON / JSONL output from CLI runs (`agy`, `codex`, `claude`) to extract:
@@ -17,7 +55,7 @@ export { normalizeModelId, verifyModelMatch };
  * @param {string} stdout
  * @param {string} [stderr]
  */
-export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
+export function parseCliRuntimeMetadata(stdout = "", stderr = "", { captureCommandEvidence = false } = {}) {
   let actualModel = null;
   let modelVerifiedBy = null;
   let conversationId = null;
@@ -137,7 +175,7 @@ export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
         ? stdout.trim()
         : "";
 
-  return {
+  const result = {
     actualModel,
     modelVerifiedBy,
     conversationId,
@@ -149,6 +187,29 @@ export function parseCliRuntimeMetadata(stdout = "", stderr = "") {
     eventCount: events.length,
     responseText,
   };
+  if (captureCommandEvidence) {
+    result.commandEvidence = [];
+    for (const ev of events) {
+      const step = ev.step_update;
+      if (ev.event !== "step_update" || !conversationId || step?.conversation_id !== conversationId ||
+          step.state !== "DONE" || step.tool_name !== "run_command") continue;
+      const info = step.tool_info;
+      const command = info?.parameters?.CommandLine;
+      const output = info?.output;
+      if (typeof command !== "string" || typeof output !== "string" ||
+          !Number.isInteger(step.step_index)) continue;
+      // Only the CLI's tool header carries the exit status. Output may itself mention other commands.
+      const header = /^(?:Created At: [^\r\n]+\r?\n)?(?:Completed At: [^\r\n]+\r?\n)?Command exited with code (-?\d+)\.(?:\r?\n|$)/.exec(output);
+      result.commandEvidence.push({
+        conversationId,
+        stepIndex: step.step_index,
+        commandSha256: sha256Hex(command),
+        outputSha256: sha256Hex(output),
+        exitCode: header ? Number(header[1]) : null,
+      });
+    }
+  }
+  return result;
 }
 
 /**

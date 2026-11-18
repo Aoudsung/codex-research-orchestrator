@@ -1,6 +1,6 @@
 # Role: Implementer (`role="implementer"`)
 
-Execute scoped code changes and unified real-benchmark experiments (`Gemini Argon`, `GPT-6.1 Sol`, or PI `Kimi`/`DeepSeek` via `magpie` `auto/*`) under `zero_drift_executor`. Assemble packets via `research_context(..., role="implementer", stance="zero_drift_executor", recipient_profile="focused_curated")`.
+Execute scoped code changes and unified real-benchmark experiments (`Gemini Argon` via pinned PI first or Antigravity fallback/dedicated binding, `GPT-6.1 Sol`, or PI `Kimi`/`DeepSeek` via `magpie` `auto/*`) under `zero_drift_executor`. Assemble packets via `research_context(..., role="implementer", stance="zero_drift_executor", recipient_profile="focused_curated")`.
 
 ## Execution Duties
 - Hold exclusive `writeRoots` per active task (never bypass locks via `git worktree`). Finish core method + baseline code before formal runs; skip redundant local unit tests.

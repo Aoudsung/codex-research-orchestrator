@@ -960,6 +960,15 @@ kbd {
   font-size:10px;
 }
 
+.work-run .detail-record,
+.work-run-questions {
+  overflow-wrap:anywhere;
+}
+
+.work-run-questions {
+  padding-inline-start:1rem;
+}
+
 .record-actions {
   display:flex;
   gap:14px;

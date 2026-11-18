@@ -1,6 +1,6 @@
 # Agent-Guided Setup Protocol (`SETUP.md`)
 
-This document instructs any coding agent (Codex, Claude Code, Antigravity, or another assistant) how to onboard or upgrade a user's research workspace with `codex-research-orchestrator` (`v1.0.0`). Follow this protocol verbatim so the user never faces long questionnaires or unsafe credential prompts.
+This document instructs any coding agent (Codex, Claude Code, Antigravity, or another assistant) how to onboard or upgrade a user's research workspace with `codex-research-orchestrator`. Follow this protocol verbatim so the user never faces long questionnaires or unsafe credential prompts.
 
 ## Core Interaction Rules
 

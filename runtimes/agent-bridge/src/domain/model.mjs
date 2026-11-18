@@ -114,6 +114,9 @@ export const REASONS = Object.freeze({
   CLAIM_BINDING_REQUIRED: "CLAIM_BINDING_REQUIRED",
   UNSUPPORTED_MODEL_PROVIDER: "UNSUPPORTED_MODEL_PROVIDER",
   PRO_SHA_CEREMONY_SKIPPED: "PRO_SHA_CEREMONY_SKIPPED",
+  DISPATCH_PLAN_MISMATCH: "DISPATCH_PLAN_MISMATCH",
+  EFFORT_JUDGE_UNAVAILABLE: "EFFORT_JUDGE_UNAVAILABLE",
+  PI_SESSION_BUSY: "PI_SESSION_BUSY",
 });
 
 export class BridgeUserError extends Error {
@@ -139,6 +142,36 @@ export function sha256Hex(content) {
   return crypto.createHash("sha256").update(content ?? "", "utf8").digest("hex");
 }
 
+export const BUILTIN_MODEL_EQUIVALENCE_GROUPS = Object.freeze([
+  Object.freeze([
+    "gemini-4-carbon",
+    "gemini-pro-orchestrator",
+    "google-vertex/gemini-4-carbon",
+    "auto/gemini-4-carbon",
+    "magpie/gemini-4-carbon",
+  ]),
+  Object.freeze([
+    "gemini-4-argon",
+    "gemini-pro-orchestrator-argon",
+    "google-vertex/gemini-4-argon",
+    "auto/gemini-4-argon",
+    "magpie/gemini-4-argon",
+  ]),
+  Object.freeze([
+    "kimi-3.1-pro",
+    "kimi-k3.1-pro",
+    "auto/kimi-k3.1-pro",
+    "auto/kimi-3.1-pro",
+    "magpie/auto/kimi-k3.1-pro",
+    "magpie/auto/kimi-3.1-pro",
+  ]),
+  Object.freeze([
+    "deepseek-v4.1-flash",
+    "auto/deepseek-v4.1-flash",
+    "magpie/auto/deepseek-v4.1-flash",
+  ]),
+]);
+
 /**
  * Canonicalize model IDs so aliases like "Synthetic Model (High)" and "synthetic-model-high"
  * can be compared deterministically while preserving exact model strings.
@@ -155,13 +188,53 @@ export function normalizeModelId(model) {
 }
 
 /**
+ * Resolve canonical equivalence key across built-in and optional project-declared display/native aliases.
+ * @param {string | null | undefined} model
+ * @param {Record<string, string[]> | Array<string[]> | null | undefined} [customAliases]
+ */
+export function canonicalModelIdentity(model, customAliases = null) {
+  const norm = normalizeModelId(model);
+  if (!norm) return "";
+  const extraGroups = [];
+  if (Array.isArray(customAliases)) {
+    for (const grp of customAliases) {
+      if (Array.isArray(grp) && grp.length > 0) extraGroups.push(grp);
+    }
+  } else if (customAliases && typeof customAliases === "object") {
+    for (const [k, aliases] of Object.entries(customAliases)) {
+      extraGroups.push([k, ...(Array.isArray(aliases) ? aliases : [aliases])]);
+    }
+  }
+  const allGroups = [...extraGroups, ...BUILTIN_MODEL_EQUIVALENCE_GROUPS];
+  for (const grp of allGroups) {
+    const normed = grp.map((item) => normalizeModelId(item)).filter(Boolean);
+    if (normed.includes(norm)) {
+      return normed[0];
+    }
+  }
+  return norm;
+}
+
+/**
+ * Returns true when two model identifiers refer to the same canonical model identity.
+ */
+export function areModelsEquivalent(a, b, customAliases = null) {
+  const na = normalizeModelId(a);
+  const nb = normalizeModelId(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  return canonicalModelIdentity(na, customAliases) === canonicalModelIdentity(nb, customAliases);
+}
+
+/**
  * Verify whether `actualModel` satisfies `requiredModel`.
  * Never silently falls back when `requiredModel` is specified.
  */
 export function verifyModelMatch(
   requiredModel,
   actualModel,
-  source = "runtime_init_metadata"
+  source = "runtime_init_metadata",
+  { customAliases = null } = {}
 ) {
   if (!requiredModel) {
     return {
@@ -188,7 +261,7 @@ export function verifyModelMatch(
   const normReq = normalizeModelId(requiredModel);
   const normAct = normalizeModelId(actualModel);
 
-  if (normReq !== normAct) {
+  if (!areModelsEquivalent(requiredModel, actualModel, customAliases)) {
     return {
       ok: false,
       code: REASONS.MODEL_MISMATCH,

@@ -4,6 +4,8 @@
 
 [Get started](docs/getting-started.md) · [Workbench](docs/workbench.md) · [Changelog](CHANGELOG.md) · [Connect agents](docs/mcp-setup.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [MIT License](LICENSE)
 
+For parallel reports, independent investigations and dependent milestones, see the [work-run protocol](skills/codex-research-orchestrator/references/work-modes.md). The [stable workflow results](docs/stable-collaboration.md) explain which changes were adopted and what the timed trials measured. Projects choose eligible collaborators through the [model catalog](runtimes/agent-bridge/docs/model-catalog.md).
+
 The bundled bridge also supports [workflow protocol 2](runtimes/agent-bridge/docs/workflow-v2.md): versioned task contracts, durable business receipts, precise decisions, ownership handoffs and event-driven continuation. Existing tasks retain their protocol and sessions. The runtime release manifest identifies the shared source used by installed and publication copies.
 
 ## Start in three steps
@@ -90,7 +92,7 @@ State your exact research question or bottleneck here.
 - forbid_claude_code: true
 - strict_write_locks: true
 - Lead Coordinator: `codex` (non-coding orchestrator; `BRIDGE_TOOL_PROFILE=lead`), dispatches **ChatGPT Web `Pro`** (`pro_macro`, standing repo/bundle auth, no SHA ceremony, checked every 15 min by `GPT-6 Luna`).
-- Three Session Lanes: `GPT` (`Astra` blind review/formalization, `6.1 Sol` coding, `Luna` L0 observer) in Codex; `Gemini` (`Carbon` co-design, `Argon` coding) in Antigravity pinned conversations; `Kimi 3.1 Pro` / `DeepSeek V4.1 Flash` in project-rooted `.pi/sessions/` (`magpie` `auto/*`, `retries=0`).
+- Three Session Lanes: `GPT` (`Astra` formalization/efficiency/blind review, `6.2 Sol` coding, `default`/`explorer` + `gpt-6-luna` `low` for L0 monitoring) in Codex; `Gemini` (`Carbon` co-design, `Argon` coding) in pinned project PI sessions first with pinned/dedicated Antigravity fallback; `Kimi 3.1 Pro` / `DeepSeek V4.1 Flash` in project-rooted `.pi/sessions/` (`magpie` `auto/*`, `retries=0`). Keep `agent_type="Luna"` strictly for tool-free effort judging.
 
 ## Lint-First Discipline
 - Run `python3 setup.py lint` to enforce doc budgets, git/secret isolation, write-root exclusivity, real-benchmark / endogenous-design guards, and claim binding instead of appending prose to `AGENTS.md`.
@@ -110,8 +112,8 @@ Recommended Round 1 division of labor and model/effort routing:
 |---|---|---|---|
 | **Lead Coordinator** | `codex` (`lead`) | Codex CLI (`high`) | Orchestrates contracts, write-locks, `intake` guards, and acceptance; never edits business code directly. |
 | **Chief Macro Architect** | **ChatGPT Web `Pro`** (`pro_max`) | Web Project (`15m` checked by `Luna` `low`) | Deepest first-principles framing over synced repo / bundle (`pack_pro_bundle.py`, no SHA ceremony); unrestricted reply depth. |
-| **Mechanism & Blind Audit** | `Gemini Carbon` / `GPT Astra` | Antigravity (`Carbon`, short deltas) / Codex (`Astra`, `xhigh`) | `Carbon`: mechanism co-design & repo/log scan (no `blind_review`); `Astra`: mathematical formalization & independent `blind_review`. |
-| **Implementation & Server Runs** | `Gemini Argon` / `6.1 Sol` / `Kimi` / `DeepSeek` | Agy / Codex / `.pi/sessions/` (`magpie` `auto/*`) | Builds core + baselines together before formal runs; runs real benchmarks on GPUs with `free VRAM >= peak + margin` (excluding faulty GPUs). |
+| **Mechanism & Blind Audit** | `Gemini Carbon` / `GPT Astra` | Pinned PI -> Antigravity (`Carbon`) / Codex (`Astra`) | `Carbon`: mechanism co-design & repo/log scan (no `blind_review`); `Astra`: mathematical formalization, efficiency audit & independent `blind_review`. |
+| **Implementation & Server Runs** | `Gemini Argon` / `6.2 Sol` / `Kimi` / `DeepSeek` | Pinned PI/Agy / Codex / `.pi/sessions/` (`magpie` `auto/*`) | Builds core + baselines together before formal runs; runs real benchmarks on GPUs with `free VRAM >= peak + margin` (excluding faulty GPUs). |
 
 ## What to ask
 

@@ -12,6 +12,8 @@ import {
   classifyExecutionError,
   buildAgyCliArgs,
   buildTaskReusePermissions,
+  captureWorkRunExecution,
+  nativeWorkRunCompletion,
 } from "../core/preflight.mjs";
 
 const server = new McpStdioServer({
@@ -23,7 +25,7 @@ const server = new McpStdioServer({
 
 const bridgeDb = new BridgeDatabase();
 server.executionAdmission = {
-  names: new Set(["antigravity_exec"]),
+  names: new Set(["antigravity_exec", "pi_exec", "bridge_plan_dispatch"]),
   admit: () => bridgeDb.admitExecution(),
 };
 const defaultCaller = process.env.MCP_CALLER_AGENT || "codex";
@@ -164,6 +166,10 @@ server.registerTool(
       type: "object",
       additionalProperties: false,
       properties: {
+        captureCommandEvidence: {
+          type: "boolean",
+          description: "Include hashes and observed exit codes for completed commands in this bound CLI invocation.",
+        },
         prompt: {
           type: "string",
           description: "Task instructions or prompt for Antigravity.",
@@ -261,6 +267,7 @@ server.registerTool(
           description:
             "If true (default: false), mark the MCP task as 'completed' as soon as the CLI turn exits with RC0. Default false keeps the task in 'cli_turn_ended' or 'awaiting_validation' until patches are verified and reviewed.",
         },
+        evidenceRefs: { type: "array", items: { type: "string" }, description: "Evidence references for a completed work run step." },
         autoWakeup: {
           type: "boolean",
           description:
@@ -282,15 +289,20 @@ server.registerTool(
   async (args) => {
     const caller = args.fromAgent || defaultCaller;
     const backend = args.backend === "auto" || !args.backend ? "cli" : args.backend;
+    if (args.captureCommandEvidence && backend !== "cli") {
+      throw new Error("Command observation requires the CLI backend.");
+    }
     const cwd = args.cwd || (args.taskId ? bridgeDb.getTaskById(args.taskId)?.cwd : null) || process.cwd();
     const timeoutMs = args.timeoutMs || 120_000;
     const strictModel = args.strictModel !== false;
     const requestedModel = args.model || args.requiredModel || null;
     const requiredModel = args.requiredModel || args.model || null;
-    if (args.requiredModel && args.model && !verifyModelMatch(args.requiredModel, args.model, "cli_flag").ok) throw new Error("Requested model conflicts with requiredModel");
+    const customAliases = bridgeDb.getCollaboratorPolicy(cwd)?.modelAliases || null;
+    if (args.requiredModel && args.model && !verifyModelMatch(args.requiredModel, args.model, "cli_flag", { customAliases }).ok) throw new Error("Requested model conflicts with requiredModel");
 
     // 1. Resolve or create the bound task record (never duplicate when taskId is provided)
     let taskRecord = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
+    const execution = captureWorkRunExecution(bridgeDb.engine, taskRecord, `antigravity ${backend}`);
     const effectiveReadRoots =
       args.readRoots || taskRecord?.permissions?.readRoots || [];
     const effectiveWriteRoots =
@@ -437,10 +449,9 @@ server.registerTool(
           timeoutMs,
         });
 
-        const runtimeMeta = parseCliRuntimeMetadata(
-          cliRes.stdout,
-          cliRes.stderr
-        );
+        const runtimeMeta = parseCliRuntimeMetadata(cliRes.stdout, cliRes.stderr, {
+          captureCommandEvidence: args.captureCommandEvidence === true,
+        });
         const actualModel = runtimeMeta.actualModel || null;
         const actualConvId = runtimeMeta.conversationId || null;
 
@@ -491,7 +502,8 @@ server.registerTool(
             const modelCheck = verifyModelMatch(
               effectiveReqModel,
               actualModel,
-              runtimeMeta.modelVerifiedBy || "cli_output_missing_init_metadata"
+              runtimeMeta.modelVerifiedBy || "cli_output_missing_init_metadata",
+              { customAliases }
             );
             if (!modelCheck.ok) {
               const updated = bridgeDb.updateTaskPhase({
@@ -561,6 +573,7 @@ server.registerTool(
               result: runtimeMeta.responseText || cliRes.stdout,
               sessionId: actualConvId,
               model: actualModel || null,
+              ...nativeWorkRunCompletion(execution, "antigravity", actualConvId, args.evidenceRefs),
             });
           } else {
             const currentTask = bridgeDb.getTaskById(taskRecord.id);
@@ -581,7 +594,9 @@ server.registerTool(
             backend: "cli",
             taskId: taskRecord.id,
             cliTurnCompleted: true,
+            ...(args.captureCommandEvidence ? { commandEvidence: runtimeMeta.commandEvidence } : {}),
             taskCompleted: finalTask.status === "completed",
+            ...(execution && args.completeTaskOnExit ? { workRunReceipt: finalTask } : {}),
             taskPhase: {
               phase: finalTask.phase,
               phaseLabel: finalTask.phase_label,
@@ -664,7 +679,8 @@ server.registerTool(
             const modelCheck = verifyModelMatch(
               effectiveReqModel,
               sdkRes.actualModel,
-              "python_sdk_runtime"
+              "python_sdk_runtime",
+              { customAliases }
             );
             if (!modelCheck.ok) {
               const updated = bridgeDb.updateTaskPhase({
@@ -700,6 +716,7 @@ server.registerTool(
                 result: sdkRes.response,
                 sessionId: sdkRes.conversationId || null,
                 model: sdkRes.actualModel || null,
+                ...nativeWorkRunCompletion(execution, "antigravity", sdkRes.conversationId, args.evidenceRefs),
               })
             : bridgeDb.updateTaskPhase({
                 taskId: taskRecord.id,
@@ -714,6 +731,7 @@ server.registerTool(
             taskId: taskRecord.id,
             cliTurnCompleted: true,
             taskCompleted: finalTask.status === "completed",
+            ...(execution && args.completeTaskOnExit ? { workRunReceipt: finalTask } : {}),
             taskPhase: {
               phase: finalTask.phase,
               phaseLabel: finalTask.phase_label,
@@ -851,6 +869,10 @@ server.registerTool(
     },
   },
   async (args) => {
+    const task = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
+    if (task?.metadata?.workRun || task?.metadata?.workRunBinding) {
+      throw new Error("Work run questions require the run's authenticated member messaging tool.");
+    }
     const sent = bridgeDb.sendMessage({
       fromAgent: args.fromAgent || defaultCaller,
       toAgent: "antigravity",
@@ -969,6 +991,9 @@ server.registerTool(
 
     if (args.taskId) {
       const existing = bridgeDb.getTaskById(args.taskId);
+      if (existing?.metadata?.workRun || existing?.metadata?.workRunBinding) {
+        throw new Error("Work run deliveries require an authenticated work run receipt.");
+      }
       if (existing && !targetRecipient) {
         targetRecipient =
           reporter === existing.assigned_to

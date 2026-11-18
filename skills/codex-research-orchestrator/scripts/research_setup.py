@@ -50,7 +50,7 @@ DRIVER_TO_AGENT = {
 BEGIN = "# BEGIN codex-research-orchestrator"
 END = "# END codex-research-orchestrator"
 SKILL_ITEMS = {"SKILL.md", "LICENSE", "README.md", "scripts", "assets", "references", "agents"}
-RUNTIME_ITEMS = {"README.md", "LICENSE", "package.json", "src", "examples", "test"}
+RUNTIME_ITEMS = {"README.md", "LICENSE", "package.json", "release-manifest.json", "src", "scripts", "docs", "examples", "test"}
 EXCLUDED = {".git", "node_modules", "__pycache__", "state", "logs", ".agent-bridge", ".research-memory"}
 
 
@@ -669,6 +669,12 @@ def entries_for(project, client, peers, runtime, node, providers, tool_profile="
             else:
                 resolved_profile = "lead" if index == 0 else "exec_only"
             environment["BRIDGE_TOOL_PROFILE"] = resolved_profile
+        if (
+            environment.get("BRIDGE_TOOL_PROFILE") != "exec_only"
+            and safe_path(project, ".research-memory/memory.sqlite3").is_file()
+        ):
+            environment["RESEARCH_MEMORY_PROJECT"] = str(project.resolve())
+            environment["RESEARCH_MEMORY_PYTHON"] = str(Path(sys.executable).resolve())
         if providers[peer]["executable"]:
             environment[AGENTS[peer][1]] = str(Path(providers[peer]["executable"]).resolve())
         entries["cro_" + peer.replace("-", "_")] = {

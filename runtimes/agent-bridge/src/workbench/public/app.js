@@ -324,7 +324,7 @@ function renderTaskInspector() {
   const groups={messages:detail.messages||[],patches:detail.patches||[],validations:detail.validations||[]};
   const circuitOpen = Number(detail.route?.consecutiveFailures || 0) >= 3;
   const isolationBadge = task.isolationProfile && task.isolationProfile !== 'shared' ? ` ${badge('blocked', label(task.isolationProfile))}` : '';
-  $('#inspector').innerHTML=inspectorHeader('Task record')+`<span class="small-label">${esc(task.id)}</span><h2>${esc(task.title||'Untitled task')}</h2><div class="space-top-12">${badge(task.phase||task.status,taskPhase(task))}${isolationBadge}</div><p class="description">${esc(task.promptPreview || 'No prompt preview recorded.')}</p><div class="record-actions">${sourceButton('task',task.id,'Read full task brief',task.title,'prompt')}</div><div class="inspector-actions"><button class="button primary small" data-action="compose-message" data-id="${esc(task.id)}">${icon('message')}Send message</button><button class="button quiet small" data-action="dispatch" data-id="${esc(task.id)}" ${dispatchDisabled?'disabled':''} title="${state.snapshot?.control?.paused?'Resume new work before dispatching':!task.requiredModel?'An explicit requested model is required':!state.capabilities?.dispatchAvailable?'Dispatch is unavailable':'Review explicit dispatch settings'}">${icon('play')}Dispatch</button>${circuitOpen ? `<button class="button quiet small" data-action="retry-delivery" data-id="${esc(task.id)}">${icon('refresh')}Retry delivery</button>` : ''}</div><dl class="detail-meta"><dt>Owner</dt><dd>${esc(person(task.assignedTo))}</dd><dt>From</dt><dd>${esc(person(task.fromAgent))}</dd><dt>Role</dt><dd>${esc(label(task.role))}</dd><dt>Isolation</dt><dd>${esc(label(task.isolationProfile || 'shared'))}</dd><dt>Task status</dt><dd>${esc(label(task.status))}</dd><dt>Updated</dt><dd>${esc(absoluteDate(task.updatedAt))}</dd><dt>Delivery version</dt><dd>${esc(task.deliveryVersion??'Not recorded')}</dd></dl><div class="model-pair"><div><span>Requested model</span><strong>${esc(task.requiredModel || 'Not recorded')}</strong></div><div><span>Reported model</span><strong>${esc(task.actualModel || 'Not recorded')}</strong></div><div><span>Model source</span><strong>${esc(label(task.modelSource))}</strong></div><p class="hint">${task.modelSource==='simulated'?'Synthetic demo identity. No model was executed.':'Reported identity is a record, not independent verification.'}</p></div>${!task.requiredModel?'<div class="scope-note space-top-16"><p>This record has no model binding. Create a separate bound task to dispatch this work.</p><button class="text-button" data-action="bind-followup">Create task with a model</button></div>':''}${workflowMarkup(task, detail.why || [])}${detail.operation?operationMarkup(detail.operation):''}${task.errorPreview?`<div class="inline-error space-top-16">${esc(task.errorPreview)}<div>${sourceButton('task',task.id,'Read full error',task.title,'error')}</div></div>`:''}<div class="inspector-tabs" role="tablist" aria-label="Task record sections">${[['messages','Messages'],['patches','Artifacts'],['validations','Checks'],['scope','Scope']].map(([key,title])=>`<button role="tab" id="tab-${key}" aria-controls="task-detail-panel" aria-selected="${state.detailTab===key}" tabindex="${state.detailTab===key?'0':'-1'}" class="${state.detailTab===key?'active':''}" data-action="detail-tab" data-tab="${key}">${title}${groups[key]?` ${groups[key].length}`:''}</button>`).join('')}</div><div id="task-detail-panel" role="tabpanel" aria-labelledby="tab-${state.detailTab}">${taskDetailContent()}</div><p class="hint">A completed task and a passing validation are recorded outcomes. Neither implies scientific acceptance.</p>`;
+  $('#inspector').innerHTML=inspectorHeader('Task record')+`<span class="small-label">${esc(task.id)}</span><h2>${esc(task.title||'Untitled task')}</h2><div class="space-top-12">${badge(task.phase||task.status,taskPhase(task))}${isolationBadge}</div><p class="description">${esc(task.promptPreview || 'No prompt preview recorded.')}</p><div class="record-actions">${sourceButton('task',task.id,'Read full task brief',task.title,'prompt')}</div><div class="inspector-actions"><button class="button primary small" data-action="compose-message" data-id="${esc(task.id)}">${icon('message')}Send message</button><button class="button quiet small" data-action="dispatch" data-id="${esc(task.id)}" ${dispatchDisabled?'disabled':''} title="${state.snapshot?.control?.paused?'Resume new work before dispatching':!task.requiredModel?'An explicit requested model is required':!state.capabilities?.dispatchAvailable?'Dispatch is unavailable':'Review explicit dispatch settings'}">${icon('play')}Dispatch</button>${circuitOpen ? `<button class="button quiet small" data-action="retry-delivery" data-id="${esc(task.id)}">${icon('refresh')}Retry delivery</button>` : ''}</div><dl class="detail-meta"><dt>Owner</dt><dd>${esc(person(task.assignedTo))}</dd><dt>From</dt><dd>${esc(person(task.fromAgent))}</dd><dt>Role</dt><dd>${esc(label(task.role))}</dd><dt>Isolation</dt><dd>${esc(label(task.isolationProfile || 'shared'))}</dd><dt>Task status</dt><dd>${esc(label(task.status))}</dd><dt>Updated</dt><dd>${esc(absoluteDate(task.updatedAt))}</dd><dt>Delivery version</dt><dd>${esc(task.deliveryVersion??'Not recorded')}</dd></dl><div class="model-pair"><div><span>Requested model</span><strong>${esc(task.requiredModel || 'Not recorded')}</strong></div><div><span>Reported model</span><strong>${esc(task.actualModel || 'Not recorded')}</strong></div><div><span>Model source</span><strong>${esc(label(task.modelSource))}</strong></div><p class="hint">${task.modelSource==='simulated'?'Synthetic demo identity. No model was executed.':'Reported identity is a record, not independent verification.'}</p></div>${!task.requiredModel?'<div class="scope-note space-top-16"><p>This record has no model binding. Create a separate bound task to dispatch this work.</p><button class="text-button" data-action="bind-followup">Create task with a model</button></div>':''}${workflowMarkup(task, detail.why || [])}${workRunMarkup(task, detail.workRun)}${detail.operation?operationMarkup(detail.operation):''}${task.errorPreview?`<div class="inline-error space-top-16">${esc(task.errorPreview)}<div>${sourceButton('task',task.id,'Read full error',task.title,'error')}</div></div>`:''}<div class="inspector-tabs" role="tablist" aria-label="Task record sections">${[['messages','Messages'],['patches','Artifacts'],['validations','Checks'],['scope','Scope']].map(([key,title])=>`<button role="tab" id="tab-${key}" aria-controls="task-detail-panel" aria-selected="${state.detailTab===key}" tabindex="${state.detailTab===key?'0':'-1'}" class="${state.detailTab===key?'active':''}" data-action="detail-tab" data-tab="${key}">${title}${groups[key]?` ${groups[key].length}`:''}</button>`).join('')}</div><div id="task-detail-panel" role="tabpanel" aria-labelledby="tab-${state.detailTab}">${taskDetailContent()}</div><p class="hint">Scientific support is recorded in the research evidence view.</p>`;
 }
 function workflowMarkup(task, why = []) {
   const w = task.workflow;
@@ -332,6 +332,76 @@ function workflowMarkup(task, why = []) {
   const describe = value => typeof value === 'string' ? value : JSON.stringify(value);
   const pending = Object.entries(w.decisions || {}).filter(([, d]) => d.status === 'open');
   return `<section class="inspector-section"><h3>Current work</h3><dl class="detail-meta"><dt>Responsible agent</dt><dd>${esc(person(w.owner?.agent || task.assignedTo))}</dd><dt>Work state</dt><dd>${esc(label(w.status || task.phase))}</dd><dt>Waiting for</dt><dd>${esc(w.status === 'waiting_user' ? 'A decision below' : w.continuation?.trigger || w.summary || 'No wait recorded')}</dd><dt>Next action</dt><dd>${esc(describe(w.continuation?.action || 'No continuation recorded'))}</dd><dt>Next check</dt><dd>${esc(w.continuation?.nextCheckAt ? absoluteDate(w.continuation.nextCheckAt) : 'Event driven')}</dd></dl>${(w.artifacts || []).length ? `<h4>Delivered material</h4>${w.artifacts.map(a => `<p class="description">${esc(describe(a))}</p>`).join('')}` : ''}${pending.map(([id, d]) => `<div class="scope-note"><p>${esc(d.question)}</p><button class="text-button" data-action="answer-decision" data-id="${esc(id)}">Answer this decision</button></div>`).join('')}${why.length ? `<details class="record-disclosure"><summary>Why this state</summary>${why.map(e => `<p>${esc(label(e.kind))} · ${esc(absoluteDate(e.at || e.createdAt))}</p>`).join('')}</details>` : ''}</section>`;
+}
+function workRunMarkup(task, run) {
+  const recorded = 'Not recorded';
+  if (!run) {
+    return `<section class="inspector-section"><h3>Work mode</h3>
+      <p class="empty-inline">${task.requestedWorkMode ? `Requested ${esc(label(task.requestedWorkMode))}. Work run unavailable.` : recorded}</p></section>`;
+  }
+  const steps = run.steps || [];
+  const acceptance = run.acceptance;
+  const members = new Map((run.members || []).map(member => [member.memberId, member]));
+  const sources = refs => (refs || []).map(ref => typeof ref === 'string' ? ref : JSON.stringify(ref)).join(', ');
+  const evidenceMarkup = entry => {
+    const provenance = [
+      entry.stepId,
+      entry.stepVersion != null ? `Version ${entry.stepVersion}` : null,
+      entry.receiptId ? `Receipt ${entry.receiptId}` : null,
+    ].filter(Boolean).join(' · ');
+    const references = sources(entry.evidenceRefs);
+    return `${entry.assessment ? `<p>Assessment · ${esc(label(entry.assessment))}</p>` : ''}
+      ${entry.explanation ? `<p>${esc(entry.explanation)}</p>` : ''}
+      ${provenance || references ? `<p>${provenance ? esc(provenance) + '<br>' : ''}${esc(references || 'References unavailable')}</p>` : ''}`;
+  };
+  const actor = step => {
+    const member = members.get(step.memberId);
+    return member?.agent ? `${step.memberId} (${person(member.agent)})` : step.memberId || recorded;
+  };
+  const ready = (run.readySteps || []).map(id => {
+    const step = steps.find(item => item.stepId === id);
+    return step ? `${actor(step)} · ${step.stepId}` : id;
+  });
+  const next = run.status === 'awaiting_acceptance' && run.acceptor
+    ? `${person(run.acceptor)} · Accept delivery`
+    : ready.join(', ') || (Array.isArray(run.readySteps) ? 'No ready steps' : recorded);
+  const blocked = steps.filter(step => step.blockedBy?.length);
+  const requirements = (run.requirements || []).map(requirement => {
+    const accepted = (acceptance?.requirementEvidence || []).filter(entry => entry.requirementId === requirement.requirementId);
+    const current = (requirement.stepIds || []).flatMap(id => {
+      const step = steps.find(item => item.stepId === id);
+      return step?.receipt?.receiptId
+        ? [{ stepId: id, stepVersion: step.receipt.stepVersion, receiptId: step.receipt.receiptId, evidenceRefs: step.receipt.evidenceRefs }]
+        : [];
+    });
+    const hasReferences = current.some(entry => entry.evidenceRefs?.length);
+    const evidenceSummary = accepted.length
+      ? accepted.some(entry => entry.assessment) ? '' : 'Accepted delivery evidence'
+      : hasReferences ? 'Delivery evidence recorded' : 'No evidence references available';
+    return `<article class="detail-record">
+      <h4>${esc(requirement.requirementId)} · ${esc(requirement.description || recorded)}</h4>
+      ${evidenceSummary ? `<p>${evidenceSummary}</p>` : ''}
+      ${(requirement.stepIds || []).length ? `<p>Required steps · ${esc(requirement.stepIds.join(', '))}</p>` : ''}
+      ${(accepted.length ? accepted : current).map(evidenceMarkup).join('')}
+    </article>`;
+  }).join('');
+  return `<section class="inspector-section work-run">
+    <h3>Work run</h3>
+    <dl class="detail-meta">
+      <dt>Work mode</dt><dd>${esc(run.workMode ? label(run.workMode) : recorded)}</dd>
+      ${run.requestedMode && run.requestedMode !== run.workMode ? `<dt>Requested mode</dt><dd>${esc(label(run.requestedMode))}</dd>` : ''}
+      <dt>Run status</dt><dd>${esc(run.status ? label(run.status) : recorded)}</dd>
+      ${acceptance?.disposition ? `<dt>Delivery acceptance</dt><dd>${esc(label(acceptance.disposition))}</dd>` : ''}
+      <dt>Next action by</dt><dd>${esc(next)}</dd>
+      <dt>Blocked steps</dt><dd>${blocked.length ? blocked.map(step => `<div>${esc(step.stepId)} waits for ${esc(step.blockedBy.join(', '))}</div>`).join('') : Array.isArray(run.steps) ? 'None recorded' : recorded}</dd>
+      ${run.workMode === 'investigate' && typeof run.evidenceUnlocked === 'boolean' ? `<dt>Independent evidence</dt><dd>${run.evidenceUnlocked ? 'Released' : 'Release pending'}</dd>` : ''}
+    </dl>
+    ${run.selectionReason ? `<p class="hint">${esc(run.selectionReason)}</p>` : ''}
+    ${run.taskId && run.taskId !== task.id ? taskButton(run.taskId, 'Open work run task') : ''}
+    ${requirements ? `<h3 class="space-top-16">Delivery requirements</h3>${requirements}` : '<p class="empty-inline">No delivery requirements recorded.</p>'}
+    ${acceptance?.openQuestions?.length ? `<h3 class="space-top-16">Open questions</h3>
+      <ul class="description work-run-questions">${acceptance.openQuestions.map(question => `<li>${esc(question)}</li>`).join('')}</ul>` : ''}
+  </section>`;
 }
 function operationMarkup(operation) { return `<div class="operation"><strong>${esc(label(operation.type))}</strong> ${badge(operation.state)}<p>${esc(operation.summary || operation.error?.message || (typeof operation.error==='string'?operation.error:'') || 'Workbench operation recorded.')}</p>${operation.result?`<p>${esc(typeof operation.result==='string'?operation.result:JSON.stringify(operation.result))}</p>`:''}<p>Operation ${esc(operation.id)}. This state describes the request.</p></div>`; }
 function taskDetailContent() {
@@ -432,8 +502,28 @@ function openDialog(markup) { $('#dialog-content').innerHTML=markup; const dialo
 function showAccess() {
   openDialog(`${dialogHeader('Local access','Connect to this workspace','Use the access token from the local server URL. It is kept only in this browser tab’s session.')}<form id="access-form"><div class="dialog-body"><div class="form-field"><label for="access-token">Access token</label><input type="password" id="access-token" name="token" autocomplete="off" required placeholder="Paste the token printed by the server"><small>The token is sent only to this workbench’s same-origin API.</small></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button type="button" class="button quiet" data-close="action-dialog">Cancel</button><button class="button primary" type="submit">Connect workspace</button></footer></form>`);
 }
+function workPlanFields() {
+  if (!state.capabilities?.workRunsAvailable) {
+    return '<p class="hint">For work modes, open the workbench from a bound Codex coordinator session.</p>';
+  }
+  return `<div class="form-field">
+    <label for="task-work-mode">Work mode</label>
+    <select id="task-work-mode" name="workMode" aria-describedby="task-work-plan-help">
+      <option value="auto">Automatic</option>
+      <option value="single">Single</option>
+      <option value="parallel">Parallel</option>
+      <option value="investigate">Investigate</option>
+      <option value="milestone">Milestone</option>
+    </select>
+  </div>
+  <div class="form-field">
+    <label for="task-work-plan">Work plan (JSON)</label>
+    <textarea id="task-work-plan" name="workPlan" rows="5" spellcheck="false" aria-describedby="task-work-plan-help" placeholder='{"members": [], "steps": [], "requirements": []}'></textarea>
+    <small id="task-work-plan-help">Required for parallel, investigate, and milestone. Declare members by memberId and agent, steps by stepId and memberId, and delivery requirements by requirementId. Use dependsOn for step dependencies and stepIds to connect a requirement to its evidence. Multi-member runs require existing conversation bindings.</small>
+  </div>`;
+}
 function showCreate() {
-  openDialog(`${dialogHeader('New task','Give the work a clear shape.','Create a scoped assignment. Creating a task runs preflight; it does not dispatch a provider.')}<form id="create-form"><div class="dialog-body"><div class="form-field"><label for="task-title">Task title</label><input id="task-title" name="title" required maxlength="200" placeholder="What should this contribution resolve?"></div><div class="form-field"><label for="task-prompt">Instructions and completion conditions</label><textarea id="task-prompt" name="prompt" required rows="5" placeholder="Describe the question, relevant context, and what a useful result includes."></textarea></div><div class="form-grid"><div class="form-field"><label for="task-owner">Assign to</label><select id="task-owner" name="assignedTo"><option value="codex">Codex</option><option value="claude-code">Claude Code</option><option value="antigravity">Antigravity</option></select></div><div class="form-field"><label for="task-role">Role <span class="optional">optional</span></label><input id="task-role" name="role" placeholder="e.g. implementation"></div><div class="form-field"><label for="task-model">Requested model <span class="optional">optional for creation</span></label><input id="task-model" name="requiredModel" placeholder="Explicit model identity"><small>Required before dispatch. An available CLI does not verify model access.</small></div><div class="form-field"><label for="task-priority">Priority</label><select id="task-priority" name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></div><div class="form-field"><label for="task-isolation">Isolation profile</label><select id="task-isolation" name="isolationProfile"><option value="shared">Shared (default)</option><option value="blind_review">Blind review (no thread fan-out)</option><option value="blind_analysis">Blind analysis (no thread fan-out)</option></select></div></div><hr class="form-divider"><div class="form-grid"><div class="form-field"><label for="task-read">Read roots</label><textarea id="task-read" name="readRoots" rows="2" class="short-textarea">.</textarea><small>One project-relative path per line.</small></div><div class="form-field"><label for="task-write">Write roots</label><textarea id="task-write" name="writeRoots" rows="2" class="short-textarea" placeholder="No write roots by default"></textarea><small>Paths must remain inside the project.</small></div></div><div class="form-field space-top-16 no-bottom"><label for="task-session">Required conversation ID <span class="optional">optional</span></label><input id="task-session" name="requiredConversationId" placeholder="Leave empty for a new binding"></div><div class="scope-note"><strong>Action scope</strong><p>The assignment is saved to the selected project. Review its preflight result before choosing the separate Dispatch action.</p></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button type="button" class="button quiet" data-close="action-dialog">Cancel</button><button type="submit" class="button primary">${icon('plus')}Create task</button></footer></form>`);
+  openDialog(`${dialogHeader('New task','Give the work a clear shape.','Create a scoped assignment. Creating a task runs preflight; it does not dispatch a provider.')}<form id="create-form"><div class="dialog-body"><div class="form-field"><label for="task-title">Task title</label><input id="task-title" name="title" required maxlength="200" placeholder="What should this contribution resolve?"></div><div class="form-field"><label for="task-prompt">Instructions and completion conditions</label><textarea id="task-prompt" name="prompt" required rows="5" placeholder="Describe the question, relevant context, and what a useful result includes."></textarea></div><div class="form-grid"><div class="form-field"><label for="task-owner">Assign to</label><select id="task-owner" name="assignedTo"><option value="codex">Codex</option><option value="claude-code">Claude Code</option><option value="antigravity">Antigravity</option></select></div><div class="form-field"><label for="task-role">Role <span class="optional">optional</span></label><input id="task-role" name="role" placeholder="e.g. implementation"></div><div class="form-field"><label for="task-model">Requested model <span class="optional">optional for creation</span></label><input id="task-model" name="requiredModel" placeholder="Explicit model identity"><small>Required before dispatch. An available CLI does not verify model access.</small></div><div class="form-field"><label for="task-priority">Priority</label><select id="task-priority" name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></div><div class="form-field"><label for="task-isolation">Isolation profile</label><select id="task-isolation" name="isolationProfile"><option value="shared">Shared (default)</option><option value="blind_review">Blind review (no thread fan-out)</option><option value="blind_analysis">Blind analysis (no thread fan-out)</option></select></div></div><hr class="form-divider"><div class="form-grid"><div class="form-field"><label for="task-read">Read roots</label><textarea id="task-read" name="readRoots" rows="2" class="short-textarea">.</textarea><small>One project-relative path per line.</small></div><div class="form-field"><label for="task-write">Write roots</label><textarea id="task-write" name="writeRoots" rows="2" class="short-textarea" placeholder="No write roots by default"></textarea><small>Paths must remain inside the project.</small></div></div><div class="form-field space-top-16 no-bottom"><label for="task-session">Required conversation ID <span class="optional">optional</span></label><input id="task-session" name="requiredConversationId" placeholder="Leave empty for a new binding"></div><hr class="form-divider">${workPlanFields()}<div class="scope-note"><strong>Action scope</strong><p>The assignment is saved to the selected project. Review its preflight result before choosing the separate Dispatch action.</p></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button type="button" class="button quiet" data-close="action-dialog">Cancel</button><button type="submit" class="button primary">${icon('plus')}Create task</button></footer></form>`);
 }
 async function createBoundFollowup() {
   const task=state.detail?.task;if(!task)return;
@@ -472,6 +562,11 @@ async function submitForm(form) {
     if(form.id==='create-form') {
       const body={title:data.title.trim(),prompt:data.prompt.trim(),assignedTo:data.assignedTo,priority:data.priority,isolationProfile:data.isolationProfile||'shared',readRoots:data.readRoots.split('\n').map(value=>value.trim()).filter(Boolean),writeRoots:data.writeRoots.split('\n').map(value=>value.trim()).filter(Boolean)};
       for(const key of ['role','requiredModel','requiredConversationId'])if(data[key].trim())body[key]=data[key].trim();
+      if(data.workMode)body.workMode=data.workMode;
+      if(data.workPlan?.trim()) {
+        try { body.workPlan=JSON.parse(data.workPlan); }
+        catch { throw new Error('Enter a valid JSON work plan.'); }
+      }
       const result=await api('/api/tasks',{method:'POST',body});
       openDialog(`${dialogHeader('Task created','The assignment is recorded.','Review preflight before starting execution.')}<div class="dialog-body"><div class="confirmation-summary"><h3>${esc(result.task.title)}</h3><p class="hint">${esc(result.task.id)} · ${esc(person(result.task.assignedTo))}</p></div><div class="${result.preflight?.ok?'inline-success':'scope-note'} space-top-20">${result.preflight?.ok?'Preflight checks passed for the recorded scope.':'Preflight does not report ready. Inspect its findings before dispatch.'}</div><details class="record-disclosure"><summary>View preflight record</summary><pre class="preflight-list record-json">${esc(JSON.stringify(result.preflight,null,2))}</pre></details><p class="hint">Task creation has not started a provider.</p></div><footer class="dialog-footer"><button class="button quiet" data-close="action-dialog">Close</button><button class="button primary" data-action="inspect-created" data-id="${esc(result.task.id)}">Inspect task</button></footer>`);
       await refresh();await selectTask(result.task.id,false);return;
@@ -530,7 +625,12 @@ $('#router-mode-select')?.addEventListener('change',async event=>{
     if(state.snapshot)renderProject();
   }
 });
-document.addEventListener('change',event=>{if(event.target.id==='evidence-state'){state.recordState=event.target.value;loadView();}});
+document.addEventListener('change',event=>{
+  if(event.target.id==='evidence-state'){state.recordState=event.target.value;loadView();}
+  if(event.target.id==='task-work-mode') {
+    $('#task-work-plan').required=['parallel','investigate','milestone'].includes(event.target.value);
+  }
+});
 $('#clear-filters').addEventListener('click',clearFilters);$('#refresh-button').addEventListener('click',refresh);$('#create-button').addEventListener('click',showCreate);$('#control-button').addEventListener('click',showControl);$('#access-button').addEventListener('click',showAccess);$('#source-more').addEventListener('click',()=>loadSource());$('#source-copy').addEventListener('click',copyLoadedSource);$('#source-download').addEventListener('click',downloadLoadedSource);
 document.addEventListener('keydown',event=>{
   if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&!$('dialog[open]')){event.preventDefault();$('#search').focus();}

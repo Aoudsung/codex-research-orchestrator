@@ -5,16 +5,19 @@ Use this guide when coordinating persistent peers (`Antigravity`, `Codex`, opt-i
 ## 1. Tiered Tool Profiles & Multi-Peer De-duplication
 
 - `BRIDGE_TOOL_PROFILE` trims resident MCP schema tokens without losing capabilities:
-  - **`lead`** (primary MCP peer): compact `bridge_*` + `research_*` tools.
+  - **`lead`** (primary MCP peer): compact `bridge_*` + `research_*` tools plus `bridge_plan_dispatch`, `bridge_sync_collaborators`, and `pi_exec`.
   - **`worker`** (scoped executor): **11** tools (`bridge_claim_task`, `bridge_complete_task`, core read/reply/patch/validation/handback + `research_search`, `research_read`).
   - **`exec_only`** (extra MCP peers): **0** duplicated shared tools—keeps native `<peer>_exec` / status only.
 - `research_setup.py connect` assigns `lead` to `index == 0` and `exec_only` to `index >= 1`; `python3 setup.py lint` flags un-deduplicated multi-peer configs (`MCP-001`) and disabled `claude` servers.
 
-## 2. Task Binding, Effort & Preflight
+## 2. Dynamic Dispatch, Task Binding, PI Execution & Recovery
 
-1. Bind logical work explicitly via `bridge_create_task` (`participant`, `requiredModel`, `requestedModel`, `sessionId`, `writeRoots`, `isolationProfile`, `effortTier`, `riskLevel`). Keep requested settings distinct from runtime-reported model identity.
-2. Check effective workspace permissions and deltas with `bridge_preflight_task`; set `completeTaskOnExit: false` for multi-step or validation-gated executions.
-3. Prefer `bridge_submit_patch` / `bridge_get_patch` when direct workspace writes are unsafe; track `baseRevision` and conflict checks strictly.
+1. **Plan before delegating (`bridge_plan_dispatch`):** Evaluate `.agent-bridge/collaborators.json` + task workload to dynamically select channel/model (Gemini pinned PI first -> Antigravity fallback) and task-scoped `Luna` effort, then pass `planId` into `bridge_create_task` and record actual runtime `(channel, model, effort, selectionReason)`.
+2. **Post-compaction automatic recovery:** `collaborators.json` separates static policy/pinned sessions from live runtime state (`bridge.sqlite`); a shared `[Collaboration Recovery]` digest is injected across coordinator wakeups, `research_context(profile="resume")`, and `bridge_get_task_overview`.
+3. **Detached dual-mode PI runner (`pi_exec`):** Preserves user retry/compaction/concurrency=1 settings on pinned PI sessions (failing cleanly with `PI_SESSION_BUSY` if in use) while applying isolated `retries=0, compaction=false` on new `magpie` `auto/*` and `explicitPiRoutes` sessions; runs execution in a detached `pi-worker.mjs` so receipts survive hot-reload exits.
+   - `explicitPiRoutes`: `.agent-bridge/collaborators.json` supports `{ provider, model, fixedEffort? }` entries for user-authorized project-scoped PI models (such as `google-vertex/gemini-4-hydrogen`).
+   - **Length truncation & authorization reuse:** `pi_exec` performs bounded same-session continuation (`maxLengthContinuations`) on `stopReason === "length"`, and reports any remaining cap stop as `invocationOutcome: "partial"` (`partialReason: "output_limit"`, `transportOutcome: "delivered"`), never `blocked`. When `receipt.authorizationReuse.reusableTaskAuthorization === true` (`output_limit_partial` or `local_pre_transport_error` where `beforeGenerationTransport === true`), do **not** call `request_user_input` to re-ask user approval for the already-authorized task/model/effort, and never patch global `~/.pi` SDK release files from project tasks.
+4. Check effective workspace permissions and deltas with `bridge_preflight_task`; prefer `bridge_submit_patch` / `bridge_get_patch` when direct workspace writes are unsafe.
 
 ## 3. Deterministic Router, Consumption & Safeguards
 

@@ -67,6 +67,8 @@ Use the tool schemas returned by the installed server. The common surface includ
 
 The agents decide their next authorized action using the skill and task instructions. The bridge transports and records that work; storing a message alone does not launch a provider process or authorize a new task.
 
+For parallel reports, see [verified corrections](docs/live-handoffs.md). For timed investigations, see [replay and timing](docs/reproduction-and-deadlines.md).
+
 ## Task workflow protocol 2
 
 New MCP tasks support versioned contracts, business receipts, ownership handoffs,

@@ -1,6 +1,6 @@
 # Role: Fact Observer (`role="fact_observer"`)
 
-Perform read-only L0 monitoring (`GPT-6 Luna`, `low` effort): remote server GPU/process checks (`free VRAM >= peak + margin`, excluding faulty GPUs) and 15-minute `ChatGPT Web Pro` completion status checks. Emit source-backed events or exact `UNCHANGED`—never edit code, judge research, or run reviews.
+Perform read-only L0 monitoring via Codex read-only role `default` or `explorer` paired with `model="gpt-6-luna"`, `effort="low"` (never invoke `agent_type="Luna"`, which is the tool-free effort judge): remote server GPU/process checks (`free VRAM >= peak + margin`, excluding faulty GPUs) and 15-minute `ChatGPT Web Pro` completion status checks. Emit source-backed events or exact `UNCHANGED`—never edit code, judge research, or run reviews.
 
 ## Duties & Boundaries
 - Reuse the recorded observation baseline and processed offsets; read only newly appended permitted ranges.

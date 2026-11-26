@@ -4,16 +4,21 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ProjectReader, BRIDGE_FILE, safePath, fail, normalizeTask, normalizeMessage, normalizeDecision } from './reader.mjs';
+import { ProjectReader, BRIDGE_FILE, safePath, fail, normalizeTask, normalizeMessage, normalizeDecision, collaborationSummary, numberParam } from './reader.mjs';
 import { DemoReader } from './demo.mjs';
 import { callBridgeTool } from './mcp-client.mjs';
 import { resolveBinary } from '../core/process-runner.mjs';
+import { isCollaborationCommand, prepareCollaboration } from '../domain/collaboration-playbook.mjs';
+import { captureCollaborationIntake, postWorkbenchCollaborationInstruction } from '../core/collaboration-tools.mjs';
+import { runTaskPreflight } from '../core/preflight.mjs';
+import { projectWorkflowDefaults } from '../core/project-workflow.mjs';
 
 const AGENTS = ['codex', 'claude-code', 'antigravity'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const ROUTER_MODES = ['off', 'observe', 'auto'];
 const ISOLATION_PROFILES = ['shared', 'blind_analysis', 'blind_review'];
 const WORK_MODES = ['auto', 'single', 'parallel', 'investigate', 'milestone'];
+const COLLABORATION_MODES = ['auto', 'boost', 'swarm', 'teamwork'];
 const now = () => new Date().toISOString();
 const publicDir = fileURLToPath(new URL('./public/', import.meta.url));
 const STATIC = { '/': ['index.html','text/html'], '/index.html': ['index.html','text/html'], '/app.js': ['app.js','text/javascript'], '/styles.css': ['styles.css','text/css'] };
@@ -57,6 +62,8 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
   if (!demo && !fs.statSync(project).isDirectory()) throw fail('INVALID_PROJECT', 'Project must be a directory');
   const resolvedBridgeDb = !demo && bridgeDb ? path.resolve(bridgeDb) : null;
   const reader = demo ? new DemoReader(fixture) : new ProjectReader(project, { bridgeDb: resolvedBridgeDb });
+  const leadAgent = agent(process.env.BRIDGE_WORKBENCH_LEAD_AGENT || 'codex');
+  const leadSessionId = process.env.BRIDGE_CALLER_SESSION_ID || (leadAgent === 'codex' ? process.env.CODEX_THREAD_ID : null) || null;
   const workRunsAvailable = demo || Boolean(process.env.BRIDGE_CALLER_SESSION_ID || process.env.CODEX_THREAD_ID);
   const token = crypto.randomBytes(32).toString('base64url');
   const operations = new Map();
@@ -80,10 +87,56 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
     return task;
   }
   const providerCall = (provider, tool, args, timeoutMs, caller = 'codex') => toolClient({ project, dbPath: writerPath(), provider, caller, tool, args, timeoutMs });
+  async function createCollaboration({ title, prompt, priority, readRoots, writeRoots, mode }) {
+    const preview = prepareCollaboration({ objective: prompt, mode });
+    if (demo) {
+      const task = { id: crypto.randomUUID(), title, prompt, fromAgent: leadAgent, assignedTo: leadAgent, priority,
+        isolationProfile: 'shared', status: 'pending', phase: 'ready', phaseLabel: 'Ready', createdAt: now(), updatedAt: now(),
+        readRoots, writeRoots: [], collaboration: null };
+      task.collaboration = collaborationSummary(task, { intake: { mode, permissions: { readRoots, writeRoots } }, planned: preview });
+      reader.data.tasks.push(task);
+      return { task: reader.task(task.id).task, collaboration: task.collaboration, preflight: { ok: true, simulated: true, authorityGranted: false }, simulated: true };
+    }
+    if (leadSessionId) {
+      const result = await toolClient({
+        project, dbPath: writerPath(), provider: leadAgent, caller: leadAgent, callerSessionId: leadSessionId, tool: 'bridge_collaborate',
+        args: { action: 'open', eventId: crypto.randomUUID(), objective: prompt, mode, cwd: project, title, priority, readRoots, writeRoots },
+      });
+      if (!result.task) throw fail('COLLABORATION_OPEN_FAILED', 'The Lead intake could not be recorded', 502);
+      const detail = reader.task(result.task.id);
+      return { task: detail.task, collaboration: detail.collaboration, preflight: result.preflight };
+    }
+    const defaults = projectWorkflowDefaults(project);
+    const runtime = { codex: 'codex-cli', 'claude-code': 'claude-cli', antigravity: 'agy-cli' }[leadAgent];
+    const preflight = runTaskPreflight({ runtime, cwd: project,
+      deliveryMode: writeRoots.length ? 'direct' : 'read_only',
+      permissions: { readRoots, writeRoots, forbiddenOperations: defaults.forbiddenOperations },
+    });
+    const { BridgeDatabase } = await import('../core/bridge-db.mjs');
+    const db = new BridgeDatabase(writerPath());
+    let taskId;
+    try {
+      taskId = db.engine.repos.atomic(() => {
+        const permissions = preflight.consolidatedPermissionChecklist;
+        const task = db.createTask({
+          title, prompt, priority, cwd: project, protocolVersion: 2, contract: defaults.contract,
+          fromAgent: leadAgent, assignedTo: leadAgent, permissions: { ...permissions, writeRoots: [] },
+          metadata: { coordinationOnly: true, autoSubscribeThread: false, origin: 'workbench_user', deliveryMode: 'read_only' },
+        });
+        captureCollaborationIntake(db.engine, task, null, {
+          mode, permissions, unassigned: true, claimKey: crypto.randomBytes(32).toString('base64url'),
+        });
+        return task.id;
+      });
+    } finally { db.db.close(); }
+    const detail = reader.task(taskId);
+    return { task: detail.task, collaboration: detail.collaboration, preflight };
+  }
+
   async function createTask(body) {
-    validateObject(body, ['title','prompt','assignedTo','fromAgent','role','priority','requiredModel','requiredConversationId','readRoots','writeRoots','isolationProfile','workMode','workPlan']);
+    validateObject(body, ['title','prompt','assignedTo','fromAgent','role','priority','requiredModel','requiredConversationId','readRoots','writeRoots','isolationProfile','workMode','workPlan','collaborationMode']);
     const title = string(body, 'title', true, 200), prompt = string(body, 'prompt', true, 64000);
-    const assignedTo = agent(body.assignedTo), fromAgent = agent(body.fromAgent || 'codex');
+    const collaborationRequested = body.collaborationMode !== undefined || isCollaborationCommand(prompt);
     const requiredModel = string(body, 'requiredModel', false, 200), requiredConversationId = string(body, 'requiredConversationId', false, 300), role = string(body, 'role', false, 100);
     const priority = body.priority || 'normal';
     if (!['low','normal','high','urgent'].includes(priority)) throw fail('INVALID_PRIORITY', 'Unknown priority');
@@ -91,6 +144,21 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
     if (!ISOLATION_PROFILES.includes(isolationProfile)) throw fail('INVALID_ISOLATION_PROFILE', 'Unknown isolationProfile');
     const readRoots = scopedRoots(body.readRoots, ['.']), writeRoots = scopedRoots(body.writeRoots, []);
     const { workMode, workPlan } = body;
+    if (collaborationRequested) {
+      const mode = body.collaborationMode ?? 'auto';
+      if (!COLLABORATION_MODES.includes(mode)) throw fail('INVALID_COLLABORATION_MODE', 'Unknown collaboration mode');
+      if (body.fromAgent || requiredConversationId || requiredModel || role || isolationProfile !== 'shared' ||
+          workMode !== undefined || workPlan !== undefined) {
+        throw fail('COLLABORATION_BINDING_SCOPE', 'Collaboration uses its native Lead and scoped role dispatch. Use the standard task form for advanced manual bindings.');
+      }
+      try {
+        return await createCollaboration({ title, prompt, priority, readRoots, writeRoots, mode });
+      } catch (error) {
+        if (error.code || error.status) throw error;
+        throw fail('COLLABORATION_OPEN_FAILED', error.message);
+      }
+    }
+    const assignedTo = agent(body.assignedTo), fromAgent = agent(body.fromAgent || 'codex');
     if (workMode !== undefined || workPlan !== undefined) {
       if (!workRunsAvailable) throw fail('WORK_RUN_SESSION_REQUIRED', 'Open the workbench from a bound Codex coordinator to create a work run', 409);
       if (fromAgent !== 'codex') throw fail('WORK_RUN_CREATOR_MISMATCH', 'The local Codex connection creates the work run', 403);
@@ -140,6 +208,7 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
       return { receipt: { messageId: msg.id, seq, actualFromAgent: fromAgent, actualToAgent: recipient, threadId: msg.threadId, taskId, replyTo: msg.replyTo, simulated: true }, message: reader.list('messages', new URLSearchParams({ taskId })).items.find(m => m.id === msg.id), simulated: true };
     }
     const scopedTask = requireScope(reader.rawTask(taskId));
+    if (reader.task(taskId).collaboration) throw fail('COLLABORATION_INSTRUCTION_REQUIRED', 'Use the collaboration instruction action to reach the bound Lead', 409);
     const decisionId = string(body, 'decisionId', false, 300);
     if (decisionId) {
       const eventId = string(body, 'eventId', true, 300);
@@ -163,6 +232,8 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
     if (!EFFORTS.includes(effort)) throw fail('INVALID_EFFORT','Unknown effort');
     if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 600) throw fail('INVALID_TIMEOUT','timeoutSeconds must be between 1 and 600');
     const task = demo ? reader.rawTask(taskId) : requireScope(reader.rawTask(taskId));
+    const collaboration = reader.task(taskId).collaboration;
+    if (collaboration && collaboration.taskId === taskId) throw fail('COLLABORATION_LEAD_REQUIRED', 'Use the bound Lead to plan and advance this collaboration', 409);
     const requiredModel = demo ? task.requiredModel : task.required_model;
     if (!requiredModel?.trim()) throw fail('MODEL_REQUIRED','Record an explicit required model before dispatch',409);
     const control = demo ? reader.control : reader.snapshot().control;
@@ -248,6 +319,23 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
       return { ok: true, alreadyProcessed: Boolean(res.alreadyProcessed), decision: normalizeDecision(res.decision), task: res.task ? normalizeTask(res.task) : null };
     } finally { db.db.close(); }
   }
+  async function instructLead(taskId, body) {
+    validateObject(body, ['content','eventId']);
+    const content = string(body, 'content', true, 16_000);
+    const eventId = string(body, 'eventId', true, 300);
+    if (demo) throw fail('COLLABORATION_LEAD_REQUIRED', 'The fictional demo has no bound Lead', 409);
+    const task = requireScope(reader.rawTask(taskId));
+    const collaboration = reader.task(taskId).collaboration;
+    if (!collaboration?.leadBound || collaboration.taskId !== taskId || ['completed', 'failed', 'cancelled'].includes(collaboration.phase)) {
+      throw fail('COLLABORATION_LEAD_REQUIRED', 'A current bound Lead is required to receive an instruction', 409);
+    }
+    const { BridgeDatabase } = await import('../core/bridge-db.mjs');
+    const db = new BridgeDatabase(writerPath());
+    try { return postWorkbenchCollaborationInstruction(db.engine, task, { content, eventId }); }
+    catch (error) { throw fail('COLLABORATION_INSTRUCTION_FAILED', error.message, 409); }
+    finally { db.db.close(); }
+  }
+
   const server = http.createServer(async (req, res) => {
     try {
       if (req.headers.host !== new URL(origin).host) throw fail('INVALID_HOST','Unexpected Host header',403);
@@ -265,10 +353,20 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
       if (req.method === 'GET') {
         let value;
         if (url.pathname === '/api/snapshot') { value = reader.snapshot(); value.operations = [...operations.values()].reverse().map(summarizeOperation); value.control.activeOperations = inFlight.size; }
-        else if (url.pathname === '/api/capabilities') value = { providers: AGENTS.map(id => ({ id, executableAvailable: demo ? false : Boolean(resolveBinary({codex:'codex','claude-code':'claude',antigravity:'agy'}[id],{codex:'CODEX_BIN','claude-code':'CLAUDE_BIN',antigravity:'AGY_BIN'}[id])), authentication: 'not-verified' })), controlsAvailable: true, routerModesAvailable: ROUTER_MODES, dispatchAvailable: true, workRunsAvailable, limits: { pageDefault:30, pageMaximum:100, sourceMaximum:64000, bodyBytes:BODY_LIMIT, timeoutSeconds:600 }, ...(demo ? { simulated:true } : {}) };
+        else if (url.pathname === '/api/capabilities') value = { providers: AGENTS.map(id => ({ id, executableAvailable: demo ? false : Boolean(resolveBinary({codex:'codex','claude-code':'claude',antigravity:'agy'}[id],{codex:'CODEX_BIN','claude-code':'CLAUDE_BIN',antigravity:'AGY_BIN'}[id])), authentication: 'not-verified' })), controlsAvailable: true, routerModesAvailable: ROUTER_MODES, dispatchAvailable: true, workRunsAvailable, collaborationAvailable: true, collaborationLeadAgent: leadAgent, limits: { pageDefault:30, pageMaximum:100, sourceMaximum:64000, bodyBytes:BODY_LIMIT, timeoutSeconds:600 }, ...(demo ? { simulated:true } : {}) };
         else if (url.pathname === '/api/source') value = reader.source(url.searchParams);
         else if (/^\/api\/operations\/[^/]+$/.test(url.pathname)) { value = operations.get(decodeURIComponent(url.pathname.split('/').at(-1))); if (!value) throw fail('NOT_FOUND','Operation not found',404); }
-        else if (/^\/api\/tasks\/[^/]+$/.test(url.pathname)) { const id = decodeURIComponent(url.pathname.split('/').at(-1)); value = reader.task(id); const operation = [...operations.values()].reverse().find(o => o.taskId === id); value.operation = operation ? summarizeOperation(operation) : null; }
+        else if (/^\/api\/tasks\/[^/]+\/board$/.test(url.pathname)) {
+          if (demo) throw fail('COLLABORATION_BOARD_UNAVAILABLE', 'The fictional demo has no live board', 403);
+          const id = decodeURIComponent(url.pathname.split('/')[3]);
+          requireScope(reader.rawTask(id));
+          value = reader.collaborationBoard(id, {
+            agent: leadAgent, sessionId: leadSessionId,
+            since: numberParam(url.searchParams.get('since'), 0, Number.MAX_SAFE_INTEGER),
+            limit: Math.max(1, numberParam(url.searchParams.get('limit'), 30, 100)),
+          });
+        }
+        else if (/^\/api\/tasks\/[^/]+$/.test(url.pathname)) { const id = decodeURIComponent(url.pathname.split('/').at(-1)); value = reader.task(id); if (value.collaboration) requireScope(reader.rawTask(id)); const operation = [...operations.values()].reverse().find(o => o.taskId === id); value.operation = operation ? summarizeOperation(operation) : null; }
         else if (/^\/api\/(tasks|messages|patches|validations|evidence|activity)$/.test(url.pathname)) value = reader.list(url.pathname.slice(5),url.searchParams);
         else throw fail('NOT_FOUND','Endpoint not found',404);
         send(res,200,value); return;
@@ -281,6 +379,7 @@ export async function createWorkbench({ project, bridgeDb, port = 0, demo = fals
       else if (url.pathname === '/api/messages') send(res,201,await message(body));
       else if (url.pathname === '/api/control') send(res,200,await control(body));
       else if (url.pathname === '/api/router-mode') send(res,200,await setRouterMode(body));
+      else if (/^\/api\/tasks\/[^/]+\/collaboration-instructions$/.test(url.pathname)) send(res,201,await instructLead(decodeURIComponent(url.pathname.split('/')[3]),body));
       else if (/^\/api\/tasks\/[^/]+\/dispatch$/.test(url.pathname)) send(res,202,dispatch(decodeURIComponent(url.pathname.split('/')[3]),body));
       else if (/^\/api\/tasks\/[^/]+\/retry-delivery$/.test(url.pathname)) send(res,200,await retryDelivery(decodeURIComponent(url.pathname.split('/')[3]),body));
       else if (/^\/api\/decisions\/[^/]+\/approve$/.test(url.pathname)) send(res,200,await approveDecision(decodeURIComponent(url.pathname.split('/')[3]),body));

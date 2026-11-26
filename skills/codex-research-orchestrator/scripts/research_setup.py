@@ -31,6 +31,8 @@ import tomllib
 sys.dont_write_bytecode = True
 NAME = "codex-research-orchestrator"
 SKILL_PATH = Path(".agents/skills") / NAME
+COLLABORATION_SKILLS = ("boost", "swarm", "teamwork")
+SKILL_SNAPSHOT_PATH = Path("assets/collaboration-skills")
 RUNTIME_PATH = Path(".research-orchestrator/runtime/agent-bridge")
 RECEIPT_PATH = Path(".research-orchestrator/install.json")
 BASELINES_PATH = Path(".research-orchestrator/baselines")
@@ -173,6 +175,48 @@ def validate_workbench(runtime):
                      "src/workbench/public/demo-data.json"):
         if not (runtime / relative).is_file():
             raise SetupError("Workbench files are missing; install or upgrade the complete bundle: " + relative)
+
+
+def collaboration_skill_files(skill):
+    """Use the installed snapshot so local sibling edits do not propagate to new projects."""
+    embedded = skill / SKILL_SNAPSHOT_PATH
+    has_snapshot = embedded.exists() or embedded.is_symlink()
+    snapshot = inventory(embedded) if has_snapshot else {}
+    if not has_snapshot and not (skill.parent.parent / "setup.py").is_file():
+        return {}
+    sources = {}
+    for name in COLLABORATION_SKILLS:
+        if has_snapshot:
+            prefix = f"{name}/"
+            files = {filename.removeprefix(prefix): path for filename, path in snapshot.items()
+                     if filename.startswith(prefix)}
+            if "skill.md" in files:
+                files["SKILL.md"] = files.pop("skill.md")
+        else:
+            sibling = skill.parent / name
+            files = inventory(sibling, SKILL_ITEMS) if sibling.exists() or sibling.is_symlink() else {}
+        skill_file = files.get("SKILL.md")
+        if not skill_file or not re.search(rf"(?m)^name: {name}\s*$", read_text(skill_file)):
+            raise SetupError(f"Incomplete collaboration skill: {name}")
+        sources[name] = files
+    return sources
+
+
+def collaboration_skill_status(project, relative, component):
+    dest = project / relative
+    if dest.is_symlink() or (dest.exists() and not component):
+        return "unmanaged"
+    if not dest.exists():
+        return "missing"
+    try:
+        existing = all_entries(dest)
+        hashes = component.get("file_hashes", {})
+        if not existing <= hashes.keys() or any(
+                sha256_bytes((dest / name).read_bytes()) != hashes[name] for name in existing):
+            return "customized"
+        return "installed" if existing == hashes.keys() else "missing"
+    except (OSError, SetupError):
+        return "customized"
 
 
 def same_tree(root, files):
@@ -355,11 +399,14 @@ def result(command, changed, next_action, **details):
 def install(args, project):
     skill = source_skill()
     runtime = bundled_runtime(skill)
+    mode_skills = collaboration_skill_files(skill)
     components = {SKILL_PATH: (skill, "skill", SKILL_ITEMS)}
     if runtime and not args.skill_only:
         components[RUNTIME_PATH] = (runtime, "runtime", RUNTIME_ITEMS)
     for relative, (source, _, _) in components.items():
         dest = safe_path(project, relative)
+        if source == dest and relative == SKILL_PATH and source.is_dir():
+            continue
         if source == dest or source.is_relative_to(dest) or dest.is_relative_to(source):
             raise SetupError("Source and installation destination overlap; choose another --project")
     receipt_file = safe_path(project, RECEIPT_PATH)
@@ -374,8 +421,15 @@ def install(args, project):
         if kind == "runtime":
             validate_workbench(source)
         files = inventory(source, allowed)
+        if kind == "skill":
+            for name, mode_files in mode_skills.items():
+                for filename, path in mode_files.items():
+                    embedded_name = "skill.md" if filename == "SKILL.md" else filename
+                    files[(SKILL_SNAPSHOT_PATH / name / embedded_name).as_posix()] = path
         files_by_component[relative] = files
         dest = safe_path(project, relative)
+        if source == dest:
+            continue
         if dest.exists():
             existing = all_entries(dest)
             owned = previous.get(str(relative), {}).get("files")
@@ -392,6 +446,33 @@ def install(args, project):
             if dest.exists() and not args.upgrade:
                 raise SetupError("A different installation exists; rerun install with --upgrade to back it up")
             changed_components.append(relative)
+
+    installed_components = dict(previous)
+    for relative, (source, kind, _) in components.items():
+        if source == project / relative and str(relative) in installed_components:
+            continue
+        installed_components[str(relative)] = {"kind": kind, "files": sorted(files_by_component[relative])}
+    mode_status = {}
+    for name, files in mode_skills.items():
+        relative = SKILL_PATH.with_name(name)
+        dest = project / relative
+        prior = previous.get(str(relative), {})
+        status = collaboration_skill_status(project, relative, prior)
+        if status in {"customized", "unmanaged"}:
+            mode_status[name] = status
+            continue
+        hashes = {filename: sha256_bytes(files[filename].read_bytes()) for filename in sorted(files)}
+        if not same_tree(dest, files):
+            if dest.exists() and not args.upgrade and prior.get("file_hashes") != hashes:
+                raise SetupError(f"A different managed {name} skill exists; rerun install with --upgrade")
+            changed_components.append(relative)
+        files_by_component[relative] = files
+        installed_components[str(relative)] = {
+            "kind": "collaboration-skill",
+            "files": sorted(files),
+            "file_hashes": hashes,
+        }
+        mode_status[name] = "installed"
 
     skill_ver = version(skill)
     new_bases = skill_template_bases(skill)
@@ -460,9 +541,6 @@ def install(args, project):
         desired_updates_body = json_text({"version": skill_ver, "updates": {}})
         updates_changed = read_text(updates_file) != desired_updates_body
 
-    installed_components = dict(previous)
-    for relative, (_, kind, _) in components.items():
-        installed_components[str(relative)] = {"kind": kind, "files": sorted(files_by_component[relative])}
     new_receipt = {"name": NAME, "version": skill_ver, "components": installed_components}
     body = json_text(new_receipt)
     receipt_changed = not receipt_file.is_file() or read_text(receipt_file) != body
@@ -480,7 +558,8 @@ def install(args, project):
                     target = incoming / name
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source, target)
-                validate_component(incoming, components[relative][1])
+                if relative in components:
+                    validate_component(incoming, components[relative][1])
                 prepared[relative] = incoming
             for index, (tpl_rel, tpl_body) in enumerate(auto_upgraded_templates.items()):
                 incoming = stage / f"tpl-{index}"
@@ -510,10 +589,12 @@ def install(args, project):
                 prepared[RECEIPT_PATH] = incoming
                 changed.append(str(RECEIPT_PATH))
             saved = replace_components(project, prepared, stage, prepared)
-    return result("install", changed, cli_command(project, "init", "--question", "Your research question"),
+    next_action = resume_action(project) if any((project / name).is_file() for name in RECORDS) else cli_command(
+        project, "init", "--question", "Your research question")
+    return result("install", changed, next_action,
                   version=skill_ver, mode="full-bundle" if RUNTIME_PATH in components else "skill-only",
                   skill=str(project / SKILL_PATH), runtime=str(project / RUNTIME_PATH) if (project / RUNTIME_PATH).is_dir() else None,
-                  backup=saved, template_updates=sorted(pending_updates.keys()),
+                  backup=saved, template_updates=sorted(pending_updates.keys()), collaboration_skills=mode_status,
                   note="Runtime files do not start a service. Basic research needs no Node or providers.")
 
 
@@ -840,17 +921,26 @@ def doctor(args, project):
     checks = {"python": {"status": "ready" if sys.version_info >= (3, 11) else "too-old", "version": sys.version.split()[0]},
               "fts5": {"status": fts_status()}}
     skill = safe_path(project, SKILL_PATH) if project.exists() else (project / SKILL_PATH)
+    components = {}
     if skill.is_dir():
         try:
             validate_component(skill, "skill")
-            receipt = safe_path(project, RECEIPT_PATH)
-            managed = receipt.is_file() and read_json(receipt).get("name") == NAME
+            receipt_file = safe_path(project, RECEIPT_PATH)
+            receipt = read_json(receipt_file) if receipt_file.is_file() else {}
+            managed = receipt.get("name") == NAME
+            if managed:
+                components = receipt.get("components", {})
             checks["skill"] = {"status": "installed" if managed else "manual-install",
                                "version": version(skill), "path": str(skill)}
         except (ValueError, OSError, AttributeError) as error:
             checks["skill"] = {"status": "needs-attention", "path": str(skill), "detail": str(error)}
     else:
         checks["skill"] = {"status": "source-only", "version": version(source_skill()), "path": str(source_skill())}
+    checks["collaboration_skills"] = {
+        name: collaboration_skill_status(project, relative, components.get(str(relative), {}))
+        for name in COLLABORATION_SKILLS
+        for relative in (SKILL_PATH.with_name(name),)
+    }
     runtime, location = runtime_at(project) if project.exists() else (bundled_runtime(source_skill()), "bundle" if bundled_runtime(source_skill()) else "missing")
     checks["runtime"] = {"status": location, "path": str(runtime) if runtime else None}
     if runtime:
@@ -1590,6 +1680,25 @@ def workbench(args, project):
         return 130
 
 
+def collaborate(args, project):
+    if not project.is_dir():
+        raise SetupError("Choose an existing project directory")
+    runtime, _ = runtime_at(project)
+    launcher = runtime / "scripts/collaboration.mjs" if runtime else None
+    if not launcher or not launcher.is_file():
+        raise SetupError("Install or upgrade the complete bundle to use the project collaboration CLI")
+    hints = discover_project_mcp_hints(project)
+    node = node_status(args.node or hints["node"])
+    if node["status"] != "ready":
+        raise SetupError("Collaboration needs Node >=24; install it or pass --node /absolute/path/to/node")
+    forwarded = args.arguments[1:] if args.arguments[:1] == ["--"] else args.arguments
+    try:
+        return subprocess.run([node["path"], str(launcher), "--project", str(project), *forwarded],
+                              cwd=project, check=False).returncode
+    except KeyboardInterrupt:
+        return 130
+
+
 def parser():
     root = Parser(description=__doc__, epilog="Setup stays project-local. Workbench actions run only when explicitly submitted in its interface.")
     root.add_argument("--project", default=argparse.SUPPRESS, help="Project directory (default: current directory)")
@@ -1603,6 +1712,7 @@ def parser():
                               ("probe", "Read-only environment and workspace probe for guided setup"),
                               ("baselines", "Inspect, seed, or acknowledge 3-way builtInBase template baselines"),
                               ("watchdog", "Inspect or heal the resident superagent watchdog daemon (exit codes 0/1/2/3)"),
+                              ("collaborate", "Run the host-bound project collaboration CLI"),
                               ("workbench", "Open the local collaboration workbench or a fictional demo")):
         command = commands.add_parser(name, help=description, description=description)
         command.add_argument("--project", default=argparse.SUPPRESS, help="Project directory (default: current directory)")
@@ -1636,6 +1746,9 @@ def parser():
             command.add_argument("--bridge-db", help="Explicit path to bridge.sqlite")
             command.add_argument("--peers", nargs="+", help="Explicit peer CLIs required to be present")
             command.add_argument("--respect-stop", action="store_true", help="Do not start daemon when manual .stopped marker exists")
+        if name == "collaborate":
+            command.add_argument("--node", help="Node >=24 executable path or command")
+            command.add_argument("arguments", nargs=argparse.REMAINDER, help="Pass CLI arguments after --")
         if name == "workbench":
             command.add_argument("--node", help="Node >=24 executable path or command")
             command.add_argument("--bridge-db", help="Explicit path to bridge.sqlite")
@@ -1661,6 +1774,8 @@ def emit_output(command_name, output, structured):
             print(name + ": " + json.dumps(value, ensure_ascii=False))
     if "providers" in output:
         print("providers: " + json.dumps(output["providers"], ensure_ascii=False))
+    if output.get("collaboration_skills"):
+        print("collaboration skills: " + json.dumps(output["collaboration_skills"], ensure_ascii=False))
     if "errors" in output and output["errors"]:
         print("errors: " + json.dumps(output["errors"], ensure_ascii=False))
     if "host_connectivity" in output:
@@ -1682,6 +1797,8 @@ def main(argv=None):
             raise SetupError("--project must be a directory")
         if args.command == "workbench":
             return workbench(args, project)
+        if args.command == "collaborate":
+            return collaborate(args, project)
         if args.command == "watchdog":
             code, output = watchdog(args, project)
             emit_output("watchdog", output, structured)

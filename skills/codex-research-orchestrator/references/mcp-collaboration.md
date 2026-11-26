@@ -5,12 +5,14 @@ Use this guide when coordinating persistent peers (`Antigravity`, `Codex`, opt-i
 ## 1. Tiered Tool Profiles & Multi-Peer De-duplication
 
 - `BRIDGE_TOOL_PROFILE` trims resident MCP schema tokens without losing capabilities:
-  - **`lead`** (primary MCP peer): compact `bridge_*` + `research_*` tools plus `bridge_plan_dispatch`, `bridge_sync_collaborators`, and `pi_exec`.
-  - **`worker`** (scoped executor): **11** tools (`bridge_claim_task`, `bridge_complete_task`, core read/reply/patch/validation/handback + `research_search`, `research_read`).
+  - **`lead`** (primary MCP peer): collaboration planning and board, compact `bridge_*` and `research_*` tools, `bridge_plan_dispatch`, `bridge_sync_collaborators`, and `pi_exec`.
+  - **`worker`** (scoped executor): task claim and completion, scoped briefs and board access, read/reply/patch/validation/handback, and research search and read.
   - **`exec_only`** (extra MCP peers): **0** duplicated shared tools—keeps native `<peer>_exec` / status only.
 - `research_setup.py connect` assigns `lead` to `index == 0` and `exec_only` to `index >= 1`; `python3 setup.py lint` flags un-deduplicated multi-peer configs (`MCP-001`) and disabled `claude` servers.
 
 ## 2. Dynamic Dispatch, Task Binding, PI Execution & Recovery
+
+Use the [Lead work-run protocol](work-modes.md) when starting or resuming Boost, Swarm, or Teamwork. The Lead resolves each assignment through the same model and session binding policy.
 
 1. **Plan before delegating (`bridge_plan_dispatch`):** Evaluate `.agent-bridge/collaborators.json` + task workload to dynamically select channel/model (Gemini pinned PI first -> Antigravity fallback) and task-scoped `Luna` effort, then pass `planId` into `bridge_create_task` and record actual runtime `(channel, model, effort, selectionReason)`.
 2. **Post-compaction automatic recovery:** `collaborators.json` separates static policy/pinned sessions from live runtime state (`bridge.sqlite`); a shared `[Collaboration Recovery]` digest is injected across coordinator wakeups, `research_context(profile="resume")`, and `bridge_get_task_overview`.

@@ -777,11 +777,12 @@ export class MemoryRepositories {
     });
   }
 
-  listTaskEvents({ taskId = null, kind = null, logicalKey = null, limit = 50, orderDesc = true } = {}) {
+  listTaskEvents({ taskId = null, kind = null, logicalKey = null, afterSeq = null, limit = 50, orderDesc = true } = {}) {
     return [...this._state.taskEvents.values()]
       .filter((event) => (taskId === null || event.taskId === taskId) &&
         (kind === null || event.kind === kind) &&
-        (logicalKey === null || event.logicalKey === logicalKey))
+        (logicalKey === null || event.logicalKey === logicalKey) &&
+        (afterSeq === null || event.seq > afterSeq))
       .sort((a, b) => (orderDesc ? -1 : 1) *
         (a.seq - b.seq || a.createdAt.localeCompare(b.createdAt) || a.eventId.localeCompare(b.eventId)))
       .slice(0, Math.max(0, Math.floor(Number(limit) || 0)))

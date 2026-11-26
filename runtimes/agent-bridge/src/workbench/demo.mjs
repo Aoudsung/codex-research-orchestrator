@@ -44,12 +44,12 @@ export class DemoReader {
   rawTask(id) { const task = this.data.tasks.find(t => t.id === id); if (!task) throw fail('NOT_FOUND', 'Task not found', 404); return task; }
   task(id) {
     const raw = this.rawTask(id);
-    const { prompt, result, error, workRun = null, ...task } = raw;
+    const { prompt, result, error, workRun = null, collaboration = null, ...task } = raw;
     Object.assign(task, { promptPreview: (prompt || raw.promptPreview || '').slice(0, PREVIEW), resultPreview: (result || raw.resultPreview || '').slice(0, PREVIEW) || null, errorPreview: (error || raw.errorPreview || '').slice(0, PREVIEW) || null,
       workMode: workRun?.workMode ?? null, requestedWorkMode: workRun?.requestedMode ?? raw.requestedWorkMode ?? null });
     const children = {}, limits = {};
     for (const key of ['messages', 'patches', 'validations']) { children[key] = this.list(key, new URLSearchParams({ taskId: id })).items; limits[key] = this.data[key].filter(r => r.taskId === id).length - children[key].length; }
-    return { task, workRun, ...children, limits, operation: null, route: this.data.routes.find(r => r.taskId === id) || null };
+    return { task, workRun, collaboration, ...children, limits, operation: null, route: this.data.routes.find(r => r.taskId === id) || null };
   }
   source(params) {
     const kind = params.get('kind'), id = params.get('id');

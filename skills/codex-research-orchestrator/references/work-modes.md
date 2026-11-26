@@ -1,8 +1,42 @@
 # 协作运行协议
 
-主控先明确交付物、独立判断所需材料、执行顺序与可观察的成功条件。单人能完成的工作沿用普通任务。多人任务由主控先为各步骤调用 `bridge_plan_dispatch`，用其 `planId` 建立协议 2 子任务并绑定执行会话。项目的 `.agent-bridge/collaborators.json` 决定获准模型和通道。主控将用户指定的方法原样写到 `workMode`。默认传 `auto` 并提供结构化计划，让运行时依据步骤依赖与职责选择方式。
+## 从题面启动
 
-## 建立与运行
+单人能完成的有界任务沿用普通任务。一次难题的候选构造、独立挑战和返修用 Boost。能同时推进并独立交付的分支用 Swarm。需要管理上游版本、依赖和终验的获准项目用 Teamwork。显式名称优先。用户消息开头的 `/teamwork` 或客户端传入的 `[/teamwork](slashCommand;teamwork)`（括号可能转义）选择外层 Teamwork。题面中要求“用 /boost 驱动各个子代理”适用于每个实质任务，不会替换外层模式。保留整个原始题面，再把组合方式及适用范围写入实施计划。
+
+1. 从绑定到当前宿主会话的 Lead 连接调用 `bridge_collaborate`，传 `action: "open"`、`eventId`、用户题面原文 `objective`、`mode`（显式方式或 `auto`）及授权的项目范围。返回 `taskId` 和计划状态。读 `planningBrief`、项目记录和原始证据，编写 `specification`，通过 `action: "plan"` 携带 `taskId` 和 `eventId` 保存。可单独用不带 `taskId` 的 `plan` 预览。只有影响科学含义、授权或资源边界的未决事项需要问用户。
+2. Teamwork 在派工前用 `action: "approve"` 记录 `approval`。`type: "existing_authorization"` 引用确实覆盖当前范围的原始请求（`task:<根任务ID>:original-request`）或已获准的合同来源，`type: "confirmed"` 引用用户确认。写明 `sourceRefs`、`successCriteria`、`constraints` 及所需的 `attachmentRefs`。这些字段接受字符串数组。待批准的新增范围维持待决。
+3. 对待派的每个成员，先用具体工作目标、读写范围和隔离要求调用 `bridge_plan_dispatch`，取其 `planId` 创建协议 2 子任务。真实工作会话通过 `bridge_claim_task(taskId: ..., collaborationTaskId: ...)` 认领子任务，后者填写根任务 ID。用 `bridge_collaborate` 的 `action: "start"` 提交根 `taskId`、`eventId` 和 `bindings: {成员ID: {taskId: "对应子任务ID"}}`。按返回的就绪状态和资源上限派工。可先启动已就绪的工作，随后用 `action: "bind"` 和 `taskId`、`eventId`、`runVersion`、`memberId`、`memberTaskId` 补充真实绑定。
+4. 在已有运行上用 `action: "status"` 检查进展或用 `action: "resume"` 续接，都传原 `taskId`。根据当前版本、就绪步骤和 `nextAction` 推进具体动作。执行者用真实绑定的会话，调用 `action: "brief"`，传 `taskId` 和获分配的 `stepId`。它只读取获准输入、引用和看板视图，提交版本化工作回执后退出。主控恢复时继续派发已就绪工作，并处理返修与验收。
+5. 用 `bridge_work_board` 的 `status` 和 `read` 获取运行与消息，从实际读到的最后序号开始读增量。用 `post` 发布证据引用或交接，仅用 `toMemberIds` 唤醒下一位行动者。生命周期操作需要当前运行版本和事件标识。按消息实际消费进展，区分等待执行、等待证据、待主控决策和路由故障。
+
+项目允许自动唤醒时，可在 `open`、已绑定宿主会话的 `bridge_claim_task` 或经验证后补绑定的 `bind` 中传 `autoWakeup: true`。已明确获准的传输可用 `wakeupDriver` 指定。路由使用真实会话，保留原有配置；无可用传输时保留收件箱消息。`resume` 的 `readySteps[].handoff` 给出步骤版本和投递状态。`queued`、`dispatching` 和 `host_accepted` 记录传输进展，`consumed` 表示成员读过通知，`working` 来自该版本的工作回执。看到 `resume_bound_workers`，或宿主确认成员已空闲且当前版本还有工作，主控应使用派工时记录的真实代理标识发起原生 follow-up，带上 `taskId`、`runId`、`stepId` 和 `stepVersion`，让同一成员读取返修证据并完成回执。原生宿主要求恢复该会话时，使用获准的恢复入口。原会话不可恢复时，通过已授权的成员重绑或转派安排具备相同权限的真实会话。用户无需转发任务。暂停期间等候解除暂停。
+
+### 编写执行计划
+
+`specification` 描述真实工作切分。Swarm 用 `tracks`；Teamwork 用 `milestones`；选填 `integration` 表示整合交付。每个条目有 `id`、`title`、`objective`、`deliverable`、字符串 `acceptance`、可选的 `writeRoots` 和 `dependsOn`。顶层 `requirements` 用 `{id, description}` 把每项用户要求写成终验依据，`maxParallel` 记录获准的并发上限。Teamwork 里程碑可以标为 `mode: "boost"` 或 `mode: "swarm"`，后者可有各自的 `tracks`。当用户要求每个实质任务都用 Boost 时，传 `strategy: {boostScope: "substantive_tracks"}`，并在简报中明确应挑战的候选和验收的证据。显式大团队在同一个 `strategy` 里写 `teamSize: "large"`。查阅工具 schema 选取与实际交付匹配的 `route`。
+
+若当前会话没有 Lead 工具、身份显示为别的客户端或缺少真实宿主会话绑定，检查项目内的 Lead 配置和正常会话启动方式。安装版从工作区运行 `python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py doctor --project . --client codex`；执行获准的 `connect` 和宿主重新加载，再检查实际身份和路由。会话 ID 来自宿主或执行器。普通模式可继续做本地有权处理的工作，显式多人模式需要如实说明剩余绑定或权限缺口。
+
+当前 Codex 会话已提供 `CODEX_THREAD_ID`、旧全局 MCP 配置仍绑定了错误调用者时，可从实际宿主回合用项目 CLI 调用同一组 MCP 工具。先运行下列命令查看可用动作，再用 `open` 接收标准输入里的原始请求，或用 `resume <taskId>` 恢复。
+
+```sh
+python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py collaborate --project . -- --help
+```
+
+全局挂载可使用该技能目录下的同一个 `scripts/research_setup.py` 并指定真实项目。Lead、子任务和续接共用同一项目库。自定义项目数据库用 `--bridge-db` 显式指定，并在各会话沿用。Worker 用宿主配置的 `worker` profile，或在启动 CLI 时补充 `--worker`，然后执行 `claim`、`brief` 或提交回执。
+
+## 大团队与逐任务 Boost
+
+大团队可以是分环境的研究、多组件工程或显式大规模证明。按真实独立性设置赛道、接口责任人和独立验收者，按获准并发和预算分批启动。每个要求使用 Boost 的实质任务都需要一份版本化候选、一位独立会话的改进或挑战者、基于反例的修复与复测，以及项目级的独立验收。将没有发现反例的观察也附在候选版本上。验收者检查证据和跨分支的一致性。把这一要求写进新增成员、接手者及其分支的简报。基础复核、消息中转和重复读取直接完成。
+
+跨环境、跨模型规模比较先建“规模 × 环境”证据矩阵，列出用户要求覆盖的每个条件。每个格子核对同规模基线、训练数据及分割、信息与工具权限、交互及训练推理预算、调参机会、随机种子、评估版本、指标和聚合规则。修改实现时保留原评估语义。有限格子只支持已测条件。声称适用于所有规模需要另外的论证。缺少可比证据的格子进入开放问题。已有权限下推进资料复核、实现和获准实验。
+
+公平比较时，主控把对比方案写到 `specification.comparisonProtocol`，用 `purpose: "design"` 或 `"measurement"` 指定方案或实测交付，用 `dimensions` 枚举轴和值，用 `matchFields` 冻结逐格匹配的条件，可用 `openDimensions` 标记存在未覆盖值的轴。最终审计人在工作回执中提交 `comparisonEvidence`。覆盖范围用 `scope: "listed"`。每格按候选和基线分别记录 `settings` 与 `evidenceRefs`。实测记录还须有有限数值 `value`、独立的 `resultRef` 与双方一致的 `metric: {name, direction, unit}`（方向为 `higher` 或 `lower`）。附加比较结论须引用双方实际结果。部分交付用 `unmatched`、`unmeasured` 和 `reason` 说明缺口。所有结果引用都要回到最终步骤的原始证据。
+
+## 低层工作运行协议
+
+既有任务可沿用根任务和子任务的协议，通过下列参数查看或续接。新建 Boost、Swarm 或 Teamwork 优先使用 Lead 入口。
 
 从宿主已经绑定会话的 lead 连接调用 `bridge_create_task`。根任务的 `taskId` 就是 `runId`。成员拥有各自的子任务与真实会话 ID。先准备各子任务及符合授权的唤醒路由，再建根任务。主控保留开新任务、调度和验收职责。在按会话绑定的单独 MCP 进程中，由宿主提供 `BRIDGE_CALLER_SESSION_ID`；Codex 也可使用其实际的 `CODEX_THREAD_ID`。不要把会话标识作为用户消息中的身份证明。
 

@@ -35,6 +35,16 @@ import {
 import { registerResearchMemoryTools } from "./research-memory-tools.mjs";
 import { projectWorkflowDefaults } from "./project-workflow.mjs";
 import { submitWorkRunReceipt } from "../domain/work-run.mjs";
+import {
+  captureCollaborationIntake,
+  claimCollaborationSession,
+  collaborationWakeupRoute,
+  configureCollaborationWakeup,
+  createCollaborationHandler,
+  isCollaborationCommand,
+  registerCollaborationTools,
+} from "./collaboration-tools.mjs";
+import { registerWorkBoardTools } from "./work-board-tools.mjs";
 
 const AGENT_ENUM = ["antigravity", "codex", "claude-code", "all"];
 const PEER_AGENT_ENUM = ["antigravity", "codex", "claude-code"];
@@ -56,6 +66,8 @@ export const WORKER_BRIDGE_TOOLS = Object.freeze([
   "bridge_submit_task_receipt",
   "bridge_submit_patch",
   "bridge_handback",
+  "bridge_collaborate",
+  "bridge_work_board",
 ]);
 
 export function resolveBridgeToolProfile(explicitProfile = null) {
@@ -111,6 +123,7 @@ export function registerBridgeTools(
     }
     registeredBridgeTools.push(definition.name);
     server.registerTool(definition, handler);
+    return handler;
   };
 
   const emitWakeupNotification = (msg) => {
@@ -151,15 +164,19 @@ export function registerBridgeTools(
   // resolves any blocking `bridge_wait_for_delivery` / `bridge_poll_updates` calls, and emits stdio notifications.
   bridgeDb.startCrossProcessWatcher({
     agent: callerAgent,
+    actorSessionId,
     intervalMs: 350,
     onNewMessages: (newMsgs) => {
       for (const m of newMsgs) {
-        if (m.from_agent !== callerAgent) {
+        if (m.metadata?.memberEnvelope || m.from_agent !== callerAgent) {
           emitWakeupNotification(m);
         }
       }
     },
   });
+
+  const workerProfile = resolvedProfile === "worker";
+  const collaborate = createCollaborationHandler(bridgeDb, actor, { worker: workerProfile });
 
   // ===========================================================================
   // 1. bridge_send_message
@@ -483,7 +500,7 @@ export function registerBridgeTools(
   // ===========================================================================
   // 5. bridge_create_task
   // ===========================================================================
-  registerBridgeTool(
+  const createBridgeTask = registerBridgeTool(
     {
       name: "bridge_create_task",
       description: "Create a task or named work plan.",
@@ -514,6 +531,7 @@ export function registerBridgeTools(
           metadata: { type: "object" },
           planId: { type: "string" },
           workMode: { type: "string", enum: ["auto","single","parallel","investigate","milestone"] },
+          collaborationMode: { type: "string", enum: ["auto", "boost", "swarm", "teamwork"] },
           workPlan: { type: "object", properties: { members: { type: "array" }, steps: { type: "array" }, requirements: { type: "array" } }, additionalProperties: true },
           effort: { type: "string" },
           callerSessionId: { type: "string" },
@@ -525,8 +543,15 @@ export function registerBridgeTools(
         required: ["prompt"],
       },
     },
-    async (args) => {
+    async (args, opening = null) => {
       const original = args.taskId ? bridgeDb.getTaskById(args.taskId) : null;
+      const collaborationIntake = args.collaborationMode != null || isCollaborationCommand(args.prompt);
+      if (collaborationIntake && (!actorSessionId || args.fromAgent && args.fromAgent !== callerAgent ||
+          args.assignedTo && args.assignedTo !== callerAgent || args.requiredConversationId && args.requiredConversationId !== actorSessionId ||
+          args.protocolVersion === 1 || args.workMode || args.workPlan || args.waitForCompletion || args.planId || args.metadata?.planId ||
+          original && original.prompt !== args.prompt)) {
+        throw new Error("Collaboration intake requires the host-bound lead as owner and creates a planning task; use bridge_collaborate to compose the run.");
+      }
       if ((args.workMode || args.workPlan) && args.fromAgent && args.fromAgent !== callerAgent) {
         throw new Error("Only the acting lead can create a work run");
       }
@@ -546,7 +571,7 @@ export function registerBridgeTools(
         }
       }
       const assignedTo =
-        args.assignedTo || original?.assigned_to || planned?.selectedAgent || targetAgent;
+        collaborationIntake ? callerAgent : args.assignedTo || original?.assigned_to || planned?.selectedAgent || targetAgent;
       const cwd = args.cwd || original?.cwd || process.cwd();
       const defaults = original ? { contract: {}, forbiddenOperations: [] } : projectWorkflowDefaults(cwd);
       const protocolVersion = args.protocolVersion ?? (original ? original.metadata?.protocolVersion || 1 : 2);
@@ -588,7 +613,7 @@ export function registerBridgeTools(
         permissions,
       });
 
-      const task = bridgeDb.createTask({
+      const createTask = () => bridgeDb.createTask({
         workMode: args.workMode,
         workPlan: args.workPlan,
         ...actor,
@@ -607,14 +632,17 @@ export function registerBridgeTools(
           args.metadata?.requiredModel ||
           planned?.selectedModel ||
           null,
-        requiredConversationId:
+        requiredConversationId: collaborationIntake ? actorSessionId :
           args.requiredConversationId ||
           args.metadata?.requiredConversationId ||
           (planned?.sessionMode === "pinned" ? planned?.targetSessionId : null) ||
           null,
-        permissions: preflight.consolidatedPermissionChecklist,
+        permissions: collaborationIntake
+          ? { ...preflight.consolidatedPermissionChecklist, writeRoots: [] }
+          : preflight.consolidatedPermissionChecklist,
         metadata: {
           ...args.metadata,
+          ...(collaborationIntake && { leadThreadId: actorSessionId, coordinationOnly: true, autoSubscribeThread: false }),
           ...(args.effort ? { effort: args.effort } : {}),
           deliveryMode: preflight.deliveryMode,
           ...(workflowDefaults.length > 0
@@ -626,6 +654,20 @@ export function registerBridgeTools(
           ...(args.threadId ? { threadId: args.threadId } : {}),
         },
       });
+
+      let collaborationRoute = null;
+      const task = collaborationIntake ? bridgeDb.engine.repos.atomic(() => {
+        const created = createTask();
+        captureCollaborationIntake(bridgeDb.engine, created, actor, {
+          mode: args.collaborationMode, permissions: preflight.consolidatedPermissionChecklist, opening,
+        });
+        collaborationRoute = configureCollaborationWakeup(bridgeDb.engine, created, actor, args);
+        return created;
+      }) : createTask();
+      if (collaborationIntake) {
+        return { ok: true, task, binding: task.binding, preflight, collaboration: collaborate({ action: "status", taskId: task.id }),
+          ...(collaborationRoute && { wakeupRoute: collaborationRoute }) };
+      }
 
       const lease = preflight.ok ? bridgeDb.grantTaskLease({
         taskId: task.id,
@@ -694,6 +736,21 @@ export function registerBridgeTools(
     }
   );
 
+  registerCollaborationTools(registerBridgeTool, bridgeDb, actor, { worker: workerProfile, open: createBridgeTask });
+  const registerBoardTool = workerProfile ? (definition, handler) => {
+    const { properties, ...schema } = definition.inputSchema;
+    const visible = Object.fromEntries(
+      ["taskId", "runId", "channel", "since", "limit", "waitMs", "mentionsOnly", "eventId", "text", "toMemberIds"]
+        .map(key => [key, properties[key]])
+    );
+    registerBridgeTool({
+      ...definition,
+      description: "Read the work board, wait for an addressed handoff, or post to members you can reach.",
+      inputSchema: { ...schema, properties: { action: { type: "string", enum: ["status", "read", "wait", "post"] }, ...visible } },
+    }, handler);
+  } : registerBridgeTool;
+  registerWorkBoardTools(registerBoardTool, bridgeDb, actor);
+
   // ===========================================================================
   // 6. bridge_list_tasks
   // ===========================================================================
@@ -741,6 +798,9 @@ export function registerBridgeTools(
         additionalProperties: false,
         properties: {
           taskId: { type: "string" },
+          collaborationTaskId: { type: "string" },
+          autoWakeup: { type: "boolean" },
+          wakeupDriver: { type: "string" },
           agent: { type: "string", enum: PEER_AGENT_ENUM },
           model: { type: "string" },
           effort: { type: "string" },
@@ -749,7 +809,10 @@ export function registerBridgeTools(
       },
     },
     async (args) => {
-      const claimed = bridgeDb.claimTask({
+      if (!args.collaborationTaskId && (args.autoWakeup !== undefined || args.wakeupDriver !== undefined)) {
+        throw new Error("An exact worker wakeup requires collaborationTaskId and the trusted session");
+      }
+      const claimed = args.collaborationTaskId ? claimCollaborationSession(bridgeDb.engine, args, actor) : bridgeDb.claimTask({
         taskId: args.taskId || null,
         agent: args.agent || callerAgent,
         model: args.model || null,
@@ -765,6 +828,7 @@ export function registerBridgeTools(
         };
       }
 
+      const wakeupRoute = args.collaborationTaskId ? collaborationWakeupRoute(bridgeDb.engine, claimed, actor) : null;
       const lease = bridgeDb.getTaskLease(claimed.id);
       const preflight =
         lease?.preflight ||
@@ -782,6 +846,7 @@ export function registerBridgeTools(
         claimed: true,
         task: claimed,
         binding: claimed.binding,
+        ...(wakeupRoute && { wakeupRoute }),
         selectedEffort:
           claimed.metadata?.effort ||
           claimed.metadata?.dispatchSelection?.selectedEffort ||
@@ -1413,7 +1478,7 @@ export function registerBridgeTools(
     runId: taskIdField, stepId: taskIdField, stepVersion: versionField,
     evidenceRefs: { type: "array", items: taskIdField },
     sourceRefs: { type: "array", items: taskIdField },
-    counterexample: { type: "object" },
+    counterexample: { type: "object" }, comparisonEvidence: { type: "object" },
     eventId: taskIdField, triggerEvent: taskIdField, sourceRef: taskIdField,
     contractVersion: versionField, ownerEpoch: versionField,
     outcome: { type: "string", enum: ["progress", "waiting_external", "waiting_user", "retryable_failure", "delivered", "cancelled", "blocked", "counterexample", "revise"] },
@@ -1425,7 +1490,7 @@ export function registerBridgeTools(
     taskId: taskIdField, eventId: taskIdField, contractVersion: versionField, ownerEpoch: versionField,
     runId: taskIdField, runVersion: versionField, requirementEvidence: { type: "array" },
     disposition: { type: "string", enum: ["complete", "partial"] },
-    openQuestions: { type: "array" },
+    openQuestions: { type: "array" }, comparisonEvidence: { type: "object" },
     deliveryReceiptId: taskIdField,
     evidence: { type: "array" }, summary: { type: "string" },
   }, ["taskId", "eventId"], "acceptTaskDelivery");

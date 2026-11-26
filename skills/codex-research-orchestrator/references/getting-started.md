@@ -23,7 +23,7 @@ Choose only explicitly requested peers (**never auto-enable `claude-code` unless
 python3 /path/to/project/.agents/skills/codex-research-orchestrator/scripts/research_setup.py connect \
   --project /path/to/project --client codex --peers antigravity
 ```
-- **Automatic multi-peer schema de-duplication:** When `--tool-profile auto` (default), peer `index == 0` receives `BRIDGE_TOOL_PROFILE="lead"` (33 compressed tools) and secondary peers (`index >= 1`, e.g. `--peers antigravity claude-code`) receive `BRIDGE_TOOL_PROFILE="exec_only"` (**0** duplicated shared tools, preventing ~11k–22k token schema bloat). Override with `--tool-profile worker` (9 tools) or `full`.
+- With `--tool-profile auto`, the first peer receives the Lead tools. Secondary peers use `exec_only` so the host loads the shared schemas once. Use `--tool-profile worker` for members that claim work, read their assigned briefs, post on the board and submit receipts. A project with research memory also exposes its profile-appropriate memory tools.
 - Add `--apply` only when the user wants project-local config updated (`.codex/config.toml`, `.mcp.json`, or `.agents/mcp_config.json`); existing unrelated entries and collisions are preserved/reported, never overwritten blindly.
 
 ## 4. Lint & Diagnose Setup

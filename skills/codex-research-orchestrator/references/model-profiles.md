@@ -26,8 +26,8 @@ Tier ranking: **`ChatGPT Web Pro` > (`GPT Astra` ≈ `Gemini Carbon`) > `Gemini 
 
 | Level | Workload | Model + Effort | Profile |
 |---|---|---|---|
-| **L0** | Read-only status, server GPU free-VRAM check, 15-min Web `Pro` check, search/export | `Luna` (`low`) / fast PI | `worker` (11 tools) / `exec_only` |
-| **L1** | Scoped coding & unified real-benchmark execution under locked spec | `Argon` / `6.2 Sol` (`medium`), `Kimi`/`DeepSeek` (`auto/*`) | `worker` (11 tools) |
+| **L0** | Read-only status, server GPU free-VRAM check, 15-min Web `Pro` check, search/export | `Luna` (`low`) / fast PI | Scoped `worker` or `exec_only` |
+| **L1** | Scoped coding & unified real-benchmark execution under locked spec | `Argon` / `6.2 Sol` (`medium`), `Kimi`/`DeepSeek` (`auto/*`) | Scoped `worker` |
 | **L2** | Core math-to-code, mechanism co-design, claim-bound ablations | `Carbon` / `6.2 Sol` / `Astra` (`high`) | `lead` / `worker` |
 | **L3** | Independent `blind_review` (`formal_falsification`), `<5%` tail/leakage audit, Two-Patch triage | `Astra` (`xhigh`) | `lead` (`review` packet) |
 | **L4** | Structural impasse (`>=2` patches), first-principles macro redesign | `ChatGPT Web Pro` (`pro_max`) + `Carbon` / `Astra` (`xhigh`) | `pro_macro` / `gemini_panoramic` |

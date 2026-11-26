@@ -1,0 +1,4 @@
+interface:
+  display_name: "Teamwork"
+  short_description: "Deliver dependent milestones with a final audit"
+  default_prompt: "Use $teamwork to run this multi-stage goal from approved scope through evidence-backed final delivery."

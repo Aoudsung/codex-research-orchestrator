@@ -1,0 +1,4 @@
+interface:
+  display_name: "Swarm"
+  short_description: "Run independent tracks with named handoffs"
+  default_prompt: "Use $swarm to split this task into independent tracks, verify important findings, and integrate the result."

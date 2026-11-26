@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { attentionStage } from '../domain/model.mjs';
 import { attentionCard } from '../domain/cards.mjs';
 import { defaultTaskThreadId } from '../domain/intake.mjs';
+import { prepareCollaboration } from '../domain/collaboration-playbook.mjs';
 
 export const BRIDGE_FILE = '.agent-bridge/bridge.sqlite';
 export const MEMORY_FILE = '.research-memory/memory.sqlite3';
@@ -69,6 +70,41 @@ export function normalizeTask(row) {
     protocolVersion: metadata.protocolVersion || 1, workflow: metadata.workflow || null,
     workMode: metadata.workRun?.workMode ?? null, requestedWorkMode: metadata.workRun?.requestedMode ?? null,
     resultPreview: row.result?.slice(0, PREVIEW) || null, errorPreview: row.error?.slice(0, PREVIEW) || null,
+  };
+}
+
+export function collaborationSummary(task, { intake, approval, planned, run = null } = {}) {
+  if (!intake && !run?.collaboration) return null;
+  const current = run?.collaboration;
+  const leadBound = Boolean(run?.leadSessionId || intake?.leadSessionId);
+  const mode = current?.mode ?? planned?.mode ?? intake.mode;
+  const strategy = current?.requestedStrategy ?? planned?.plan?.collaboration?.requestedStrategy ?? intake.requestedStrategy;
+  let phase = run?.status ?? (leadBound ? planned?.state ?? "needs_plan" : "awaiting_lead");
+  let next = { action: phase === "awaiting_lead" ? "claim_lead" : planned?.nextAction?.action ?? "author_plan" };
+  if (run) {
+    if (run.status === "completed") next = { action: "report" };
+    else if (run.status === "awaiting_acceptance") next = { action: "accept_or_revise" };
+    else if (run.readySteps?.includes(current.finalStepId)) next = { action: "final_check" };
+    else if (run.bindingNeededSteps?.length) next = { action: "provision_members", stepIds: run.bindingNeededSteps };
+    else if (run.readySteps?.length) next = { action: "continue_workers", stepIds: run.readySteps };
+    else next = { action: "inspect_dependencies" };
+  }
+  if (["failed", "cancelled", "completed"].includes(task.status) && !run) {
+    phase = task.status;
+    next = { action: "report" };
+  }
+  return {
+    taskId: run?.taskId ?? task.id, mode, route: current?.route ?? planned?.route ?? null,
+    phase, next, leadAgent: run?.leadAgent ?? task.from_agent ?? task.fromAgent, leadBound,
+    strategy, approval: approval ? { type: approval.type, sourceRefs: approval.sourceRefs, successCriteria: approval.successCriteria } : null,
+    constraints: current?.brief.constraints ?? planned?.planningBrief?.constraints ?? intake?.constraints ?? [],
+    attached: current?.brief.attachmentRefs ?? approval?.attachmentRefs ?? [],
+    scope: intake?.permissions ?? current?.brief.scope?.permissions ?? {},
+    memberCount: run?.members.length ?? 0,
+    boundMembers: run?.members.filter(member => !member.pendingBinding && !member.retiredAt).length ?? 0,
+    boostPairCount: current?.boostPairs.length ?? planned?.plan?.collaboration?.boostPairs.length ?? 0,
+    milestoneCount: current?.milestones.length ?? planned?.plan?.collaboration?.milestones.length ?? 0,
+    readyCount: run?.readySteps.length ?? 0, queuedCount: run?.queuedSteps?.length ?? 0,
   };
 }
 
@@ -379,11 +415,15 @@ export class ProjectReader {
       if (!raw) throw fail('NOT_FOUND', 'Task not found', 404);
       raw.metadata = parseJSON(raw.metadata_json);
       let workRun = raw.metadata.workRun ?? null;
+      let root = raw;
       if (!workRun && raw.metadata.workRunBinding) {
         const binding = raw.metadata.workRunBinding;
-        const parent = db.prepare('SELECT metadata_json FROM tasks WHERE id = ? AND cwd = ?').get(binding.taskId, raw.cwd);
+        const parent = db.prepare('SELECT id, status, from_agent, metadata_json FROM tasks WHERE id = ? AND cwd = ?').get(binding.taskId, raw.cwd);
         const parentRun = parseJSON(parent?.metadata_json)?.workRun;
-        if (parentRun && parentRun.runId === binding.runId) workRun = parentRun;
+        if (parentRun && parentRun.runId === binding.runId) {
+          workRun = parentRun;
+          root = parent;
+        }
       }
       if (tableExists(db, 'bridge_mandates')) {
         const mandate = db.prepare('SELECT isolation_profile, control_version FROM bridge_mandates WHERE task_id = ?').get(id);
@@ -406,7 +446,45 @@ export class ProjectReader {
       const task = normalizeTask(raw);
       task.workMode = workRun?.workMode ?? null;
       task.requestedWorkMode = workRun?.requestedMode ?? null;
-      return { task, workRun, ...children, route, operation: null, limits, why };
+      let collaboration = null;
+      if (tableExists(db, 'bridge_task_events')) {
+        const latest = kind => parseJSON(db.prepare('SELECT result_json FROM bridge_task_events WHERE task_id=? AND kind=? ORDER BY seq DESC LIMIT 1').get(root.id, kind)?.result_json, null);
+        const original = latest('collaboration_intake');
+        if (original || workRun?.collaboration) {
+          const intake = original ? { ...original, ...latest('collaboration_lead_claim') } : null;
+          const approval = latest('collaboration_approve');
+          const planned = latest('collaboration_plan') ?? (!workRun && intake ? prepareCollaboration({ objective: intake.originalPrompt, mode: intake.mode }) : null);
+          collaboration = collaborationSummary(root, { intake, approval, planned, run: workRun });
+          if (collaboration.phase === 'awaiting_lead') {
+            const capability = db.prepare("SELECT payload_json FROM bridge_task_events WHERE task_id=? AND kind='collaboration_adoption_capability' ORDER BY seq DESC LIMIT 1").get(root.id);
+            collaboration.claimKey = parseJSON(capability?.payload_json, null)?.claimKey ?? null;
+          }
+          if (approval && collaboration.phase === 'needs_approval' && approval.contractVersion === raw.metadata.workflow?.contract.version) {
+            collaboration.phase = 'prepared';
+            collaboration.next = { action: 'bind_and_start' };
+          }
+        }
+      }
+      if (workRun?.collaboration) {
+        const { boardChannels, ...overview } = workRun;
+        workRun = { ...overview, steps: overview.steps.map(({ inputPacket, ...step }) => step) };
+      }
+      return { task, workRun, collaboration, ...children, route, operation: null, limits, why };
+    });
+  }
+  collaborationBoard(id, { agent, sessionId, since, limit }) {
+    return this.database('bridge', db => {
+      const task = db.prepare('SELECT cwd, from_agent, metadata_json FROM tasks WHERE id=?').get(id);
+      const run = parseJSON(task?.metadata_json)?.workRun;
+      if (!task?.cwd || fs.realpathSync(task.cwd) !== this.project || !run?.collaboration ||
+          !sessionId || sessionId !== run.leadSessionId || agent !== (run.leadAgent ?? task.from_agent) || !run.evidenceUnlocked) {
+        throw fail('COLLABORATION_BOARD_UNAVAILABLE', 'The board requires the current Lead session for this project', 403);
+      }
+      const records = db.prepare(`SELECT seq, created_at createdAt, payload_json FROM bridge_task_events
+        WHERE task_id=? AND kind='work_board_entry' AND seq>? AND json_extract(payload_json, '$.channel')='main'
+        ORDER BY seq ASC LIMIT ?`).all(id, since, limit + 1);
+      const entries = records.slice(0, limit).map(({ payload_json, ...row }) => ({ ...parseJSON(payload_json), ...row }));
+      return { entries, nextSince: entries.at(-1)?.seq ?? since, hasMore: records.length > limit };
     });
   }
   rawTask(id) {

@@ -254,6 +254,7 @@ export class BridgeDatabase {
 
   startCrossProcessWatcher({
     agent = null,
+    actorSessionId = null,
     intervalMs = 350,
     onNewMessages = null,
   } = {}) {
@@ -264,25 +265,25 @@ export class BridgeDatabase {
         const currentSeq = this.getCurrentSeq();
         if (currentSeq <= this._lastWatchedSeq) return;
         const prevSeq = this._lastWatchedSeq;
-        this._lastWatchedSeq = currentSeq;
-
         this._notifyLocalWaiters();
 
         if (typeof onNewMessages === "function") {
-          const newMsgs = this.readMessages({
-            toAgent: agent || "*",
-            afterSeq: prevSeq,
-            markAsRead: false,
-            markConsumed: false,
-            limit: 50,
-          });
-          if (newMsgs.length > 0) {
+          let cursor = prevSeq;
+          while (cursor < currentSeq) {
+            const page = this.engine.repos.queryMessages({
+              toAgent: agent || "*", actorAgent: agent, actorSessionId, afterSeq: cursor, limit: 50,
+            });
+            const newMsgs = page.filter(message => message.seq <= currentSeq);
+            if (!newMsgs.length) break;
             onNewMessages(newMsgs, {
               previousCursor: prevSeq,
               currentCursor: currentSeq,
             });
+            if (newMsgs.length < 50) break;
+            cursor = newMsgs.at(-1).seq;
           }
         }
+        this._lastWatchedSeq = currentSeq;
       } catch {
         // Ignore transient SQLite busy errors during background watch
       }

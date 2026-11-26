@@ -2,7 +2,12 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { normalizeReviewPacket } from "../core/review-packet.mjs";
 import { validateWriteRootExclusivity } from "./intake.mjs";
-import { notifyWorkRunAcceptance, notifyWorkRunStep } from "./member-transport.mjs";
+import { collaborationSessionAttested, expandDynamicCollaborationTrack } from "./collaboration-playbook.mjs";
+import { normalizeComparisonProtocol, validateComparisonEvidence } from "./comparison-evidence.mjs";
+import {
+  acceptanceRecipient, coordinator, coordinatorBinding, memberBinding, notifyWorkBoardPost, notifyWorkRunAcceptance,
+  notifyWorkRunLeadTransfer, notifyWorkRunStep, obsoleteRunNotices,
+} from "./member-transport.mjs";
 
 const modes = new Set(["auto", "single", "parallel", "investigate", "milestone"]);
 const kinds = new Set(["work", "independent", "synthesis", "challenge", "review", "milestone"]);
@@ -54,8 +59,8 @@ function eventKey(taskId, kind, id) {
   return `work-run:${JSON.stringify([taskId, kind, id])}`;
 }
 
-function transact(engine, args, kind, id, apply) {
-  required(id, kind === "work_run_start" ? "eventId" : "receiptId");
+export function transactWorkRun(engine, args, kind, id, apply) {
+  required(id, kind === "work_run_receipt" ? "receiptId" : "eventId");
   if (!agents.has(args.actorAgent)) throw new Error("A trusted work run actor is required");
   const eventId = eventKey(args.taskId, kind, id);
   const payloadHash = crypto.createHash("sha256").update(JSON.stringify(canonical(args))).digest("hex");
@@ -70,7 +75,8 @@ function transact(engine, args, kind, id, apply) {
     const result = apply(task);
     engine.repos.putTaskEvent({
       eventId, taskId: task.id, logicalKey: id, kind, payloadHash,
-      payload: args, result, contractVersion: task.metadata.workflow.contract.version,
+      payload: kind === "work_board_post" ? { actorAgent: args.actorAgent, actorSessionId: args.actorSessionId } : args,
+      result, contractVersion: task.metadata.workflow.contract.version,
       createdAt: engine._nowIso(), seq: engine.repos.nextSeq(),
     });
     return result;
@@ -82,6 +88,16 @@ function taskSession(task) {
     task.session_id || task.required_conversation_id || null;
 }
 
+function workScope(task, item, stepId) {
+  const authorized = roots(task);
+  const declared = item.writeRoots === undefined ? authorized : roots(task, item.writeRoots);
+  if (declared.some(root => !authorized.some(allowed => within(allowed, root))) ||
+      authorized.some(scope => !declared.some(root => within(root, scope)))) {
+    throw new Error(`Step ${stepId} writeRoots must cover the write scope already authorized for its task`);
+  }
+  return declared;
+}
+
 function roots(task, values = task.permissions?.writeRoots ?? []) {
   return refs(values, "writeRoots").map(root => path.resolve(task.cwd || ".", root));
 }
@@ -89,6 +105,29 @@ function roots(task, values = task.permissions?.writeRoots ?? []) {
 function within(root, candidate) {
   const relative = path.relative(root, candidate);
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+export function validateCollaborationMemberScope(root, memberTask, steps, permissions) {
+  const allowedRoots = steps.flatMap(step => roots(root, step.writeRoots ?? []));
+  if (roots(memberTask).some(scope => !allowedRoots.some(allowed => within(allowed, scope)))) {
+    throw new Error("Member task has write access beyond its assigned step scope");
+  }
+  if (!memberTask.permissions || !permissions) return;
+  const forbidden = new Set(memberTask.permissions.forbiddenOperations ?? []);
+  if ((permissions.forbiddenOperations ?? []).some(operation => !forbidden.has(operation))) {
+    throw new Error("Member task must preserve the Lead's forbidden operations");
+  }
+  const approved = roots(root, [...(permissions.readRoots ?? []), ...(permissions.writeRoots ?? [])]);
+  if (approved.length && roots(memberTask, memberTask.permissions.readRoots ?? [])
+    .some(scope => !approved.some(allowed => within(allowed, scope)))) {
+    throw new Error("Member task has read access beyond the approved material");
+  }
+  for (const key of ["requestedTools", "allowedCommands"]) {
+    const allowed = permissions[key] ?? [];
+    if (allowed.length && (memberTask.permissions[key] ?? []).some(value => !allowed.includes(value))) {
+      throw new Error(`Member task exceeds the Lead's ${key} scope`);
+    }
+  }
 }
 
 function getAncestors(steps) {
@@ -190,7 +229,28 @@ function normalizeRequirements(task, values, steps) {
   return list;
 }
 
-function normalizePlan(engine, task, requestedMode, input) {
+function validateTrackExclusivity(engine, task, steps, ancestors, boundTaskIds) {
+  for (const [i, left] of steps.entries()) {
+    for (const right of steps.slice(i + 1)) {
+      if (ancestors.get(left.stepId).has(right.stepId) || ancestors.get(right.stepId).has(left.stepId)) continue;
+      if (left.writeRoots.some(a => right.writeRoots.some(b => within(a, b) || within(b, a)))) {
+        throw new Error(`WRITE_ROOT_CONFLICT: Concurrent steps ${left.stepId} and ${right.stepId} overlap`);
+      }
+      if (left.taskId && left.taskId === right.taskId) {
+        throw new Error(`Concurrent steps ${left.stepId} and ${right.stepId} need separate task bindings`);
+      }
+    }
+  }
+  const otherTasks = engine.repos.listTasks({ limit: Number.MAX_SAFE_INTEGER })
+    .filter(other => other.id !== task.id && !boundTaskIds.has(other.id) && other.metadata?.workRunBinding?.taskId !== task.id);
+  for (const step of steps) {
+    validateWriteRootExclusivity({
+      taskId: step.taskId, permissions: { writeRoots: step.writeRoots }, existingTasks: otherTasks, strict: true,
+    });
+  }
+}
+
+function normalizePlan(engine, task, requestedMode, input, allowPendingBindings) {
   if (!input && !["auto", "single"].includes(requestedMode)) {
     throw new Error(`${requestedMode} requires a workPlan with named members and steps`);
   }
@@ -200,10 +260,15 @@ function normalizePlan(engine, task, requestedMode, input) {
   };
   const members = records(plan.members, "members").map(item => {
     const memberId = required(item.memberId, "memberId");
-    if (!agents.has(item.agent)) throw new Error(`Unknown agent for work run member ${memberId}`);
     if (memberId === "@coordinator") throw new Error("The @coordinator memberId is reserved");
+    const role = item.role == null ? {} : { role: required(item.role, "member role") };
+    if (item.pendingBinding === true) {
+      if (!allowPendingBindings || item.agent || item.conversationId || item.taskId) throw new Error("A recipe must authorize deferred member binding");
+      return { memberId, agent: null, taskId: null, conversationId: null, pendingBinding: true, ...role };
+    }
+    if (!agents.has(item.agent)) throw new Error(`Unknown agent for work run member ${memberId}`);
     return {
-      memberId, agent: item.agent,
+      memberId, agent: item.agent, ...role,
       conversationId: item.conversationId == null ? null : required(item.conversationId, "conversationId"),
       taskId: item.taskId == null ? null : required(item.taskId, "member taskId"),
     };
@@ -218,6 +283,19 @@ function normalizePlan(engine, task, requestedMode, input) {
     if (!member) throw new Error(`Unknown member for step ${stepId}`);
     const kind = item.kind ?? "work";
     if (!kinds.has(kind)) throw new Error(`Unknown work run step kind: ${kind}`);
+    const common = {
+      stepId, kind, memberId: member.memberId,
+      description: item.description == null ? null : required(item.description, "step description"),
+      ...(item.brief != null && { brief: required(item.brief, "step brief") }),
+      dependsOn: refs(item.dependsOn ?? [], "dependsOn"),
+      ...(kind === "independent" && { inputPacket: normalizeReviewPacket(item.inputPacket) }),
+      version: 1, status: "waiting", blockedBy: [], receipt: null, rejection: null, revision: null,
+    };
+    if (member.pendingBinding) {
+      if (item.taskId) throw new Error(`Pending member ${member.memberId} requires a deferred task binding`);
+      return { ...common, taskId: null, writeRoots: [],
+        ...(item.writeRoots !== undefined && { declaredWriteRoots: refs(item.writeRoots, "writeRoots") }) };
+    }
     const memberDefault = member.taskId || stepsInput.find(step => step.memberId === member.memberId && step.taskId)?.taskId;
     const workTaskId = item.taskId || memberDefault || (member.agent === task.assigned_to ? task.id : null);
     if (!workTaskId) throw new Error(`Bind member ${member.memberId} to an existing task before starting the run`);
@@ -243,21 +321,14 @@ function normalizePlan(engine, task, requestedMode, input) {
     if (binding.memberId !== member.memberId) throw new Error("Each task may bind to only one work run member");
     binding.stepIds.push(stepId);
     bindings.set(workTaskId, binding);
-    const authorizedRoots = roots(workTask);
-    const writeRoots = item.writeRoots === undefined ? authorizedRoots : roots(workTask, item.writeRoots);
-    if (writeRoots.some(root => !authorizedRoots.some(allowed => within(allowed, root))) ||
-        authorizedRoots.some(root => !writeRoots.some(declared => within(declared, root)))) {
-      throw new Error(`Step ${stepId} writeRoots must cover the write scope already authorized for its task`);
-    }
-    return {
-      stepId, kind, memberId: member.memberId, taskId: workTaskId,
-      description: item.description == null ? null : required(item.description, "step description"),
-      dependsOn: refs(item.dependsOn ?? [], "dependsOn"), writeRoots,
-      ...(kind === "independent" && { inputPacket: normalizeReviewPacket(item.inputPacket) }),
-      version: 1, status: "waiting", blockedBy: [], receipt: null, rejection: null, revision: null,
-    };
+    const writeRoots = workScope(workTask, item, stepId);
+    return { ...common, taskId: workTaskId, writeRoots };
   });
   for (const member of members) {
+    if (member.pendingBinding) {
+      if (!steps.some(step => step.memberId === member.memberId)) throw new Error(`Pending member ${member.memberId} needs a planned step`);
+      continue;
+    }
     if (!steps.some(step => step.memberId === member.memberId && step.taskId === member.taskId)) {
       throw new Error(`Bind a step to the default task for member ${member.memberId}`);
     }
@@ -270,31 +341,29 @@ function normalizePlan(engine, task, requestedMode, input) {
       }
     }
   }
-  if (new Set(members.map(member => JSON.stringify([member.agent, member.conversationId]))).size !== members.length) {
+  const bound = members.filter(member => !member.pendingBinding);
+  if (new Set(bound.map(member => JSON.stringify([member.agent, member.conversationId]))).size !== bound.length) {
     throw new Error("Each work run member needs a distinct agent/session identity");
   }
   const stepIndex = byId(steps, "stepId");
   const ancestors = getAncestors(steps);
   const selected = selectMode(requestedMode, steps, ancestors);
-  for (const [i, left] of steps.entries()) {
-    for (const right of steps.slice(i + 1)) {
-      if (ancestors.get(left.stepId).has(right.stepId) || ancestors.get(right.stepId).has(left.stepId)) continue;
-      if (left.writeRoots.some(a => right.writeRoots.some(b => within(a, b) || within(b, a)))) {
-        throw new Error(`WRITE_ROOT_CONFLICT: Concurrent steps ${left.stepId} and ${right.stepId} overlap`);
-      }
-      if (left.taskId === right.taskId) {
-        throw new Error(`Concurrent steps ${left.stepId} and ${right.stepId} need separate task bindings`);
-      }
-    }
+  validateTrackExclusivity(engine, task, steps, ancestors, new Set(bindings.keys()));
+  if (plan.collaboration && !allowPendingBindings) throw new Error("Use the collaboration recipe entry point to set work run collaboration metadata");
+  return { ...selected, members, steps, requirements: normalizeRequirements(task, plan.requirements, stepIndex), bindings,
+    ...(plan.collaboration && { collaboration: normalizeCollaboration(plan.collaboration) }),
+  };
+}
+
+function normalizeCollaboration(value) {
+  const fields = ["schemaVersion", "mode", "route", "originalPrompt", "objective", "brief", "requestedStrategy", "milestones", "roles", "boostPairs", "finalStepId", "comparisonProtocol"];
+  const encoded = value && JSON.stringify(Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]])));
+  if (!value || typeof value !== "object" || Array.isArray(value) || !encoded || Buffer.byteLength(encoded) > 64 * 1024) {
+    throw new Error("Work plan collaboration must be a JSON object up to 64 KiB");
   }
-  const otherTasks = engine.repos.listTasks({ limit: Number.MAX_SAFE_INTEGER })
-    .filter(other => other.id !== task.id && !bindings.has(other.id));
-  for (const step of steps) {
-    validateWriteRootExclusivity({
-      taskId: step.taskId, permissions: { writeRoots: step.writeRoots }, existingTasks: otherTasks, strict: true,
-    });
-  }
-  return { ...selected, members, steps, requirements: normalizeRequirements(task, plan.requirements, stepIndex), bindings };
+  const result = JSON.parse(encoded);
+  if (result.comparisonProtocol !== undefined) result.comparisonProtocol = normalizeComparisonProtocol(result.comparisonProtocol);
+  return result;
 }
 
 function currentReceipt(engine, run, step, incoming) {
@@ -311,6 +380,8 @@ function currentReceipt(engine, run, step, incoming) {
 
 function refresh(engine, run, incoming = null) {
   const steps = byId(run.steps, "stepId");
+  const members = byId(run.members, "memberId");
+  const previouslyReady = new Set(run.steps.filter(step => step.status === "ready").map(step => step.stepId));
   const independent = run.steps.filter(isIndependent);
   const missingAnalyses = independent.filter(step => !step.receipt).map(step => step.stepId);
   run.evidenceUnlocked = !missingAnalyses.length;
@@ -319,43 +390,124 @@ function refresh(engine, run, incoming = null) {
     if (!isIndependent(step) && !step.receipt) {
       step.blockedBy = [...new Set([...step.blockedBy, ...missingAnalyses])];
     }
-    step.status = step.receipt ? "delivered" :
-      run.acceptance ? "stopped" : step.blockedBy.length ? "waiting" : "ready";
+    step.status = step.receipt ? "delivered" : run.acceptance ? "stopped" :
+      step.blockedBy.length ? "waiting" : (!step.taskId || members.get(step.memberId).retiredAt) ? "pending_binding" : "ready";
     if (step.receipt && isIndependent(step)) {
       step.receipt = run.evidenceUnlocked ? currentReceipt(engine, run, step, incoming) :
         { receiptId: step.receipt.receiptId, stepVersion: step.version };
     }
   }
+  const capacity = run.collaboration?.requestedStrategy?.maxParallel;
+  if (Number.isInteger(capacity) && capacity > 0) {
+    const busy = new Set();
+    const candidates = run.steps.filter(step => ["ready", "pending_binding"].includes(step.status));
+    candidates.sort((left, right) => Number(previouslyReady.has(right.stepId)) - Number(previouslyReady.has(left.stepId)) ||
+      Number(right.status === "ready") - Number(left.status === "ready"));
+    for (const step of candidates) {
+      const member = members.get(step.memberId);
+      if (member.agent && member.conversationId === run.leadSessionId && (!run.leadAgent || member.agent === run.leadAgent)) continue;
+      if (busy.has(step.memberId) || (busy.size >= capacity && !previouslyReady.has(step.stepId))) {
+        step.status = "queued";
+      } else {
+        busy.add(step.memberId);
+      }
+    }
+  }
   run.readySteps = run.steps.filter(step => step.status === "ready").map(step => step.stepId);
+  run.bindingNeededSteps = run.steps.filter(step => step.status === "pending_binding").map(step => step.stepId);
+  run.queuedSteps = run.steps.filter(step => step.status === "queued").map(step => step.stepId);
   run.status = run.acceptance ? "completed" :
     run.steps.every(step => step.receipt) ? "awaiting_acceptance" : "active";
 }
 
-function saveRun(engine, task, run) {
+export function saveRun(engine, task, run) {
   return engine.repos.putTask({
     ...task, metadata: { ...task.metadata, workRun: run }, updated_at: engine._nowIso(),
   });
 }
 
+export function recordWorkBoardEntry(engine, task, logicalKey, entry) {
+  const eventId = eventKey(task.id, "work_board_entry", logicalKey);
+  const seq = engine.repos.nextSeq();
+  const createdAt = engine._nowIso();
+  const event = engine.repos.putTaskEvent({
+    eventId, taskId: task.id, logicalKey, kind: "work_board_entry", seq, createdAt,
+    payloadHash: crypto.createHash("sha256").update(JSON.stringify(canonical(entry))).digest("hex"),
+    payload: entry, contractVersion: task.metadata.workflow.contract.version,
+  });
+  return { ...event.payload, seq: event.seq, createdAt: event.createdAt };
+}
+
 function emitReady(engine, task, run, previous = []) {
   const before = new Set(previous.filter(step => step.status === "ready").map(step => JSON.stringify([step.stepId, step.version])));
+  for (const old of previous) {
+    const next = run.steps.find(step => step.stepId === old.stepId);
+    if (old.status === "pending_binding" && !(next?.status === "pending_binding" && next.version === old.version)) {
+      obsoleteRunNotices(engine, { run, recipient: coordinator(task, run),
+        match: notice => notice.body.metadata?.bindingStepId === old.stepId && notice.body.metadata?.stepVersion === old.version,
+        reason: "skipped_work_run_stale",
+      });
+    }
+    if (old.status !== "ready" || (next?.status === "ready" && next.version === old.version)) continue;
+    obsoleteRunNotices(engine, { run, recipient: run.members.find(member => member.memberId === old.memberId),
+      match: notice => notice.body.metadata?.stepId === old.stepId && notice.body.metadata?.stepVersion === old.version,
+      reason: "skipped_work_run_stale",
+    });
+  }
   for (const step of run.steps) {
+    const prior = previous.find(item => item.stepId === step.stepId);
+    if (step.status === "pending_binding" && run.evidenceUnlocked &&
+        !(prior?.status === "pending_binding" && prior.version === step.version)) {
+      const entry = recordWorkBoardEntry(engine, task, JSON.stringify(["binding", step.stepId, step.version, run.version]), {
+        type: "binding_needed", channel: "main", fromMemberId: "@coordinator", toMemberIds: ["@coordinator"],
+        stepId: step.stepId, stepVersion: step.version, memberId: step.memberId,
+        text: `Step ${step.stepId} is eligible for assignment. Attach the exact task and session for ${step.memberId}.`,
+      });
+      const recipient = coordinatorBinding(engine, task, run);
+      if (recipient) notifyWorkBoardPost(engine, { task, run, sender: coordinator(task, run), recipient, seq: entry.seq,
+        metadata: { bindingStepId: step.stepId, stepVersion: step.version } });
+    }
     if (step.status !== "ready" || before.has(JSON.stringify([step.stepId, step.version]))) continue;
     const member = run.members.find(item => item.memberId === step.memberId);
     if (member.conversationId) notifyWorkRunStep(engine, { task, run, step, member });
+    if (!isIndependent(step) && run.evidenceUnlocked) {
+      recordWorkBoardEntry(engine, task, JSON.stringify(["ready", step.stepId, step.version, run.version]), {
+        type: "step_ready", channel: "main", fromMemberId: "@coordinator", toMemberIds: [step.memberId],
+        stepId: step.stepId, stepVersion: step.version,
+        text: step.description ?? `Step ${step.stepId} is ready.`,
+      });
+    }
   }
+}
+
+function emitAcceptanceReady(engine, task, run, previous) {
+  if (previous.status === "awaiting_acceptance" && previous.version !== run.version) {
+    obsoleteRunNotices(engine, { run, recipient: acceptanceRecipient(engine, task, previous),
+      match: notice => notice.body.subject === "Work run ready for acceptance" && notice.body.metadata?.runVersion === previous.version,
+      reason: run.acceptance ? "skipped_work_run_closed" : "skipped_work_run_stale",
+    });
+  }
+  if (run.status !== "awaiting_acceptance" || previous.version === run.version) return;
+  const recipient = acceptanceRecipient(engine, task, run);
+  if (!recipient) return;
+  notifyWorkRunAcceptance(engine, { task, run });
+  recordWorkBoardEntry(engine, task, JSON.stringify(["acceptance", run.version]), {
+    type: "acceptance_ready", channel: "main", fromMemberId: "@coordinator", toMemberIds: [recipient.memberId],
+    runVersion: run.version, text: "All work run steps have delivered. Review the current evidence and requirements.",
+  });
 }
 
 function resultOf(run) {
   const { runId, taskId, workMode, requestedMode, selectionReason, version, status, readySteps } = run;
   return {
     accepted: true, runId, taskId, workMode, requestedMode, selectionReason, version, status, readySteps,
+    bindingNeededSteps: run.bindingNeededSteps, queuedSteps: run.queuedSteps,
     ...(run.acceptance && { disposition: run.acceptance.disposition ?? "complete" }),
   };
 }
 
 export function startWorkRun(engine, args) {
-  return transact(engine, args, "work_run_start", args.eventId, task => {
+  return transactWorkRun(engine, args, "work_run_start", args.eventId, task => {
     if (task.from_agent !== args.actorAgent) throw new Error("Only the task lead can start a work run");
     const trustedLeadSession = task.metadata.leadThreadId || null;
     if (trustedLeadSession && args.actorSessionId !== trustedLeadSession) {
@@ -367,15 +519,17 @@ export function startWorkRun(engine, args) {
     if (task.metadata.workRun || task.metadata.workRunBinding) throw new Error("Task already belongs to a work run");
     const requestedMode = args.workMode ?? "auto";
     if (!modes.has(requestedMode)) throw new Error(`Unknown work mode: ${requestedMode}`);
-    const { bindings, ...plan } = normalizePlan(engine, task, requestedMode, args.workPlan);
+    const { bindings, ...plan } = normalizePlan(engine, task, requestedMode, args.workPlan, args.allowPendingBindings === true);
     const leadSessionId = trustedLeadSession || args.actorSessionId || null;
     if (!leadSessionId && plan.members.length > 1 && plan.members.some(member => member.agent === task.from_agent)) {
       throw new Error("Bind the lead session before starting a run with another member on the lead's agent");
     }
     const run = {
-      runId: task.id, taskId: task.id, requestedMode, version: 1, ...plan, leadSessionId,
+      runId: task.id, taskId: task.id, requestedMode, version: 1, ...plan, leadSessionId, leadAgent: task.from_agent,
       contractVersion: task.metadata.workflow.contract.version,
-      acceptor: task.metadata.workflow.contract.acceptor, acceptance: null, createdAt: engine._nowIso(),
+      acceptor: task.metadata.workflow.contract.acceptor,
+      acceptorFollowsLead: task.metadata.workflow.contract.acceptor === task.from_agent,
+      acceptance: null, createdAt: engine._nowIso(),
     };
     refresh(engine, run);
     for (const { task: child, memberId, stepIds } of bindings.values()) {
@@ -390,12 +544,278 @@ export function startWorkRun(engine, args) {
   });
 }
 
-function matchesActor(member, args) {
-  return member.agent === args.actorAgent && (!member.conversationId || member.conversationId === args.actorSessionId);
+function dynamicTask(engine, root, run, member, taskId) {
+  const task = engine.repos.getTask(required(taskId, "binding taskId"));
+  const binding = task?.metadata?.workRunBinding;
+  const belongs = task?.id === root.id || binding?.taskId === root.id && binding.memberId === member.memberId;
+  if (!task?.metadata?.workflow || ![root.from_agent, run.leadAgent].includes(task.from_agent) ||
+      task.assigned_to !== member.agent || taskSession(task) !== member.conversationId ||
+      terminal.has(task.status) || ["delivered", "completed", "cancelled"].includes(task.metadata.workflow.status) ||
+      (!belongs && (binding || task.metadata.workRun)) || (task.id === root.id && member.taskId !== root.id)) {
+    throw new Error(`Binding requires a compatible active task and the exact session for ${member.memberId}`);
+  }
+  const project = path.resolve(root.cwd || ".");
+  if (!within(project, path.resolve(task.cwd || ".")) || roots(task).some(scope => !within(project, scope))) {
+    throw new Error("A dynamic task and its write scope must belong to the work run project");
+  }
+  if (run.collaboration && task.id !== root.id) {
+    if (!collaborationSessionAttested(engine, task, root)) {
+      throw new Error("The member must attest its task and session through bridge_claim_task before binding to this recipe");
+    }
+    const intake = engine.repos.listTaskEvents({ taskId: root.id, kind: "collaboration_intake", limit: 1 })[0]?.result;
+    const permissions = intake?.permissions ?? root.permissions;
+    validateCollaborationMemberScope(root, task, [{ writeRoots: permissions?.writeRoots ?? [] }], permissions);
+  }
+  return task;
 }
 
-function isLead(task, run, args) {
-  return task.from_agent === args.actorAgent && (!run.leadSessionId || run.leadSessionId === args.actorSessionId);
+function bindDynamicTask(engine, root, run, task, member) {
+  if (task.id === root.id) return;
+  engine.repos.putTask({
+    ...task, metadata: { ...task.metadata, workRunBinding: {
+      taskId: root.id, runId: run.runId, memberId: member.memberId,
+      stepIds: run.steps.filter(step => step.taskId === task.id).map(step => step.stepId),
+    } }, updated_at: engine._nowIso(),
+  });
+}
+
+function addRunMember(engine, task, run, item) {
+  const memberId = required(item?.memberId, "memberId");
+  if (memberId.startsWith("@") || !agents.has(item.agent)) throw new Error("A named member and a supported agent are required");
+  const conversationId = required(item.conversationId, "conversationId");
+  const taskId = required(item.taskId, "member taskId");
+  if (taskId === task.id || run.members.some(member => member.memberId === memberId ||
+      (member.agent === item.agent && member.conversationId === conversationId))) {
+    throw new Error("The named member, session, and task must be distinct run bindings");
+  }
+  const member = { memberId, agent: item.agent, conversationId, taskId, joinedAfterSeq: boardHead(engine, task),
+    ...(item.role != null && { role: required(item.role, "member role") }) };
+  const workTask = dynamicTask(engine, task, run, member, taskId);
+  bindDynamicTask(engine, task, run, workTask, member);
+  run.members.push(member);
+  return { memberId };
+}
+
+function boardHead(engine, task) {
+  return engine.repos.listTaskEvents({ taskId: task.id, kind: "work_board_entry", limit: 1 })[0]?.seq ?? 0;
+}
+
+function bindRunMember(engine, task, run, args) {
+  const member = activeMember(run, args.memberId);
+  const item = args.member;
+  if (!member.pendingBinding || !item || !agents.has(item.agent) || (item.memberId && item.memberId !== member.memberId)) {
+    throw new Error("Binding requires a deferred role and its exact authorized task, agent and session");
+  }
+  const conversationId = required(item.conversationId, "conversationId");
+  const taskId = required(item.taskId, "member taskId");
+  if (taskId === task.id || run.members.some(candidate => candidate.agent === item.agent && candidate.conversationId === conversationId)) {
+    throw new Error("A deferred member requires a distinct task and session binding");
+  }
+  Object.assign(member, { agent: item.agent, conversationId, taskId, joinedAfterSeq: boardHead(engine, task) });
+  const workTask = dynamicTask(engine, task, run, member, taskId);
+  for (const step of run.steps.filter(step => step.memberId === member.memberId)) {
+    step.taskId = taskId;
+    step.writeRoots = workScope(workTask, { writeRoots: step.declaredWriteRoots }, step.stepId);
+    if (isIndependent(step) && step.writeRoots.length) throw new Error("An independent step must use an authorized read-only task");
+    delete step.declaredWriteRoots;
+  }
+  delete member.pendingBinding;
+  bindDynamicTask(engine, task, run, workTask, member);
+  return { memberId: member.memberId };
+}
+
+function activeMember(run, id) {
+  const member = run.members.find(item => item.memberId === id && !item.retiredAt);
+  if (!member) throw new Error(`Unknown active work run member: ${id}`);
+  return member;
+}
+
+function addRunTrack(engine, task, run, item) {
+  const stepId = required(item?.stepId, "track stepId");
+  if (run.steps.some(step => step.stepId === stepId)) throw new Error(`Duplicate track stepId: ${stepId}`);
+  const member = activeMember(run, item.memberId);
+  const workTask = member.pendingBinding ? null : dynamicTask(engine, task, run, member, item.taskId ?? member.taskId);
+  if (!workTask && item.taskId) throw new Error("A deferred member must first be bound to its task");
+  const kind = item.kind ?? "work";
+  if (!kinds.has(kind) || kind === "independent") throw new Error("Dynamic tracks require a public work run step kind");
+  const step = {
+    stepId, kind, memberId: member.memberId, taskId: workTask?.id ?? null, writeRoots: workTask ? workScope(workTask, item, stepId) : [],
+    ...(!workTask && item.writeRoots !== undefined && { declaredWriteRoots: refs(item.writeRoots, "writeRoots") }),
+    description: item.description == null ? null : required(item.description, "step description"),
+    ...(item.brief != null && { brief: required(item.brief, "step brief") }),
+    dependsOn: refs(item.dependsOn ?? [], "dependsOn"), version: 1, status: "waiting", blockedBy: [],
+    receipt: null, rejection: null, revision: null,
+  };
+  run.steps.push(step);
+  const requirementIds = refs(item.requirementIds ?? [], "requirementIds");
+  for (const id of requirementIds) {
+    const requirement = run.requirements.find(entry => entry.requirementId === id);
+    if (!requirement) throw new Error(`Unknown delivery requirement: ${id}`);
+    requirement.stepIds.push(stepId);
+  }
+  if (workTask) bindDynamicTask(engine, task, run, workTask, member);
+  return { stepId, memberId: member.memberId };
+}
+
+function addCollaborationTrack(engine, task, run, track) {
+  const expanded = expandDynamicCollaborationTrack(run.collaboration, track);
+  const first = addRunTrack(engine, task, run, expanded.steps[0]);
+  const addedStepIds = [first.stepId];
+  if (expanded.boostPair) {
+    const reviewer = addRunTrack(engine, task, run, expanded.steps[1]);
+    if (reviewer.memberId === first.memberId) throw new Error("Boost challenge requires a distinct member session");
+    addedStepIds.push(reviewer.stepId);
+    run.collaboration.boostPairs = [...(run.collaboration.boostPairs ?? []), expanded.boostPair];
+  }
+  const gate = addedStepIds.at(-1);
+  const requested = refs(track.beforeStepIds ?? [], "beforeStepIds");
+  const final = run.collaboration?.finalStepId;
+  const downstream = new Set(final ? [...requested, final] : requested);
+  const revised = new Set();
+  for (const id of downstream) {
+    const step = run.steps.find(item => item.stepId === id);
+    if (!step || isIndependent(step) || addedStepIds.includes(id)) throw new Error(`Invalid downstream track: ${id}`);
+    const prior = getAncestors(run.steps);
+    step.dependsOn = [...new Set([...step.dependsOn, gate])];
+    if (prior.get(gate).has(id)) throw new Error(`WORK_RUN_DEPENDENCY_CYCLE: ${id}`);
+    if (step.status !== "waiting" || step.receipt) invalidate(run, step, {}, revised);
+  }
+  return { ...first, addedStepIds };
+}
+
+function retireRunMember(engine, task, run, args) {
+  const member = activeMember(run, args.memberId);
+  if (member.pendingBinding) throw new Error("A required deferred member cannot be retired before delivering its planned steps");
+  const lead = coordinator(task, run);
+  if ((member.agent === lead.agent && member.conversationId === lead.conversationId) ||
+      run.steps.some(step => step.memberId === member.memberId && (!step.receipt || isIndependent(step)))) {
+    throw new Error("Retirement requires a successor for lead duties and no open or isolated work assigned to the member");
+  }
+  if (!(run.acceptorFollowsLead ?? run.acceptor === task.from_agent) && member.agent === run.acceptor &&
+      !run.members.some(candidate => candidate !== member && !candidate.retiredAt && candidate.agent === run.acceptor)) {
+    throw new Error("The run requires an active bound acceptor");
+  }
+  const tasks = memberBinding(engine, task, run, member)?.tasks ?? [];
+  for (const item of tasks) {
+    if (item.id !== task.id) engine.revokeTaskLease(item.id);
+  }
+  member.retiredAt = engine._nowIso();
+  obsoleteRunNotices(engine, { run, recipient: member, match: () => true, reason: "skipped_work_run_retired" });
+  return { memberId: member.memberId };
+}
+
+function reassignRunTrack(engine, task, run, args) {
+  const step = run.steps.find(item => item.stepId === args.stepId);
+  if (!step || step.receipt || isIndependent(step)) throw new Error("Reassignment requires an undelivered public track");
+  if (args.stepVersion !== step.version) throw new Error("WORK_RUN_STEP_VERSION_CONFLICT");
+  const member = activeMember(run, args.memberId);
+  const pair = run.collaboration?.boostPairs?.find(item => item.authorStepId === step.stepId || item.reviewStepId === step.stepId);
+  if (pair && run.steps.some(item => item.stepId !== step.stepId &&
+      [pair.authorStepId, pair.reviewStepId].includes(item.stepId) && item.memberId === member.memberId)) {
+    throw new Error("Boost author and challenger require distinct member sessions");
+  }
+  const proposed = dynamicTask(engine, task, run, member, args.memberTaskId ?? member.taskId);
+  const previous = step.taskId && engine.repos.getTask(step.taskId);
+  if (step.memberId === member.memberId && step.taskId === proposed.id) throw new Error("The track already has this binding");
+  if (step.status === "ready" && previous?.status === "in_progress") {
+    throw new Error("Reassignment requires the current execution to stop first");
+  }
+  const scope = workScope(proposed, args, step.stepId);
+  if (scope.some(root => !step.writeRoots.some(allowed => within(allowed, root))) ||
+      step.writeRoots.some(root => !scope.some(allowed => within(allowed, root)))) {
+    throw new Error("Reassignment must preserve the track's write scope");
+  }
+  const oldMember = run.members.find(item => item.memberId === step.memberId);
+  invalidate(run, step, { memberId: member.memberId, taskId: proposed.id, writeRoots: scope });
+  if (previous && previous.id !== proposed.id) {
+    bindDynamicTask(engine, task, run, previous, oldMember);
+    if (previous.id !== task.id && !run.steps.some(item => item.taskId === previous.id && !item.receipt)) {
+      engine.revokeTaskLease(previous.id);
+      run.releasedTaskIds = [...new Set([...(run.releasedTaskIds ?? []), previous.id])];
+    }
+  }
+  bindDynamicTask(engine, task, run, proposed, member);
+  return { stepId: step.stepId, memberId: member.memberId };
+}
+
+function handoffRunLead(engine, task, run, args) {
+  const member = activeMember(run, args.memberId);
+  const previous = coordinator(task, run);
+  if (args.conversationId !== member.conversationId || !memberBinding(engine, task, run, member) ||
+      (member.agent === previous.agent && member.conversationId === previous.conversationId) ||
+      (run.evidenceUnlocked === false && run.steps.some(step => isIndependent(step) && step.memberId === member.memberId))) {
+    throw new Error("Handoff requires a distinct active member with its exact eligible session binding");
+  }
+  dynamicTask(engine, task, run, member, member.taskId);
+  const followsLead = run.acceptorFollowsLead ?? run.acceptor === task.from_agent;
+  run.leadAgent = member.agent;
+  run.leadMemberId = member.memberId;
+  run.leadSessionId = member.conversationId;
+  run.acceptorFollowsLead = followsLead;
+  if (followsLead) run.acceptor = member.agent;
+  const successor = coordinatorBinding(engine, task, run);
+  obsoleteRunNotices(engine, { run, recipient: previous,
+    match: notice => notice.body.metadata?.boardSeq != null ||
+      ["Work run ready for acceptance", "Work run lead responsibility transferred"].includes(notice.body.subject),
+    reason: "skipped_work_run_handoff",
+    onObsolete: notice => {
+      const seq = notice.body.metadata?.boardSeq;
+      if (seq != null) notifyWorkBoardPost(engine, { task, run, sender: previous, recipient: successor, seq,
+        metadata: notice.body.metadata });
+    },
+  });
+  return { memberId: member.memberId };
+}
+
+export function changeWorkRun(engine, args) {
+  return transactWorkRun(engine, args, "work_run_change", args.eventId, task => {
+    const previous = task.metadata.workRun;
+    if (!previous || previous.runId !== args.runId) throw new Error("Work run not found");
+    if (!args.actorSessionId || !isWorkRunLead(task, previous, args) || !coordinatorBinding(engine, task, previous)) {
+      throw new Error("This change requires the current bound work run lead");
+    }
+    if (previous.status === "completed" || terminal.has(task.status)) throw new Error("The work run is closed");
+    if (args.runVersion !== previous.version) throw new Error("WORK_RUN_VERSION_CONFLICT");
+    const run = structuredClone(previous);
+    const changes = {
+      add_member: () => addRunMember(engine, task, run, args.member),
+      bind_member: () => bindRunMember(engine, task, run, args),
+      add_track: () => addCollaborationTrack(engine, task, run, args.track),
+      retire_member: () => retireRunMember(engine, task, run, args),
+      reassign_track: () => reassignRunTrack(engine, task, run, args),
+      handoff_lead: () => handoffRunLead(engine, task, run, args),
+    };
+    const apply = changes[args.action];
+    if (!apply) throw new Error("Unknown work run change");
+    const details = apply();
+    if (["add_track", "bind_member", "reassign_track"].includes(args.action)) {
+      validateTrackExclusivity(engine, task, run.steps, getAncestors(run.steps), new Set(run.steps.map(step => step.taskId)));
+    }
+    run.version += 1;
+    refresh(engine, run);
+    const saved = saveRun(engine, task, run);
+    emitReady(engine, saved, run, previous.steps);
+    emitAcceptanceReady(engine, saved, run, previous);
+    const successor = args.action === "handoff_lead" ? coordinatorBinding(engine, saved, run) : null;
+    if (run.evidenceUnlocked) {
+      const entry = recordWorkBoardEntry(engine, saved, JSON.stringify(["change", args.eventId]), {
+        type: args.action, channel: "main", fromMemberId: "@coordinator", toMemberIds: successor ? ["@coordinator"] : [],
+        ...details, ...(successor && { text: `Work run lead responsibility transferred to ${successor.boundMemberId}.` }),
+      });
+      if (successor) notifyWorkBoardPost(engine, { task: saved, run, sender: coordinator(task, previous), recipient: successor, seq: entry.seq });
+    } else if (successor) {
+      notifyWorkRunLeadTransfer(engine, { task: saved, run, previous: coordinator(task, previous), recipient: successor });
+    }
+    return { ...resultOf(run), ...details };
+  });
+}
+
+function matchesActor(member, args) {
+  return !member.retiredAt && member.agent === args.actorAgent && (!member.conversationId || member.conversationId === args.actorSessionId);
+}
+
+export function isWorkRunLead(task, run, args) {
+  return (run.leadAgent ?? task.from_agent) === args.actorAgent && (!run.leadSessionId || run.leadSessionId === args.actorSessionId);
 }
 
 function ownsStep(engine, run, step, args) {
@@ -409,10 +829,11 @@ function ownsStep(engine, run, step, args) {
   }, args);
 }
 
-function invalidate(run, target, update) {
+function invalidate(run, target, update, revised = new Set()) {
   const ancestors = getAncestors(run.steps);
   for (const step of run.steps) {
-    if (step === target || ancestors.get(step.stepId).has(target.stepId)) {
+    if (!revised.has(step.stepId) && (step === target || ancestors.get(step.stepId).has(target.stepId) || (isIndependent(target) && !isIndependent(step)))) {
+      revised.add(step.stepId);
       step.version += 1;
       step.receipt = null;
       step.progress = null;
@@ -457,9 +878,10 @@ function assessRequirement(item, requirement, steps, evidenceUnlocked) {
 
 function accept(engine, task, run, args) {
   if (run.acceptor !== args.actorAgent) throw new Error("Only the configured acceptor can accept a work run");
-  if (args.actorAgent === task.from_agent && !isLead(task, run, args)) throw new Error("Acceptance requires the bound lead session");
+  const leadAccepts = run.acceptorFollowsLead ?? run.acceptor === task.from_agent;
+  if (leadAccepts && !isWorkRunLead(task, run, args)) throw new Error("Acceptance requires the bound lead session");
   const acceptorMembers = run.members.filter(member => member.agent === run.acceptor);
-  if (args.actorAgent !== task.from_agent && acceptorMembers.length &&
+  if (!leadAccepts && acceptorMembers.length &&
       !acceptorMembers.some(member => matchesActor(member, args))) {
     throw new Error("Acceptance requires a bound acceptor session");
   }
@@ -493,38 +915,34 @@ function accept(engine, task, run, args) {
   if (partial && allSupported && run.status === "awaiting_acceptance") {
     throw new Error("Partial acceptance requires an undelivered step or an unresolved requirement");
   }
+  const protocol = run.collaboration?.comparisonProtocol;
+  const fairReceipt = protocol && steps.get(run.collaboration.finalStepId)?.receipt;
+  const comparisons = protocol ? validateComparisonEvidence(protocol, fairReceipt?.comparisonEvidence, {
+    disposition, evidenceRefs: fairReceipt?.evidenceRefs ?? [],
+  }) : null;
   run.acceptance = {
     receiptId: args.receiptId, runVersion: run.version, contractVersion: run.contractVersion,
     actor: args.actorAgent, disposition, summary, openQuestions, requirementEvidence, acceptedAt: engine._nowIso(),
+    ...(comparisons && { comparisons }),
   };
 }
 
 function stopReadyNotices(engine, root, run) {
-  const recipients = [...run.members, { agent: root.from_agent, conversationId: run.leadSessionId }];
-  for (const { agent, conversationId } of recipients) {
-    if (!conversationId) continue;
-    const notices = engine.repos.queryMessages({
-      actorAgent: agent, actorSessionId: conversationId, runId: run.runId,
-      unreadOnly: true, limit: Number.MAX_SAFE_INTEGER,
-    });
-    for (const message of notices) {
-      if (["none", "pending", "dispatched", "failed", "skipped_wakeup_guard"].includes(message.wakeup_status) &&
-          engine.repos.getMemberMessage(message.id)?.from_member_id === "@coordinator") {
-        engine.repos.putMessage({ ...message, wakeup_status: "skipped_work_run_closed" });
-      }
-    }
+  for (const recipient of [...run.members, coordinator(root, run)]) {
+    obsoleteRunNotices(engine, { run, recipient, match: () => true, reason: "skipped_work_run_closed" });
   }
 }
 
 function closeTasks(engine, root, run) {
   const now = engine._nowIso();
-  const ids = new Set([root.id, ...run.steps.map(step => step.taskId)]);
+  const ids = new Set([root.id, ...run.steps.map(step => step.taskId), ...run.members.map(member => member.taskId),
+    ...(run.releasedTaskIds ?? [])].filter(Boolean));
   for (const id of ids) {
     const task = engine.repos.getTask(id);
     if (!task) continue;
     const workflow = task.metadata.workflow;
     const steps = run.steps.filter(step => step.taskId === id);
-    const completed = id === root.id || steps.every(step => step.receipt);
+    const completed = id === root.id || (steps.length > 0 && steps.every(step => step.receipt));
     const status = completed ? "completed" : "cancelled";
     const summary = id === root.id ? run.acceptance.summary :
       steps.map(step => step.receipt?.summary).filter(Boolean).join("\n");
@@ -547,7 +965,7 @@ function closeTasks(engine, root, run) {
 
 function applyWorkRunReceipt(engine, args, isolated = false) {
   if (!outcomes.has(args.outcome)) throw new Error(`Unknown work run receipt outcome: ${args.outcome}`);
-  return transact(engine, args, "work_run_receipt", args.receiptId, task => {
+  return transactWorkRun(engine, args, "work_run_receipt", args.receiptId, task => {
     const previous = task.metadata.workRun;
     if (!previous || previous.runId !== args.runId) throw new Error("Work run not found");
     const run = structuredClone(previous);
@@ -559,7 +977,7 @@ function applyWorkRunReceipt(engine, args, isolated = false) {
       const step = run.steps.find(item => item.stepId === args.stepId);
       if (!step) throw new Error(`Unknown work run step: ${args.stepId}`);
       const owner = ownsStep(engine, run, step, args);
-      if (!owner && !(args.outcome === "revise" && isLead(task, run, args))) {
+      if (!owner && !(args.outcome === "revise" && isWorkRunLead(task, run, args))) {
         throw new Error("The trusted actor does not own this work run step");
       }
       if (isolated && (!isIndependent(step) || args.packetDigest !== step.inputPacket.digest)) {
@@ -582,7 +1000,13 @@ function applyWorkRunReceipt(engine, args, isolated = false) {
         if (args.outcome === "delivered") {
           const summary = required(args.summary, "delivery summary");
           const evidenceRefs = evidence(args.evidenceRefs, "delivery evidenceRefs");
+          const protocol = run.collaboration?.comparisonProtocol;
+          const fairAudit = protocol && step.stepId === run.collaboration.finalStepId;
+          if (fairAudit && args.comparisonEvidence !== undefined) {
+            validateComparisonEvidence(protocol, args.comparisonEvidence, { disposition: "partial", evidenceRefs });
+          }
           step.receipt = { receiptId: args.receiptId, stepVersion: step.version, summary, evidenceRefs };
+          if (fairAudit && args.comparisonEvidence !== undefined) step.receipt.comparisonEvidence = structuredClone(args.comparisonEvidence);
           step.progress = null;
         } else if (args.outcome === "progress") {
           const summary = required(args.summary, "progress summary");
@@ -605,9 +1029,7 @@ function applyWorkRunReceipt(engine, args, isolated = false) {
     refresh(engine, run, args);
     const saved = saveRun(engine, task, run);
     emitReady(engine, saved, run, previous.steps);
-    if (run.status === "awaiting_acceptance" && previous.status !== run.status) {
-      notifyWorkRunAcceptance(engine, { task: saved, run });
-    }
+    emitAcceptanceReady(engine, saved, run, previous);
     if (run.acceptance) {
       stopReadyNotices(engine, saved, run);
       closeTasks(engine, saved, run);
@@ -628,12 +1050,22 @@ export function workRunOverview(engine, task, actor = {}) {
   const parent = task?.metadata?.workRunBinding;
   const run = parent ? engine.repos.getTask(parent.taskId)?.metadata?.workRun : task?.metadata?.workRun;
   if (!run) return null;
-  if (run.evidenceUnlocked || !actor.actorAgent) return run;
+  if (!actor.actorAgent) return run;
+  const root = parent ? engine.repos.getTask(parent.taskId) : task;
+  const lead = isWorkRunLead(root, run, actor);
   return {
     ...run,
-    steps: run.steps.map(step => isIndependent(step) && step.receipt && ownsStep(engine, run, step, actor)
-      ? { ...step, receipt: currentReceipt(engine, run, step) }
-      : step),
+    steps: run.steps.map(step => {
+      const owner = ownsStep(engine, run, step, actor);
+      const { brief, inputPacket, ...publicStep } = step;
+      return {
+        ...publicStep,
+        ...((lead || owner) && brief !== undefined && { brief }),
+        ...((lead || owner) && inputPacket !== undefined && { inputPacket }),
+        ...(!run.evidenceUnlocked && isIndependent(step) && step.receipt && owner &&
+          { receipt: currentReceipt(engine, run, step) }),
+      };
+    }),
   };
 }
 
@@ -667,6 +1099,7 @@ export function submitBoundWorkRunReceipt(engine, task, args) {
       taskId: run.taskId, runId: receipt.runId, stepId: receipt.stepId, stepVersion: receipt.stepVersion,
       receiptId: args.receiptId, actorAgent: args.actorAgent, actorSessionId: args.actorSessionId,
       outcome: args.outcome, summary: args.summary, evidenceRefs: receipt.evidenceRefs,
+      ...(receipt.comparisonEvidence !== undefined && { comparisonEvidence: receipt.comparisonEvidence }),
     });
   }
   return {

@@ -1953,7 +1953,7 @@ export class SqliteStore {
     });
   }
 
-  listTaskEvents({ taskId = null, kind = null, logicalKey = null, limit = 50, orderDesc = true } = {}) {
+  listTaskEvents({ taskId = null, kind = null, logicalKey = null, afterSeq = null, limit = 50, orderDesc = true } = {}) {
     const conditions = [];
     const parameters = [];
     for (const [column, value] of [["task_id", taskId], ["kind", kind], ["logical_key", logicalKey]]) {
@@ -1961,6 +1961,10 @@ export class SqliteStore {
         conditions.push(`${column} = ?`);
         parameters.push(value);
       }
+    }
+    if (afterSeq !== null) {
+      conditions.push("seq > ?");
+      parameters.push(afterSeq);
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const order = orderDesc ? "DESC" : "ASC";

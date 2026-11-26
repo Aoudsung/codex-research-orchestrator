@@ -1,9 +1,9 @@
 ---
 name: codex-research-orchestrator
-description: Coordinate sustained research in Codex with independent construction, focused authorship, constructive review, and source-backed continuation. Use to start or resume research or coordinate authorized work across Codex, Claude Code, and Antigravity. For a bounded contribution, load only the relevant role and guidance.
+description: Coordinate sustained research with source-backed continuation and authorized agent collaboration. Use to start or resume research, challenge a difficult result with Boost, run independent Swarm tracks, or coordinate dependent Teamwork milestones.
 license: MIT
 metadata:
-  version: "1.4.3"
+  version: "1.5.0"
 ---
 
 # Codex Research Orchestrator
@@ -13,14 +13,14 @@ Keep the scientific question, evidence, and next action connected. Protect the u
 **Default topology disables Claude:** Coordinator (`Codex` Lead, non-coding) delegates by task need (full-team participation every turn is unnecessary) across `ChatGPT Web Pro`, `Codex` (`GPT Astra` / `6.2 Sol` / `gpt-6-luna` via `default`|`explorer`), `Gemini Carbon` / `Argon` (**pinned project PI sessions preferred**, falling back to pinned `Antigravity` or explicit Antigravity assignments), user-authorized `explicitPiRoutes` (e.g., `google-vertex/gemini-4-hydrogen`), and PI open-weight workers (`Kimi 3.1 Pro` / `DeepSeek V4.1 Flash`). Call `bridge_plan_dispatch` (using `.agent-bridge/collaborators.json`) before delegating to jointly pick model, channel, and task-scoped `Luna` effort. Mechanical constraints are enforced by runtime guards and `setup.py lint`—do **not** duplicate rule lists into `AGENTS.md`.
 - **PI Authorization Reuse & Boundary Hygiene:** Check `receipt.authorizationReuse.reusableTaskAuthorization` after `pi_exec`—pre-transport local adapter errors (`beforeGenerationTransport === true`) and `output_limit` partials (`stopReason: "length"`) reuse existing task authorization directly without re-asking user approval, and never modify global `~/.pi` SDK releases during project tasks.
 
-For independent report sections, use lightweight parallel authorship. Have a fresh verifier reproduce claims that could change the conclusion and apply authorized, evidence-backed corrections directly. For dependent milestones, reopen the affected steps when upstream evidence changes. The [work-run protocol](references/work-modes.md) covers these paths, investigations and timed diagnostics. Honor the user’s mode and the project model catalog.
+Choose collaboration by the shape of the work. Keep a routine bounded task with one owner. Use **Boost** for a hard candidate that needs a fresh challenge and repair, **Swarm** for independent tracks with named ownership, and **Teamwork** for an approved goal with dependent milestones and final audit. For substantial collaboration, use `bridge_collaborate(action: "open")` with the verbatim user request, project scope, and an event ID. Use the returned task ID to plan, start, and resume. Honor explicit mode names, including Codex `$skill`, slash-prefixed messages, and client command chips passed through as text. Otherwise infer from the real work. For a combined request, use the outer mode that governs delivery, then add the inner mode to every assignment covered by the user's instruction. Read the [Lead collaboration protocol](references/work-modes.md) for planning, binding, and resuming. Load the named skills when available.
 
 ## Non-Negotiable Architecture Rules
 
 1. **Lazy Phase Loading (<=1–2 Reference Cards per Turn):** Read `SKILL.md` and only the 1–2 reference files needed for your active phase.
 2. **SQLite Single-Write Authority:** `controls.md` holds immutable constraints & lint switches. `.research-memory/memory.sqlite3` (`research_record`) is the single runtime ledger for claims, evidence, decisions, evaluations, and compact tombstones (`<=40` words). Write **once** per milestone—never double-write flat `research-log.md` / `open-questions.md` or turn-by-turn `state.md`. Export `state.md` only at user briefings, pause, or delivery.
 3. **Zero-Copy Context Assembly & Lint-First Gates:** Call `research_context(query, profile, recipient_profile, role, stance)` instead of re-typing constraints. Run `research_setup.py lint` rather than appending defensive prohibition prose into docs.
-4. **Tiered Tool Profiles:** Primary peer uses `lead`; execution workers use `worker` (11 tools incl. `bridge_claim_task` / `bridge_complete_task`); extra MCP peers use `exec_only`.
+4. **Tiered Tool Profiles:** Primary peer uses `lead`; execution workers use `worker`; extra MCP peers use `exec_only`. Ready work resumes in the actual host-bound session. A reader uses only the assigned step's brief, permitted board channels, and evidence references.
 5. **Finish-and-Exit, Zero Busy-Wait:** Never spin on shell `sleep`, `bridge_poll_updates` loops, or long idle waits. Bind reactive wakeup (or check Web `Pro` every 15 min via `Luna` at `low` effort) and end the turn.
 
 ## Task Scope & Role Routing

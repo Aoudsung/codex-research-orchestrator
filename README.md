@@ -4,7 +4,7 @@
 
 [Get started](docs/getting-started.md) · [Workbench](docs/workbench.md) · [Changelog](CHANGELOG.md) · [Connect agents](docs/mcp-setup.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [MIT License](LICENSE)
 
-For parallel reports, independent investigations and dependent milestones, see the [work-run protocol](skills/codex-research-orchestrator/references/work-modes.md). The [stable workflow results](docs/stable-collaboration.md) explain which changes were adopted and what the timed trials measured. Projects choose eligible collaborators through the [model catalog](runtimes/agent-bridge/docs/model-catalog.md).
+Boost, Swarm, and Teamwork are discoverable Codex skills. The Lead selects an authorized workflow, plans it from the real task, and coordinates bound collaborators. The [work-run protocol](skills/codex-research-orchestrator/references/work-modes.md) covers planning, dispatch and resumption. Projects choose eligible collaborators through the [model catalog](runtimes/agent-bridge/docs/model-catalog.md).
 
 The bundled bridge also supports [workflow protocol 2](runtimes/agent-bridge/docs/workflow-v2.md): versioned task contracts, durable business receipts, precise decisions, ownership handoffs and event-driven continuation. Existing tasks retain their protocol and sessions. The runtime release manifest identifies the shared source used by installed and publication copies.
 
@@ -20,7 +20,7 @@ cd codex-research-orchestrator
 python3 setup.py install --project ../my-research
 ```
 
-Use a workspace name of your choice. The installer copies the skill and bundled bridge files into that workspace, so you can move or remove this checkout afterward. It does not connect accounts, change global settings, or start background services.
+Use a workspace name of your choice. The installer copies the orchestrator, the three collaboration skills, and the bundled bridge files into the chosen workspace. It registers no accounts or global settings and starts no background services. You can move or remove this checkout after installation.
 
 **2. Open `my-research` in Codex and give it your question.**
 
@@ -41,6 +41,26 @@ Codex checks the current goal, evidence, pending work, and next action before pr
 
 If the skill is not listed, start a new turn in the target workspace; restart the client if necessary. See [the first-run guide](docs/getting-started.md) for manual setup and troubleshooting.
 
+## Choose how the work runs
+
+| Request | What happens |
+|---|---|
+| “Use `$boost` to find and verify the cause of this regression.” | An owner proposes a source-linked explanation or implementation. A fresh challenger tries to falsify or break it. The owner can repair it, and the Lead spot-checks the result. |
+| “Use `$swarm` to investigate these independent symptoms.” | Named members cover distinct scopes, post evidence to the persistent board, and hand off to the next actor. Integration and fresh verification check consequential findings. |
+| “Use `$teamwork` to finish this project through its dependent milestones.” | The Lead records approved scope and evidence requirements. Milestones track upstream versions. An independent final audit checks the delivered outcome. |
+
+Ordinary language also works. If the client passes a slash command through as text, the Lead reads a prefix such as `/teamwork` or a chip such as `[/teamwork](slashCommand;teamwork)` as an explicit mode request. `$skill` is the Codex invocation mechanism. “Use Teamwork, with Boost for every substantive assignment” applies the challenge and revision cycle inside the project milestones. Routine bounded work stays with one owner. The plan, task bindings, and board stay with the project, so “continue this Swarm” resumes the existing run.
+
+Mode execution uses the project-local Lead bridge with an actual host session and authorized worker routes. If the Lead tools are missing or the client is registered as another participant, use the installed helper's `doctor --client codex` to inspect the project configuration, repair the requested connection through `connect`, and reload the host. [Connection instructions](docs/mcp-setup.md)
+
+From an active host session, the collaboration CLI also works when an old global MCP connection reports the wrong caller. Open a request by passing it verbatim or piping it into `open`. Keep the returned task ID for `resume`.
+
+```sh
+python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py collaborate --project . -- \
+  open '/teamwork Plan a fair experiment comparison for 7B and 1.5B on TextCrafter, ALFWorld, and WebShop. Use /boost for every track.'
+```
+
+The same command works from a globally mounted skill's `scripts/research_setup.py` when the target project has the runtime. Lead and workers use its managed database or the project-local default. If using a custom project file, pass the same `--bridge-db` to each CLI invocation.
 ## Tutorial: onboard an existing active codebase
 
 To attach `codex-research-orchestrator` to a repository that already has source code, active feature branches, `AGENTS.md`, or historical logs without touching tracked files or migrating legacy archives, follow these four steps.
@@ -51,6 +71,9 @@ To attach `codex-research-orchestrator` to a repository that already has source 
 cat >> /path/to/existing-repo/.git/info/exclude <<'EOF'
 # codex-research-orchestrator local collaboration state
 .agents/skills/codex-research-orchestrator/
+.agents/skills/boost/
+.agents/skills/swarm/
+.agents/skills/teamwork/
 .agents/mcp_config.json
 .research-orchestrator/
 .research-memory/
@@ -154,11 +177,11 @@ python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py con
   --project . --client codex --peers antigravity --tool-profile auto --apply
 ```
 
-This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, updates only project-local entries, preserves unrelated settings, and backs up changed configuration. Use `--tool-profile auto` on the Lead (`lead` for primary peer, `exec_only` for extra peers so shared schemas are never duplicated) and `--tool-profile worker` on peer workers (11-tool surface). Claude (`claude-code`) is disabled unless explicitly authorized in `controls.md`. Omit `--apply` to prepare the config without registering it.
+This requires **Node.js 24+**. The helper discovers real paths, generates a shared project database location, updates only project-local entries, preserves unrelated settings, and backs up changed configuration. Use `--tool-profile auto` on the Lead (`lead` for the primary peer and `exec_only` for extra peers) and `--tool-profile worker` on peer workers. Claude (`claude-code`) is disabled unless explicitly authorized in `controls.md`. Omit `--apply` to prepare the config without registering it.
 
 Claude Code project configuration and Antigravity CLI/IDE workspace configuration are also supported. Antigravity uses `.agents/mcp_config.json`; its export remains available for other supported settings interfaces. Select only the peers you intend to use.
 
-- **Finish-and-Exit Reactive Wakeup (Zero Busy-Wait):** Workers run under the 11-tool `worker` profile without poll/wait tools (`bridge_claim_task` / `bridge_complete_task` included) and exit as soon as their turn finishes; Lead turns exit immediately after recording `waiting_external` or binding a reactive wakeup route (`callerSessionId` / `autoWakeup`) rather than holding turns open with sleep/poll loops.
+- **Reactive wakeup.** Workers exit after submitting a result or handing back ownership. Lead turns exit when a named successor owns the next action or an authorized external reply is pending. Session-bound wakeups resume the existing run with current steps and evidence.
 
 Provider execution requires the selected CLI and its normal login. [Connection instructions](docs/mcp-setup.md) explain the final trust/reload step and a bounded first exchange.
 
@@ -179,14 +202,16 @@ To upgrade, obtain the new complete bundle and run its installer against the exi
 python3 setup.py install --project ../my-research --upgrade
 ```
 
-Only managed skill/runtime files are replaced. The prior installation is backed up; research records, memory, bridge data, and client configuration are retained. A normal repeat install is a no-op when unchanged and will not silently replace a different version.
+Managed replacements are backed up. Unmanaged skills with the same name and locally customized companion skills stay in place and are reported by name. Research records, memory, bridge data, and client configuration are retained. A normal repeat install is a no-op when unchanged.
+
+The installed helper can restore a missing companion without the download. From the workspace, run `python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py install --project .`. To copy just the installed skill suite into another workspace, use the same helper with `install --project ../another-project --skill-only`. The helper copies the bundled mode files, including their own references, from the installed orchestrator.
 
 ## Choose an installation
 
 | Package | Use it when |
 |---|---|
 | **Complete repository/bundle — recommended** | You want guided installation and the optional bridge ready to configure later |
-| Standalone skill | You want Codex research and memory only, or use Codex's skill installer |
+| Standalone skill | You want Codex research and memory through the standalone skill installer. Use the complete bundle or an installed suite's helper to install all three mode skills. |
 | Bridge runtime | You already manage skills and want the MCP component separately |
 
 [Download releases](https://github.com/Aoudsung/codex-research-orchestrator/releases/latest). The full bundle includes `setup.py`; the standalone skill includes the same helper under `scripts/research_setup.py`. Native Codex research does not require all three providers.

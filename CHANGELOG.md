@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.5.0 — Boost, Swarm and Teamwork
+
+The Lead can open a collaboration from a plain-language request, a named skill, or an Antigravity command chip. Boost assigns a candidate and a fresh challenger. Swarm distributes distinct deliverables through a persistent, addressed board. Teamwork freezes the approved scope, gates dependent milestones and transfers responsibility across sessions. Project-wide Boost applies to new assignments as the team grows. Real members can claim their roles in waves.
+
+Comparative research can register the dimensions, matching conditions and source requirements for each cell. Acceptance distinguishes a fair design from observed results and records unresolved coverage. The workbench and host-bound local CLI share the same project runtime. See the [collaboration verification record](docs/validation-v1.5.md).
+
 ## v1.4.3 — Stable collaboration workflows
 
 Parallel reports can use targeted independent replay and directly apply verified corrections to a frozen draft. Milestone runs track versioned dependencies, addressed handoffs and per-requirement acceptance. Timed investigations retain phase and provider measurements. The in-turn patch proposal from the v1.4.2 trial stays in the experimental archive. See [the trial results and selection criteria](docs/stable-collaboration.md).

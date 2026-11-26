@@ -3,15 +3,18 @@ import { fileURLToPath } from 'node:url';
 import { fail } from './reader.mjs';
 
 const PROVIDERS = { codex: 'codex', 'claude-code': 'claude-code', antigravity: 'antigravity' };
-const TOOLS = new Set(['bridge_create_task', 'bridge_send_message', 'codex_exec', 'claude_exec', 'antigravity_exec']);
+const TOOLS = new Set(['bridge_create_task', 'bridge_send_message', 'bridge_collaborate', 'codex_exec', 'claude_exec', 'antigravity_exec']);
 
 // Each explicit HTTP action gets an isolated stdio client. No provider module is imported.
-export function callBridgeTool({ project, dbPath, provider = 'codex', caller = 'codex', tool, args, timeoutMs = 30000 }) {
+export function callBridgeTool({ project, dbPath, provider = 'codex', caller = 'codex', tool, args, timeoutMs = 30000, callerSessionId = null }) {
   if (!Object.hasOwn(PROVIDERS, provider) || !Object.hasOwn(PROVIDERS, caller) || !TOOLS.has(tool)) throw fail('TOOL_NOT_ALLOWED', 'Tool is not exposed by the workbench', 403);
+  if (tool === 'bridge_collaborate' && (args?.action !== 'open' || !callerSessionId)) {
+    throw fail('TOOL_NOT_ALLOWED', 'Workbench may open a Lead intake only with its configured native session', 403);
+  }
   const script = fileURLToPath(new URL(`../servers/${PROVIDERS[provider]}-mcp.mjs`, import.meta.url));
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script], { cwd: project, env: { ...process.env, AGENT_BRIDGE_DB: dbPath,
-      MCP_CALLER_AGENT: caller, MCP_ONE_SHOT_WORKER: '1' }, stdio: ['pipe', 'pipe', 'pipe'] });
+      MCP_CALLER_AGENT: caller, MCP_ONE_SHOT_WORKER: '1', ...(callerSessionId && { BRIDGE_CALLER_SESSION_ID: callerSessionId }) }, stdio: ['pipe', 'pipe', 'pipe'] });
     let buffer = '', stderr = '', done = false;
     const timer = setTimeout(() => finish(fail('PROVIDER_TIMEOUT', 'Provider MCP request timed out', 504)), timeoutMs);
     function finish(error, value) {

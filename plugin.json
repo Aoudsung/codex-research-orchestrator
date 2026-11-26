@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "codex-research-orchestrator",
-  "version": "1.4.3",
-  "description": "Coordinate research in Codex with focused authorship, constructive review, source-backed memory, and a local collaboration workbench for Codex, Claude Code, and Antigravity.",
+  "version": "1.5.0",
+  "description": "Coordinate research with Boost challenge-and-repair, Swarm tracks, Teamwork milestones, and a local collaboration workbench.",
   "author": {
     "name": "Aoudsung"
   },
@@ -22,11 +22,14 @@
       "interface": {
         "displayName": "Codex Research Orchestrator",
         "shortDescription": "Research collaboration with a visual local workbench",
-        "longDescription": "Connect Claude Code, Antigravity, and Codex for reciprocal, task-bound exchange of requests, evidence, revisions, and results. Coordinate research and independent review within the user's scope, with persistent memory and an optional MCP runtime.",
+        "longDescription": "Run Boost investigations, parallel Swarm tracks, or dependent Teamwork milestones within the user's scope. Coordinate evidence, revisions, and results among authorized collaborators using persistent project records and an optional MCP runtime.",
         "developerName": "Aoudsung",
         "category": "Productivity",
         "defaultPrompt": [
-          "Use $codex-research-orchestrator to start or continue my research within the recorded scope and resource limits."
+          "Use $codex-research-orchestrator to start or continue my research within the recorded scope and resource limits.",
+          "Use $boost to challenge and verify the proposed fix.",
+          "Use $swarm to investigate the independent parts of this question and integrate the evidence.",
+          "Use $teamwork to deliver this project through its milestones and final audit."
         ]
       }
     }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Boost"
+  short_description: "Build a candidate and independently challenge it"
+  default_prompt: "Use $boost to investigate this failure and verify the proposed cause against the original evidence."

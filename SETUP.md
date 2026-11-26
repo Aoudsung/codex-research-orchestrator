@@ -11,7 +11,7 @@ This document instructs any coding agent (Codex, Claude Code, Antigravity, or an
    Skip every question whose answer is already known from `probe` (`python`, `fts5`, `node`, `providers`, existing `records`, `memory`, `bridge`, or `baselines`).
 2. **One question per turn (`<= 250` words)**: Ask **at most 1 question at a time**, always include a **recommended default** first, and keep your entire message at or under **250 words**.
 3. **Never ask for secrets or login tokens in chat**: Never ask the user to paste API keys, OAuth tokens, or passwords into the conversation. Whenever provider login or secret setup is required, print the exact terminal command (for example `codex login`, `claude auth login`, or `export ...` in their local shell) and ask the user to confirm once they have run it in their own terminal.
-4. **Confirm the complete plan once before mutating files**: Before running `install`, `init`, `connect --apply`, `baselines --seed`, or `watchdog start`, show a concise summary of the exact files/configs that will be created or updated (and confirm that existing customized files will be preserved), get **one confirmation**, and execute everything cleanly.
+4. **Use existing authorization.** Summarize the workspace changes and proceed with the install or upgrade requested by the user. Ask only about additional changes that require permission, such as connecting a new peer or starting an unrequested service.
 
 ---
 
@@ -44,20 +44,20 @@ Ask **only** the questions not already answered by `probe` or the user's initial
 3. **Router Dispatch Mode** *(only if enabling Multi-agent Bridge)*:
    - **Recommended default**: `observe` (records `would_dispatch` proposals in Workbench Attention without spending external model quota until approved; user can switch to `auto` anytime).
 
-### Step 3 — Single Confirmation & Atomic Execution
+### Step 3 — Install the authorized components
 
-Present the concise execution plan (target directory, commands to run, files affected, preservation guarantee) and ask for a single confirmation. Once confirmed:
+Use the target directory and authorized components established above:
 
-1. **Install or Upgrade Bundle** (uses `builtInBase` 3-way baseline comparison; never overwrites customized project files):
+1. **Install or upgrade the bundle.** The installer delivers four discoverable skills under `.agents/skills/`: `codex-research-orchestrator`, `boost`, `swarm`, and `teamwork`.
    ```sh
    python3 setup.py install --project <dir> [--upgrade]
    ```
-   *(For pre-existing customized workspaces without `.research-orchestrator/baselines/`, run `python3 setup.py baselines --seed --project <dir>` first.)*
+   The upgrade backs up changed managed files and uses the existing `builtInBase` comparison for editable project templates. Pre-existing skills with the same names and locally modified companion skills stay in place, with a status in the result. If the workspace already has its own theme or instructions, keep them in place. The installed helper can repair a missing companion or copy the skill suite into another workspace after removal of the source bundle.
 2. **Initialize Records & Research Memory** *(new workspaces only)*:
    ```sh
    python3 setup.py init --project <dir> --question "<exact user question>"
    ```
-3. **Configure Peer MCP Bridge** *(only when multi-agent peers were chosen)*:
+3. **Configure the Lead MCP bridge for the real client** when selected by the user. For Codex, use `--client codex --tool-profile auto`; the helper uses `lead` for the primary peer. Each peer worker uses its own authorized client configuration and `worker` profile. Reload the client so it launches the connection with the actual session.
    ```sh
    python3 setup.py connect --project <dir> --client <codex|claude-code|antigravity> --peers <peers...> --node <node24-path> --apply
    ```
@@ -78,4 +78,6 @@ Watchdog exit codes follow a strict 4-level contract for cron/launchd/systemd in
 - `2`: Configuration, Node `< 24`, or required provider CLI missing (fix environment before restarting).
 - `3`: Workspace not initialized yet.
 
-Finish by giving the user their one-line resume prompt (and, if Node >= 24 is available, the optional local Workbench command `python3 setup.py workbench --project <dir>`).
+Check `checks.collaboration_skills` in `doctor` and report any missing or local override. Finish with the user's one-line prompt for `$codex-research-orchestrator`, `$boost`, `$swarm`, or `$teamwork` as appropriate.
+
+A host turn can use the installed collaboration CLI when the client still exposes an older MCP connection. Use `python3 .agents/skills/codex-research-orchestrator/scripts/research_setup.py collaborate --project . -- --help` from the target workspace. The same helper under a globally mounted orchestrator skill discovers the selected project's runtime. Opening and resuming require the current host session.

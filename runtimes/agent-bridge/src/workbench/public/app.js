@@ -314,17 +314,86 @@ async function selectTask(id, open = true) {
   state.selection={type:'task',id}; if(!same)state.detailTab='messages';
   if(open)showInspector();
   $('#inspector').innerHTML=inspectorHeader('Task record')+'<div class="loading-inline">Reading task, messages, and artifacts…</div>';
-  try { const detail=await api('/api/tasks/'+encodeURIComponent(id)); if(version!==state.detailVersion)return; state.detail=detail; renderTaskInspector(); if(detail.operation&&['pending','running'].includes(detail.operation.state))pollOperation(detail.operation.id,id); }
+  try { const detail=await api('/api/tasks/'+encodeURIComponent(id)); if(version!==state.detailVersion)return; state.detail=detail; if(!same&&detail.collaboration)state.detailTab=detail.workRun?'board':'scope'; if(state.detailTab==='board'&&!detail.workRun)state.detailTab='scope'; renderTaskInspector(); if(state.detailTab==='board')loadCollaborationBoard(); if(detail.operation&&['pending','running'].includes(detail.operation.state))pollOperation(detail.operation.id,id); }
   catch(error){if(version===state.detailVersion)$('#inspector').innerHTML=inspectorHeader('Task record')+`<div class="inline-error">${esc(error.message)}</div><button class="text-button" data-action="task" data-id="${esc(id)}">Try again</button>`;}
   if(state.snapshot)renderView();
 }
 function renderTaskInspector() {
   const detail=state.detail, task=detail.task;
-  const dispatchDisabled=state.snapshot?.control?.paused===true||!state.capabilities?.dispatchAvailable||!task.requiredModel||['running','pending'].includes(detail.operation?.state);
+  const collaboration=detail.collaboration;
+  const collaborationRoot=collaboration?.taskId===task.id;
+  const dispatchDisabled=collaborationRoot||state.snapshot?.control?.paused===true||!state.capabilities?.dispatchAvailable||!task.requiredModel||['running','pending'].includes(detail.operation?.state);
   const groups={messages:detail.messages||[],patches:detail.patches||[],validations:detail.validations||[]};
   const circuitOpen = Number(detail.route?.consecutiveFailures || 0) >= 3;
   const isolationBadge = task.isolationProfile && task.isolationProfile !== 'shared' ? ` ${badge('blocked', label(task.isolationProfile))}` : '';
-  $('#inspector').innerHTML=inspectorHeader('Task record')+`<span class="small-label">${esc(task.id)}</span><h2>${esc(task.title||'Untitled task')}</h2><div class="space-top-12">${badge(task.phase||task.status,taskPhase(task))}${isolationBadge}</div><p class="description">${esc(task.promptPreview || 'No prompt preview recorded.')}</p><div class="record-actions">${sourceButton('task',task.id,'Read full task brief',task.title,'prompt')}</div><div class="inspector-actions"><button class="button primary small" data-action="compose-message" data-id="${esc(task.id)}">${icon('message')}Send message</button><button class="button quiet small" data-action="dispatch" data-id="${esc(task.id)}" ${dispatchDisabled?'disabled':''} title="${state.snapshot?.control?.paused?'Resume new work before dispatching':!task.requiredModel?'An explicit requested model is required':!state.capabilities?.dispatchAvailable?'Dispatch is unavailable':'Review explicit dispatch settings'}">${icon('play')}Dispatch</button>${circuitOpen ? `<button class="button quiet small" data-action="retry-delivery" data-id="${esc(task.id)}">${icon('refresh')}Retry delivery</button>` : ''}</div><dl class="detail-meta"><dt>Owner</dt><dd>${esc(person(task.assignedTo))}</dd><dt>From</dt><dd>${esc(person(task.fromAgent))}</dd><dt>Role</dt><dd>${esc(label(task.role))}</dd><dt>Isolation</dt><dd>${esc(label(task.isolationProfile || 'shared'))}</dd><dt>Task status</dt><dd>${esc(label(task.status))}</dd><dt>Updated</dt><dd>${esc(absoluteDate(task.updatedAt))}</dd><dt>Delivery version</dt><dd>${esc(task.deliveryVersion??'Not recorded')}</dd></dl><div class="model-pair"><div><span>Requested model</span><strong>${esc(task.requiredModel || 'Not recorded')}</strong></div><div><span>Reported model</span><strong>${esc(task.actualModel || 'Not recorded')}</strong></div><div><span>Model source</span><strong>${esc(label(task.modelSource))}</strong></div><p class="hint">${task.modelSource==='simulated'?'Synthetic demo identity. No model was executed.':'Reported identity is a record, not independent verification.'}</p></div>${!task.requiredModel?'<div class="scope-note space-top-16"><p>This record has no model binding. Create a separate bound task to dispatch this work.</p><button class="text-button" data-action="bind-followup">Create task with a model</button></div>':''}${workflowMarkup(task, detail.why || [])}${workRunMarkup(task, detail.workRun)}${detail.operation?operationMarkup(detail.operation):''}${task.errorPreview?`<div class="inline-error space-top-16">${esc(task.errorPreview)}<div>${sourceButton('task',task.id,'Read full error',task.title,'error')}</div></div>`:''}<div class="inspector-tabs" role="tablist" aria-label="Task record sections">${[['messages','Messages'],['patches','Artifacts'],['validations','Checks'],['scope','Scope']].map(([key,title])=>`<button role="tab" id="tab-${key}" aria-controls="task-detail-panel" aria-selected="${state.detailTab===key}" tabindex="${state.detailTab===key?'0':'-1'}" class="${state.detailTab===key?'active':''}" data-action="detail-tab" data-tab="${key}">${title}${groups[key]?` ${groups[key].length}`:''}</button>`).join('')}</div><div id="task-detail-panel" role="tabpanel" aria-labelledby="tab-${state.detailTab}">${taskDetailContent()}</div><p class="hint">Scientific support is recorded in the research evidence view.</p>`;
+  $('#inspector').innerHTML=inspectorHeader('Task record')+`<span class="small-label">${esc(task.id)}</span><h2>${esc(task.title||'Untitled task')}</h2><div class="space-top-12">${badge(task.phase||task.status,taskPhase(task))}${isolationBadge}</div><p class="description">${esc(task.promptPreview || 'No prompt preview recorded.')}</p><div class="record-actions">${sourceButton('task',task.id,'Read full task brief',task.title,'prompt')}</div><div class="inspector-actions">${collaborationRoot?'':`<button class="button primary small" data-action="compose-message" data-id="${esc(task.id)}">${icon('message')}Send message</button><button class="button quiet small" data-action="dispatch" data-id="${esc(task.id)}" ${dispatchDisabled?'disabled':''} title="${state.snapshot?.control?.paused?'Resume new work before dispatching':!task.requiredModel?'An explicit requested model is required':!state.capabilities?.dispatchAvailable?'Dispatch is unavailable':'Review explicit dispatch settings'}">${icon('play')}Dispatch</button>`}${circuitOpen ? `<button class="button quiet small" data-action="retry-delivery" data-id="${esc(task.id)}">${icon('refresh')}Retry delivery</button>` : ''}</div><dl class="detail-meta"><dt>Owner</dt><dd>${esc(person(task.assignedTo))}</dd><dt>From</dt><dd>${esc(person(task.fromAgent))}</dd><dt>Role</dt><dd>${esc(label(task.role))}</dd><dt>Isolation</dt><dd>${esc(label(task.isolationProfile || 'shared'))}</dd><dt>Task status</dt><dd>${esc(label(task.status))}</dd><dt>Updated</dt><dd>${esc(absoluteDate(task.updatedAt))}</dd><dt>Delivery version</dt><dd>${esc(task.deliveryVersion??'Not recorded')}</dd></dl><div class="model-pair"><div><span>Requested model</span><strong>${esc(task.requiredModel || 'Not recorded')}</strong></div><div><span>Reported model</span><strong>${esc(task.actualModel || 'Not recorded')}</strong></div><div><span>Model source</span><strong>${esc(label(task.modelSource))}</strong></div><p class="hint">${task.modelSource==='simulated'?'Synthetic demo identity. No model was executed.':'Reported identity is a record, not independent verification.'}</p></div>${!collaborationRoot&&!task.requiredModel?'<div class="scope-note space-top-16"><p>This record has no model binding. Create a separate bound task to dispatch this work.</p><button class="text-button" data-action="bind-followup">Create task with a model</button></div>':''}${collaborationMarkup(detail)}${collaborationRoot?'':workflowMarkup(task, detail.why || [])}${!collaborationRoot||detail.workRun?workRunMarkup(task, detail.workRun):''}${detail.operation?operationMarkup(detail.operation):''}${task.errorPreview?`<div class="inline-error space-top-16">${esc(task.errorPreview)}<div>${sourceButton('task',task.id,'Read full error',task.title,'error')}</div></div>`:''}<div class="inspector-tabs" role="tablist" aria-label="Task record sections">${[['messages','Messages'],['patches','Artifacts'],['validations','Checks'],['scope','Scope'],...(collaboration&&detail.workRun?[['board','Board']]:[])].map(([key,title])=>`<button role="tab" id="tab-${key}" aria-controls="task-detail-panel" aria-selected="${state.detailTab===key}" tabindex="${state.detailTab===key?'0':'-1'}" class="${state.detailTab===key?'active':''}" data-action="detail-tab" data-tab="${key}">${title}${groups[key]?` ${groups[key].length}`:''}</button>`).join('')}</div><div id="task-detail-panel" role="tabpanel" aria-labelledby="tab-${state.detailTab}">${taskDetailContent()}</div><p class="hint">Scientific support is recorded in the research evidence view.</p>`;
+}
+const collaborationActions = {
+  claim_lead: 'Connect a native Lead',
+  author_plan: 'Lead prepares scope and deliverables',
+  author_comparison_protocol: 'Lead prepares matched comparison conditions',
+  approve: 'Approve the Teamwork brief',
+  bind_and_start: 'Lead starts the approved workflow',
+  provision_members: 'Lead binds eligible worker sessions',
+  continue_workers: 'Assigned members deliver evidence',
+  final_check: 'Assigned reviewer checks current delivery',
+  accept_or_revise: 'Lead reviews evidence and accepts or revises',
+  inspect_dependencies: 'Lead checks work dependencies',
+  report: 'Review the recorded outcome',
+};
+function collaborationMarkup(detail) {
+  const record=detail.collaboration;
+  if(!record)return '';
+  const strategy=record.strategy||{};
+  const rootId=record.taskId;
+  const lead=record.leadAgent?person(record.leadAgent):'Lead';
+  const scopes=(name,values)=>values?.length?`<dt>${name}</dt><dd>${esc(values.join(', '))}</dd>`:'';
+  const instructionAvailable=record.leadBound&&record.phase!=='completed'&&record.phase!=='cancelled'&&record.phase!=='failed'&&rootId===detail.task.id;
+  return `<section class="inspector-section"><h3>${esc(label(record.mode))} collaboration</h3>
+    <dl class="detail-meta"><dt>Phase</dt><dd>${esc(label(record.phase))}</dd>
+      <dt>Next action</dt><dd>${esc(state.snapshot?.control?.paused&&detail.workRun&&record.phase==='active'?'Wait for the bridge to resume':collaborationActions[record.next?.action]||label(record.next?.action))}${record.next?.stepIds?.length?` <div>${esc(record.next.stepIds.join(', '))}</div>`:''}</dd>
+      <dt>Lead</dt><dd>${esc(lead)} · ${record.leadBound?'Session bound':'Awaiting session'}</dd>
+      ${record.route?`<dt>Route</dt><dd>${esc(label(record.route))}</dd>`:''}
+      ${record.memberCount?`<dt>Members bound</dt><dd>${esc(record.boundMembers)} of ${esc(record.memberCount)}</dd>`:''}
+      ${record.milestoneCount?`<dt>Milestones</dt><dd>${esc(record.milestoneCount)}</dd>`:''}
+      ${strategy.teamSize==='large'?'<dt>Team size</dt><dd>Large team requested</dd>':''}
+      ${strategy.boostScope==='substantive_tracks'?'<dt>Nested Boost</dt><dd>Each substantive assignment</dd>':''}
+      ${record.boostPairCount?`<dt>Candidate/challenger pairs</dt><dd>${esc(record.boostPairCount)}</dd>`:''}
+      ${strategy.maxParallel?`<dt>Wave capacity</dt><dd>${esc(strategy.maxParallel)} concurrent assignments · ${esc(record.queuedCount)} queued</dd>`:''}
+      ${scopes('Approved read roots',record.scope?.readRoots)}${scopes('Approved write roots',record.scope?.writeRoots)}
+    </dl>
+    ${record.approval?`<details class="record-disclosure"><summary>Approved conditions</summary>${record.approval.successCriteria.map(value=>`<p>${esc(value)}</p>`).join('')}</details>`:''}
+    ${record.constraints?.length?`<details class="record-disclosure"><summary>User constraints</summary>${record.constraints.map(value=>`<p>${esc(value)}</p>`).join('')}</details>`:''}
+    ${!record.leadBound?`<details class="record-disclosure" open><summary>Connect ${esc(lead)}</summary><p>Open a Lead conversation in this project and give it this bridge request.</p><pre class="record-json">${esc(JSON.stringify({action:'claim_lead',taskId:rootId,eventId:'claim-lead',claimKey:record.claimKey},null,2))}</pre><p class="hint">Call bridge_collaborate. The Lead uses this durable intake to build and advance the workflow.</p></details>`:!detail.workRun?`<p class="hint">The bound Lead can resume this intake using the task ID. Provider execution has not started.</p>`:''}
+    ${instructionAvailable?`<button class="button primary small" data-action="collaboration-instruction">${icon('message')}Send instruction to Lead</button>`:''}
+  </section>`;
+}
+
+function collaborationBoardMarkup(detail) {
+  const board=detail.board;
+  if (board?.error) return `<p class="empty-inline">${esc(board.error)}</p><button class="text-button" data-action="board-refresh">Check access again</button>`;
+  if (!board) return '<p class="loading-inline">Reading work board…</p>';
+  return `<button class="text-button" data-action="board-refresh">Check for new posts</button>${board.entries.length?board.entries.map(entry=>`<article class="detail-record"><div class="record-head"><span>#${esc(entry.seq)} · ${esc(entry.fromMemberId)}</span>${time(entry.createdAt)}</div><h4>${esc(label(entry.type))}</h4>${entry.toMemberIds?.length?`<p>To ${esc(entry.toMemberIds.join(', '))}</p>`:''}<p>${esc(entry.text||'')}</p></article>`).join(''):'<p class="empty-inline">No posts recorded on the main board.</p>'}${board.hasMore?'<button class="text-button" data-action="board-refresh">Load more posts</button>':''}`;
+}
+
+async function loadCollaborationBoard() {
+  const detail=state.detail;
+  if(!detail?.collaboration||!detail.workRun)return;
+  try {
+    const page=await api(endpoint('/api/tasks/'+encodeURIComponent(detail.collaboration.taskId)+'/board',{since:detail.board?.nextSince||0}));
+    if(state.detail!==detail)return;
+    detail.board={...page,entries:[...(detail.board?.entries||[]),...page.entries]};
+  } catch(error) {
+    if(state.detail!==detail)return;
+    detail.board={error:error.message};
+  }
+  if(state.detailTab==='board')renderTaskInspector();
+}
+
+function showCollaborationInstruction() {
+  const record=state.detail?.collaboration;
+  if(!record?.leadBound)return;
+  openDialog(`${dialogHeader('Instruction to Lead','Add direction to this collaboration','The instruction is recorded for the currently bound Lead.')}<form id="collaboration-instruction-form" data-task="${esc(record.taskId)}"><div class="dialog-body"><div class="form-field"><label for="lead-instruction">Instruction</label><textarea id="lead-instruction" name="content" rows="5" maxlength="16000" required></textarea></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button class="button quiet" type="button" data-close="action-dialog">Cancel</button><button class="button primary" type="submit">${icon('send')}Record instruction</button></footer></form>`);
 }
 function workflowMarkup(task, why = []) {
   const w = task.workflow;
@@ -398,6 +467,7 @@ function workRunMarkup(task, run) {
     </dl>
     ${run.selectionReason ? `<p class="hint">${esc(run.selectionReason)}</p>` : ''}
     ${run.taskId && run.taskId !== task.id ? taskButton(run.taskId, 'Open work run task') : ''}
+    ${run.collaboration?`<details class="record-disclosure"><summary>Members, assignments and write scope</summary>${steps.map(step=>`<article class="detail-record"><h4>${esc(step.description||step.stepId)}</h4><p>${esc(actor(step))} · ${esc(label(step.status))}</p><p>${esc(step.writeRoots?.length?step.writeRoots.join(', '):'Read-only scope')}</p></article>`).join('')}</details>`:''}
     ${requirements ? `<h3 class="space-top-16">Delivery requirements</h3>${requirements}` : '<p class="empty-inline">No delivery requirements recorded.</p>'}
     ${acceptance?.openQuestions?.length ? `<h3 class="space-top-16">Open questions</h3>
       <ul class="description work-run-questions">${acceptance.openQuestions.map(question => `<li>${esc(question)}</li>`).join('')}</ul>` : ''}
@@ -406,6 +476,7 @@ function workRunMarkup(task, run) {
 function operationMarkup(operation) { return `<div class="operation"><strong>${esc(label(operation.type))}</strong> ${badge(operation.state)}<p>${esc(operation.summary || operation.error?.message || (typeof operation.error==='string'?operation.error:'') || 'Workbench operation recorded.')}</p>${operation.result?`<p>${esc(typeof operation.result==='string'?operation.result:JSON.stringify(operation.result))}</p>`:''}<p>Operation ${esc(operation.id)}. This state describes the request.</p></div>`; }
 function taskDetailContent() {
   const detail=state.detail, task=detail.task, tab=state.detailTab;
+  if(tab==='board')return collaborationBoardMarkup(detail);
   if(tab==='scope')return `<h3 class="scope-heading">Read scope</h3><div class="scope-paths">${(task.readRoots||[]).map(path=>`<code>${esc(path)}</code>`).join('')||'<span class="hint">No read roots recorded.</span>'}</div><h3 class="scope-heading space-top-16">Write scope</h3><div class="scope-paths">${(task.writeRoots||[]).map(path=>`<code>${esc(path)}</code>`).join('')||'<span class="hint">No write roots recorded.</span>'}</div><section class="inspector-section"><h3>Session binding & wakeup route</h3>${detail.route?`<div class="route-panel"><strong>${esc(label(detail.route.driver))}</strong> · ${detail.route.enabled===true?'Route enabled':detail.route.enabled===false?'Route disabled':'Route state unknown'}<p>Recipient: ${esc(person(detail.route.toAgent))}<br>Target session: ${esc(detail.route.targetSessionId||'Not bound')}<br>Last dispatch: ${esc(absoluteDate(detail.route.lastDispatchAt))}<br>Last delivery: ${esc(absoluteDate(detail.route.lastDeliveryAt))}</p>${detail.route.receipt?`<p>Receipt: ${esc(typeof detail.route.receipt==='string'?detail.route.receipt:JSON.stringify(detail.route.receipt))}</p>`:''}${detail.route.lastError?`<p>Last error: ${esc(typeof detail.route.lastError==='string'?detail.route.lastError:JSON.stringify(detail.route.lastError))}</p>`:''}</div>`:'<p class="empty-inline">No automatic wakeup route recorded.</p>'}<dl class="detail-meta"><dt>Required session</dt><dd>${esc(task.requiredConversationId||'Not specified')}</dd><dt>Bound session</dt><dd>${esc(task.boundConversationId||'Not recorded')}</dd></dl></section>${task.resultPreview?`<section class="inspector-section"><h3>Result preview</h3><p class="description">${esc(task.resultPreview)}</p>${sourceButton('task',task.id,'Read full result',task.title,'result')}</section>`:''}`;
   const records=detail[tab]||[];
   const omitted=detail.limits?.[tab];
@@ -502,6 +573,19 @@ function openDialog(markup) { $('#dialog-content').innerHTML=markup; const dialo
 function showAccess() {
   openDialog(`${dialogHeader('Local access','Connect to this workspace','Use the access token from the local server URL. It is kept only in this browser tab’s session.')}<form id="access-form"><div class="dialog-body"><div class="form-field"><label for="access-token">Access token</label><input type="password" id="access-token" name="token" autocomplete="off" required placeholder="Paste the token printed by the server"><small>The token is sent only to this workbench’s same-origin API.</small></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button type="button" class="button quiet" data-close="action-dialog">Cancel</button><button class="button primary" type="submit">Connect workspace</button></footer></form>`);
 }
+const nativeCollaborationPrefix=/^\s*(?:\[\/(boost|swarm|teamwork)\]\\?\(slashCommand;\1\\?\)|[/$](?:boost|swarm|teamwork))(?=\s|$|[:：])/i;
+function collaborationFields() {
+  return `<div class="form-field"><label for="collaboration-mode">Collaboration</label><select id="collaboration-mode" name="collaborationMode"><option value="">Standard task</option><option value="auto">Auto · Lead selects workflow</option><option value="boost">Boost · draft, challenge, retest</option><option value="swarm">Swarm · independent tracks</option><option value="teamwork">Teamwork · approved milestones</option></select><small>Choose a workflow or begin the instructions with /boost, /swarm, or /teamwork.</small></div>`;
+}
+function updateCollaborationForm(form) {
+  const native=Boolean(form.elements.collaborationMode.value||nativeCollaborationPrefix.test(form.elements.prompt.value));
+  const manual=$('[data-manual-task-fields]',form);
+  if(manual)manual.hidden=native;
+  const advanced=$('[data-advanced-task-fields]',form);
+  if(advanced)advanced.hidden=native;
+  const button=$('[type="submit"]',form);
+  if(!button.disabled)button.textContent=native?'Prepare collaboration':'Create task';
+}
 function workPlanFields() {
   if (!state.capabilities?.workRunsAvailable) {
     return '<p class="hint">For work modes, open the workbench from a bound Codex coordinator session.</p>';
@@ -523,7 +607,7 @@ function workPlanFields() {
   </div>`;
 }
 function showCreate() {
-  openDialog(`${dialogHeader('New task','Give the work a clear shape.','Create a scoped assignment. Creating a task runs preflight; it does not dispatch a provider.')}<form id="create-form"><div class="dialog-body"><div class="form-field"><label for="task-title">Task title</label><input id="task-title" name="title" required maxlength="200" placeholder="What should this contribution resolve?"></div><div class="form-field"><label for="task-prompt">Instructions and completion conditions</label><textarea id="task-prompt" name="prompt" required rows="5" placeholder="Describe the question, relevant context, and what a useful result includes."></textarea></div><div class="form-grid"><div class="form-field"><label for="task-owner">Assign to</label><select id="task-owner" name="assignedTo"><option value="codex">Codex</option><option value="claude-code">Claude Code</option><option value="antigravity">Antigravity</option></select></div><div class="form-field"><label for="task-role">Role <span class="optional">optional</span></label><input id="task-role" name="role" placeholder="e.g. implementation"></div><div class="form-field"><label for="task-model">Requested model <span class="optional">optional for creation</span></label><input id="task-model" name="requiredModel" placeholder="Explicit model identity"><small>Required before dispatch. An available CLI does not verify model access.</small></div><div class="form-field"><label for="task-priority">Priority</label><select id="task-priority" name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></div><div class="form-field"><label for="task-isolation">Isolation profile</label><select id="task-isolation" name="isolationProfile"><option value="shared">Shared (default)</option><option value="blind_review">Blind review (no thread fan-out)</option><option value="blind_analysis">Blind analysis (no thread fan-out)</option></select></div></div><hr class="form-divider"><div class="form-grid"><div class="form-field"><label for="task-read">Read roots</label><textarea id="task-read" name="readRoots" rows="2" class="short-textarea">.</textarea><small>One project-relative path per line.</small></div><div class="form-field"><label for="task-write">Write roots</label><textarea id="task-write" name="writeRoots" rows="2" class="short-textarea" placeholder="No write roots by default"></textarea><small>Paths must remain inside the project.</small></div></div><div class="form-field space-top-16 no-bottom"><label for="task-session">Required conversation ID <span class="optional">optional</span></label><input id="task-session" name="requiredConversationId" placeholder="Leave empty for a new binding"></div><hr class="form-divider">${workPlanFields()}<div class="scope-note"><strong>Action scope</strong><p>The assignment is saved to the selected project. Review its preflight result before choosing the separate Dispatch action.</p></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button type="button" class="button quiet" data-close="action-dialog">Cancel</button><button type="submit" class="button primary">${icon('plus')}Create task</button></footer></form>`);
+  openDialog(`${dialogHeader('New task','Give the work a clear shape.','Create a scoped assignment. Creating a task runs preflight; it does not dispatch a provider.')}<form id="create-form"><div class="dialog-body"><div class="form-field"><label for="task-title">Task title</label><input id="task-title" name="title" required maxlength="200" placeholder="What should this contribution resolve?"></div><div class="form-field"><label for="task-prompt">Instructions and completion conditions</label><textarea id="task-prompt" name="prompt" required rows="5" placeholder="Describe the question, relevant context, and what a useful result includes."></textarea></div>${collaborationFields()}<div class="form-grid" data-manual-task-fields><div class="form-field"><label for="task-owner">Assign to</label><select id="task-owner" name="assignedTo"><option value="codex">Codex</option><option value="claude-code">Claude Code</option><option value="antigravity">Antigravity</option></select></div><div class="form-field"><label for="task-role">Role <span class="optional">optional</span></label><input id="task-role" name="role" placeholder="e.g. implementation"></div><div class="form-field"><label for="task-model">Requested model <span class="optional">optional for creation</span></label><input id="task-model" name="requiredModel" placeholder="Explicit model identity"><small>Required before dispatch. An available CLI does not verify model access.</small></div><div class="form-field"><label for="task-priority">Priority</label><select id="task-priority" name="priority"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option><option value="low">Low</option></select></div><div class="form-field"><label for="task-isolation">Isolation profile</label><select id="task-isolation" name="isolationProfile"><option value="shared">Shared (default)</option><option value="blind_review">Blind review (no thread fan-out)</option><option value="blind_analysis">Blind analysis (no thread fan-out)</option></select></div></div><hr class="form-divider"><div class="form-grid"><div class="form-field"><label for="task-read">Read roots</label><textarea id="task-read" name="readRoots" rows="2" class="short-textarea">.</textarea><small>One project-relative path per line.</small></div><div class="form-field"><label for="task-write">Write roots</label><textarea id="task-write" name="writeRoots" rows="2" class="short-textarea" placeholder="No write roots by default"></textarea><small>Paths must remain inside the project.</small></div></div><div data-advanced-task-fields><div class="form-field space-top-16 no-bottom"><label for="task-session">Required conversation ID <span class="optional">optional</span></label><input id="task-session" name="requiredConversationId" placeholder="Leave empty for a new binding"></div><hr class="form-divider">${workPlanFields()}</div><div class="scope-note"><strong>Action scope</strong><p>The assignment is saved to the selected project. Review its preflight result before choosing the separate Dispatch action.</p></div><div class="dialog-message" role="status"></div></div><footer class="dialog-footer"><button type="button" class="button quiet" data-close="action-dialog">Cancel</button><button type="submit" class="button primary">${icon('plus')}Create task</button></footer></form>`);
 }
 async function createBoundFollowup() {
   const task=state.detail?.task;if(!task)return;
@@ -560,16 +644,32 @@ async function submitForm(form) {
   try {
     if(form.id==='access-form') {token=data.token.trim();try{sessionStorage.setItem(tokenKey,token);}catch{}await api('/api/snapshot');$('#action-dialog').close();await refresh();return;}
     if(form.id==='create-form') {
-      const body={title:data.title.trim(),prompt:data.prompt.trim(),assignedTo:data.assignedTo,priority:data.priority,isolationProfile:data.isolationProfile||'shared',readRoots:data.readRoots.split('\n').map(value=>value.trim()).filter(Boolean),writeRoots:data.writeRoots.split('\n').map(value=>value.trim()).filter(Boolean)};
-      for(const key of ['role','requiredModel','requiredConversationId'])if(data[key].trim())body[key]=data[key].trim();
-      if(data.workMode)body.workMode=data.workMode;
-      if(data.workPlan?.trim()) {
-        try { body.workPlan=JSON.parse(data.workPlan); }
-        catch { throw new Error('Enter a valid JSON work plan.'); }
+      const native=Boolean(data.collaborationMode||nativeCollaborationPrefix.test(data.prompt));
+      const roots=value=>value.split('\n').map(path=>path.trim()).filter(Boolean);
+      const body={title:data.title.trim(),prompt:native?data.prompt:data.prompt.trim(),priority:data.priority,readRoots:roots(data.readRoots),writeRoots:roots(data.writeRoots)};
+      if(native) {
+        if(data.collaborationMode)body.collaborationMode=data.collaborationMode;
+      } else {
+        body.assignedTo=data.assignedTo;
+        body.isolationProfile=data.isolationProfile||'shared';
+        for(const key of ['role','requiredModel','requiredConversationId'])if(data[key].trim())body[key]=data[key].trim();
+        if(data.workMode)body.workMode=data.workMode;
+        if(data.workPlan?.trim()) {
+          try { body.workPlan=JSON.parse(data.workPlan); }
+          catch { throw new Error('Enter a valid JSON work plan.'); }
+        }
       }
       const result=await api('/api/tasks',{method:'POST',body});
-      openDialog(`${dialogHeader('Task created','The assignment is recorded.','Review preflight before starting execution.')}<div class="dialog-body"><div class="confirmation-summary"><h3>${esc(result.task.title)}</h3><p class="hint">${esc(result.task.id)} · ${esc(person(result.task.assignedTo))}</p></div><div class="${result.preflight?.ok?'inline-success':'scope-note'} space-top-20">${result.preflight?.ok?'Preflight checks passed for the recorded scope.':'Preflight does not report ready. Inspect its findings before dispatch.'}</div><details class="record-disclosure"><summary>View preflight record</summary><pre class="preflight-list record-json">${esc(JSON.stringify(result.preflight,null,2))}</pre></details><p class="hint">Task creation has not started a provider.</p></div><footer class="dialog-footer"><button class="button quiet" data-close="action-dialog">Close</button><button class="button primary" data-action="inspect-created" data-id="${esc(result.task.id)}">Inspect task</button></footer>`);
+      const collaboration=result.collaboration;
+      const heading=collaboration?'Collaboration prepared':'Task created';
+      const next=collaboration ? collaborationActions[collaboration.next?.action] : 'Review preflight before starting execution.';
+      openDialog(`${dialogHeader(heading,collaboration?'The intake is recorded.':'The assignment is recorded.',next)}<div class="dialog-body"><div class="confirmation-summary"><h3>${esc(result.task.title)}</h3><p class="hint">${esc(result.task.id)} · ${esc(person(result.task.assignedTo))}</p></div><div class="${result.preflight?.ok?'inline-success':'scope-note'} space-top-20">${result.preflight?.ok?'Preflight checks passed for the recorded scope.':'Preflight does not report ready. Inspect its findings before dispatch.'}</div><details class="record-disclosure"><summary>View preflight record</summary><pre class="preflight-list record-json">${esc(JSON.stringify(result.preflight,null,2))}</pre></details><p class="hint">Task creation has not started a provider.</p></div><footer class="dialog-footer"><button class="button quiet" data-close="action-dialog">Close</button><button class="button primary" data-action="inspect-created" data-id="${esc(result.task.id)}">Inspect task</button></footer>`);
       await refresh();await selectTask(result.task.id,false);return;
+    }
+    if(form.id==='collaboration-instruction-form') {
+      const taskId=form.dataset.task;
+      await api('/api/tasks/'+encodeURIComponent(taskId)+'/collaboration-instructions',{method:'POST',body:{content:data.content,eventId:crypto.randomUUID()}});
+      $('#action-dialog').close();toast('Instruction recorded for the bound Lead.');await selectTask(taskId);return;
     }
     if(form.id==='message-form') {
       const body={taskId:form.dataset.task,fromAgent:data.fromAgent,toAgent:data.toAgent,content:data.content.trim(),...(form.dataset.resolveHandback==='true'?{resolveHandback:true}:{})};if(data.subject.trim())body.subject=data.subject.trim();if(form.dataset.reply)body.replyTo=form.dataset.reply;if(form.dataset.decision){body.decisionId=form.dataset.decision;body.eventId=form.dataset.event;}
@@ -598,7 +698,9 @@ document.addEventListener('click',async event=>{
   if(action==='layout'){state.taskLayout=target.dataset.layout;renderTasks();}
   if(action==='kind'){state.kind=target.dataset.kind;loadView();}
   if(action==='load-more')loadView(true);
-  if(action==='detail-tab'){state.detailTab=target.dataset.tab;renderTaskInspector();$('#tab-'+state.detailTab).focus();}
+  if(action==='detail-tab'){state.detailTab=target.dataset.tab;renderTaskInspector();$('#tab-'+state.detailTab).focus();if(state.detailTab==='board'&&!state.detail.board)loadCollaborationBoard();}
+  if(action==='board-refresh')loadCollaborationBoard();
+  if(action==='collaboration-instruction')showCollaborationInstruction();
   if(action==='detail-more')loadDetailMore(target.dataset.tab);
   if(action==='bind-followup')createBoundFollowup();if(action==='compose-message')showMessage();if(action==='reply')showMessage(id);if(action==='dispatch')showDispatch();
   if(action==='answer-decision')showMessage(null, false, id);
@@ -608,7 +710,11 @@ document.addEventListener('click',async event=>{
   if(action==='inspect-created'){$('#action-dialog').close();selectTask(id);}
   if(action==='close-inspector'){$('#inspector').classList.remove('is-open');}
 });
-document.addEventListener('submit',event=>{if(event.target.id==='filter-form'){event.preventDefault();loadView();}else if(['access-form','create-form','message-form','dispatch-form','control-form'].includes(event.target.id)){event.preventDefault();submitForm(event.target);}});
+document.addEventListener('submit',event=>{if(event.target.id==='filter-form'){event.preventDefault();loadView();}else if(['access-form','create-form','message-form','dispatch-form','control-form','collaboration-instruction-form'].includes(event.target.id)){event.preventDefault();submitForm(event.target);}});
+document.addEventListener('input',event=>{
+  const form=event.target.form;
+  if(form?.id==='create-form'&&['prompt','collaborationMode'].includes(event.target.name))updateCollaborationForm(form);
+});
 let searchTimer;
 $('#search').addEventListener('input',event=>{state.query=event.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadView(),220);});
 $('#agent-filter').addEventListener('change',event=>{state.agent=event.target.value;loadView();});
